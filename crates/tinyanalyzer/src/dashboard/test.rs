@@ -698,6 +698,58 @@ fn the_rendered_dashboard_shows_the_project_and_the_tab_bar() {
 }
 
 #[test]
+fn tables_and_file_kinds_use_the_dashboard_palette() {
+    let (_root, mut dashboard) = dashboard();
+    dashboard.apply(Action::SelectView(View::Files.index()));
+    let backend = TestBackend::new(160, 48);
+    let mut terminal = Terminal::new(backend).expect("an in-memory terminal");
+    terminal
+        .draw(|frame| render::draw(frame, &dashboard))
+        .expect("the files view draws");
+    let buffer = terminal.backend().buffer();
+
+    let header = buffer.cell((1, 3)).expect("the table header has a cell");
+    assert_eq!(header.fg, ratatui::style::Color::Black);
+    assert_eq!(header.bg, ratatui::style::Color::LightCyan);
+
+    let test_row = dashboard
+        .files()
+        .iter()
+        .position(|file| file.is_test)
+        .expect("the fixture contains a test file");
+    assert_eq!(
+        buffer
+            .cell((1, 4 + u16::try_from(test_row).expect("the fixture is small")))
+            .expect("the test file is visible")
+            .fg,
+        ratatui::style::Color::DarkGray,
+        "test files are visually subdued"
+    );
+
+    let warning_row = dashboard
+        .files()
+        .iter()
+        .position(|file| file.path == "src/lib.rs")
+        .expect("the fixture contains the warning-heavy source file");
+    assert!(
+        matches!(
+            buffer
+                .cell((
+                    1,
+                    4 + u16::try_from(warning_row).expect("the fixture is small")
+                ))
+                .expect("the warning file is visible")
+                .fg,
+            ratatui::style::Color::LightRed
+                | ratatui::style::Color::Red
+                | ratatui::style::Color::Yellow
+                | ratatui::style::Color::Blue
+        ),
+        "files with findings use their highest severity color"
+    );
+}
+
+#[test]
 fn the_filter_prompt_appears_while_typing() {
     let (_root, mut dashboard) = dashboard();
     dashboard.apply(Action::StartFilter);
