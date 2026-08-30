@@ -393,7 +393,7 @@ fn file_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     for note in &file.notes {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
-            format!("note ({}): {}", note.level_label(), note.note),
+            format!("note ({}): {}", note.level.label(), note.note),
             Style::default().fg(Color::Yellow),
         )));
     }

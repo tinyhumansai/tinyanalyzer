@@ -298,3 +298,15 @@ pub enum NoteLevel {
     /// Something actively hurting the project.
     Critical,
 }
+
+impl NoteLevel {
+    /// The word used for this level on the dashboard.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Info => "info",
+            Self::Warning => "warning",
+            Self::Critical => "critical",
+        }
+    }
+}
