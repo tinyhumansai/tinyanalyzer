@@ -25,11 +25,13 @@ fn write(root: &Path, relative: &str, contents: &str) {
     std::fs::write(path, contents).expect("the fixture is writable");
 }
 
-/// A real, dependency-free cargo workspace.
+/// A real cargo workspace with real edges in it.
 ///
-/// Dependency-free on purpose: `cargo metadata` has to resolve it, and a
-/// fixture that reached the network would make this suite fail on a machine
-/// with no network rather than on a real defect.
+/// Two members, one depending on the other by path, plus a path dev-dependency
+/// and one declared-but-never-named dependency. Everything resolves from disk:
+/// a fixture that reached the network would make this suite fail on a machine
+/// with no network rather than on a real defect, and a fixture with no edges at
+/// all would leave the entire graph half of the analyzer unexercised.
 fn workspace() -> TempDir {
     let root = TempDir::new().expect("a temporary directory for the fixture");
 
@@ -38,6 +40,7 @@ fn workspace() -> TempDir {
         "Cargo.toml",
         "[workspace]\nresolver = \"3\"\nmembers = [\"crates/*\"]\n",
     );
+
     write(
         root.path(),
         "crates/engine/Cargo.toml",
@@ -46,7 +49,7 @@ fn workspace() -> TempDir {
     write(
         root.path(),
         "crates/engine/src/lib.rs",
-        r"//! The fixture crate.
+        r"//! The fixture engine.
 
 /// Adds two numbers.
 pub fn add(a: u8, b: u8) -> u8 {
@@ -70,6 +73,39 @@ pub fn hot(values: &[String]) -> Vec<String> {
         root.path(),
         "crates/engine/tests/api.rs",
         "#[test]\nfn adds() {\n    assert_eq!(engine::add(1, 2), 3);\n}\n",
+    );
+
+    write(
+        root.path(),
+        "crates/helper/Cargo.toml",
+        "[package]\nname = \"helper\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(
+        root.path(),
+        "crates/helper/src/lib.rs",
+        "//! Declared by `app` and never named by it.\n\n/// Does nothing in particular.\npub fn assist() {}\n",
+    );
+
+    write(
+        root.path(),
+        "crates/app/Cargo.toml",
+        r#"[package]
+name = "app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+engine = { path = "../engine" }
+helper = { path = "../helper" }
+
+[dev-dependencies]
+engine = { path = "../engine" }
+"#,
+    );
+    write(
+        root.path(),
+        "crates/app/src/lib.rs",
+        "//! The fixture application.\n\n/// Runs the engine.\npub fn run() -> u8 {\n    engine::add(1, 2)\n}\n",
     );
 
     root
@@ -118,6 +154,106 @@ fn it_resolves_the_dependency_graph_of_a_real_workspace() {
         "the workspace member must appear in its own graph"
     );
     assert_eq!(report.totals.packages, report.dependencies.packages.len());
+
+    assert!(
+        !report.dependencies.edges.is_empty(),
+        "`app` depends on `engine` and `helper`"
+    );
+    assert!(
+        report
+            .dependencies
+            .edges
+            .iter()
+            .any(|edge| edge.kind == tinyanalyzer_core::DependencyKind::Normal)
+    );
+
+    let engine = report
+        .dependencies
+        .packages
+        .iter()
+        .find(|package| package.name == "engine")
+        .expect("engine is in the graph");
+    assert!(engine.is_direct, "`app` names it in its own manifest");
+    assert!(!engine.kinds.is_empty());
+    assert_eq!(engine.depth, 0, "a workspace member is its own root");
+
+    let packages: Vec<&str> = report
+        .dependencies
+        .packages
+        .iter()
+        .map(|package| package.name.as_str())
+        .collect();
+    let mut sorted = packages.clone();
+    sorted.sort_unstable();
+    assert_eq!(packages, sorted, "packages come back ordered");
+}
+
+#[test]
+fn development_edges_can_be_excluded_from_the_graph() {
+    let root = workspace();
+    let with_dev = analyze(root.path()).expect("a resolvable workspace");
+
+    let config = Config {
+        dependencies: tinyanalyzer_core::DependencyConfig {
+            include_dev: false,
+            ..tinyanalyzer_core::DependencyConfig::default()
+        },
+        ..Config::default()
+    };
+    let without_dev = analyze_with(root.path(), &config).expect("a resolvable workspace");
+
+    let development = |report: &Report| {
+        report
+            .dependencies
+            .edges
+            .iter()
+            .filter(|edge| edge.kind == tinyanalyzer_core::DependencyKind::Development)
+            .count()
+    };
+
+    assert!(development(&with_dev) > 0, "the fixture has a dev-dependency");
+    assert_eq!(development(&without_dev), 0);
+}
+
+#[test]
+fn it_names_the_dependency_nothing_uses_and_spares_the_one_that_is_used() {
+    let root = workspace();
+
+    let report = analyze(root.path()).expect("a resolvable workspace");
+    let unused: Vec<&str> = report
+        .dependencies
+        .unused
+        .iter()
+        .map(|entry| entry.dependency.as_str())
+        .collect();
+
+    assert!(
+        unused.contains(&"helper"),
+        "`app` declares `helper` and never names it"
+    );
+    assert!(
+        !unused.contains(&"engine"),
+        "`app` calls `engine::add`, so it is used"
+    );
+}
+
+#[test]
+fn a_dependency_can_be_declared_used_through_a_macro() {
+    let root = workspace();
+    let config = Config {
+        dependencies: tinyanalyzer_core::DependencyConfig {
+            ignore_unused: vec!["helper".to_owned()],
+            ..tinyanalyzer_core::DependencyConfig::default()
+        },
+        ..Config::default()
+    };
+
+    let report = analyze_with(root.path(), &config).expect("a resolvable workspace");
+
+    assert!(
+        report.dependencies.unused.is_empty(),
+        "an ignored crate is never reported, however unreferenced it looks"
+    );
 }
 
 #[test]
