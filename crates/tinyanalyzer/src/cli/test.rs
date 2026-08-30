@@ -12,10 +12,10 @@ use tinyanalyzer_core::{CONFIG_FILE_NAME, StartView};
 use tempfile::TempDir;
 
 fn parse(args: &[&str]) -> Cli {
-    let mut argv = vec!["tinyanalyzer"];
-    argv.extend_from_slice(args);
+    let mut command_line = vec!["tinyanalyzer"];
+    command_line.extend_from_slice(args);
 
-    Cli::try_parse_from(argv).expect("the fixture arguments are valid")
+    Cli::try_parse_from(command_line).expect("the fixture arguments are valid")
 }
 
 #[test]

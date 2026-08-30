@@ -25,6 +25,14 @@ use crate::config::Thresholds;
 use crate::dead_code::{Confidence, DeadCodeCandidate};
 use crate::deps::DependencyReport;
 use crate::report::{DirectoryMetrics, FileMetrics, ParseFailureReport};
+use crate::rust_source::{Function, RustFile};
+
+/// Block nesting at or beyond which a function is worth flattening.
+///
+/// Not configurable, unlike every other threshold in this module: past four
+/// levels the remedy is the same regardless of house style, and a team that
+/// disagrees is really disagreeing with the rule rather than with the number.
+const DEEP_NESTING: usize = 5;
 
 /// Everything the rules read.
 ///
@@ -94,19 +102,19 @@ fn finding(
 }
 
 /// Points at a whole file.
-fn at_file(path: &str) -> Option<Location> {
-    Some(Location {
+fn at_file(path: &str) -> Location {
+    Location {
         file: path.to_owned(),
         line: None,
-    })
+    }
 }
 
 /// Points at one line of a file.
-fn at_line(path: &str, line: usize) -> Option<Location> {
-    Some(Location {
+fn at_line(path: &str, line: usize) -> Location {
+    Location {
         file: path.to_owned(),
         line: Some(line),
-    })
+    }
 }
 
 /// Widens a count for use as a ranking metric.
@@ -146,7 +154,7 @@ fn file_size(file: &FileMetrics, thresholds: &Thresholds, out: &mut Vec<Finding>
             }
         ),
         "Split it along the seams already in it: each group of functions that share state or a concern becomes a module directory with its own `mod.rs`, `types.rs`, and `test.rs`.".to_owned(),
-        at_file(&file.path),
+        Some(at_file(&file.path)),
         metric(lines),
     ));
 }
@@ -173,7 +181,7 @@ fn documentation(file: &FileMetrics, thresholds: &Thresholds, out: &mut Vec<Find
             file.lines.comment, file.lines.code, thresholds.min_comment_ratio
         ),
         "Add a module-level `//!` saying what the file is for and why it exists, then a rustdoc line on each public item explaining when a caller would reach for it.".to_owned(),
-        at_file(&file.path),
+        Some(at_file(&file.path)),
         metric(file.lines.code),
     ));
 }
@@ -185,62 +193,77 @@ fn rust_rules(file: &FileMetrics, thresholds: &Thresholds, out: &mut Vec<Finding
     };
 
     for function in &rust.functions {
-        if function.lines() >= thresholds.long_function_lines {
-            out.push(finding(
-                Rule::LongFunction,
-                Severity::Medium,
-                format!("{} is {} lines", function.qualified_name, function.lines()),
-                format!(
-                    "{} spans lines {}–{} with {} parameters, against a threshold of {} lines.",
-                    function.qualified_name,
-                    function.start_line,
-                    function.end_line,
-                    function.parameters,
-                    thresholds.long_function_lines
-                ),
-                "Lift each block that has a name you could say out loud into its own function; the ones that need three or more locals from the caller usually want to be a small struct instead.".to_owned(),
-                at_line(&file.path, function.start_line),
-                metric(function.lines()),
-            ));
-        }
-
-        if function.complexity >= thresholds.high_complexity {
-            out.push(finding(
-                Rule::ComplexFunction,
-                Severity::High,
-                format!(
-                    "{} has {} paths through it",
-                    function.qualified_name, function.complexity
-                ),
-                format!(
-                    "Cyclomatic complexity {} against a threshold of {}, nested {} blocks deep.",
-                    function.complexity, thresholds.high_complexity, function.max_nesting
-                ),
-                "Replace the branch ladder with an early return per failure case, then push what remains into a `match` on a type that makes the impossible states unrepresentable.".to_owned(),
-                at_line(&file.path, function.start_line),
-                f64::from(function.complexity),
-            ));
-        }
-
-        if function.max_nesting >= 5 {
-            out.push(finding(
-                Rule::DeepNesting,
-                Severity::Medium,
-                format!(
-                    "{} nests {} blocks deep",
-                    function.qualified_name, function.max_nesting
-                ),
-                format!(
-                    "The deepest block in {} sits {} levels in.",
-                    function.qualified_name, function.max_nesting
-                ),
-                "Invert the conditions and return early, or use `let ... else` for the guard cases; each level removed is a level the reader no longer has to hold.".to_owned(),
-                at_line(&file.path, function.start_line),
-                metric(function.max_nesting),
-            ));
-        }
+        function_rules(file, function, thresholds, out);
     }
 
+    file_signals(file, rust, out);
+}
+
+/// Rules about one function's shape.
+fn function_rules(
+    file: &FileMetrics,
+    function: &Function,
+    thresholds: &Thresholds,
+    out: &mut Vec<Finding>,
+) {
+    if function.lines() >= thresholds.long_function_lines {
+        out.push(finding(
+            Rule::LongFunction,
+            Severity::Medium,
+            format!("{} is {} lines", function.qualified_name, function.lines()),
+            format!(
+                "{} spans lines {}\u{2013}{} with {} parameters, against a threshold of {} lines.",
+                function.qualified_name,
+                function.start_line,
+                function.end_line,
+                function.parameters,
+                thresholds.long_function_lines
+            ),
+            "Lift each block that has a name you could say out loud into its own function; the ones that need three or more locals from the caller usually want to be a small struct instead.".to_owned(),
+            Some(at_line(&file.path, function.start_line)),
+            metric(function.lines()),
+        ));
+    }
+
+    if function.complexity >= thresholds.high_complexity {
+        out.push(finding(
+            Rule::ComplexFunction,
+            Severity::High,
+            format!(
+                "{} has {} paths through it",
+                function.qualified_name, function.complexity
+            ),
+            format!(
+                "Cyclomatic complexity {} against a threshold of {}, nested {} blocks deep.",
+                function.complexity, thresholds.high_complexity, function.max_nesting
+            ),
+            "Replace the branch ladder with an early return per failure case, then push what remains into a `match` on a type that makes the impossible states unrepresentable.".to_owned(),
+            Some(at_line(&file.path, function.start_line)),
+            f64::from(function.complexity),
+        ));
+    }
+
+    if function.max_nesting >= DEEP_NESTING {
+        out.push(finding(
+            Rule::DeepNesting,
+            Severity::Medium,
+            format!(
+                "{} nests {} blocks deep",
+                function.qualified_name, function.max_nesting
+            ),
+            format!(
+                "The deepest block in {} sits {} levels in.",
+                function.qualified_name, function.max_nesting
+            ),
+            "Invert the conditions and return early, or use `let ... else` for the guard cases; each level removed is a level the reader no longer has to hold.".to_owned(),
+            Some(at_line(&file.path, function.start_line)),
+            metric(function.max_nesting),
+        ));
+    }
+}
+
+/// Rules about a whole file's cost signals.
+fn file_signals(file: &FileMetrics, rust: &RustFile, out: &mut Vec<Finding>) {
     if rust.performance.allocations_in_loops > 0 {
         out.push(finding(
             Rule::AllocationInLoop,
@@ -254,7 +277,7 @@ fn rust_rules(file: &FileMetrics, thresholds: &Thresholds, out: &mut Vec<Finding
                 rust.performance.allocations_in_loops
             ),
             "Hoist the allocation out of the loop and reuse the buffer with `clear()`, take `&str` instead of `String` at the boundary, or size the collection once with `with_capacity` before the loop.".to_owned(),
-            at_file(&file.path),
+            Some(at_file(&file.path)),
             metric(rust.performance.allocations_in_loops),
         ));
     }
@@ -272,7 +295,7 @@ fn rust_rules(file: &FileMetrics, thresholds: &Thresholds, out: &mut Vec<Finding
                 rust.performance.nested_loops
             ),
             "If the inner loop is a lookup, build a `HashMap` once before the outer loop and index it; that trades a quadratic scan for a linear one.".to_owned(),
-            at_file(&file.path),
+            Some(at_file(&file.path)),
             metric(rust.performance.nested_loops),
         ));
     }
@@ -281,16 +304,13 @@ fn rust_rules(file: &FileMetrics, thresholds: &Thresholds, out: &mut Vec<Finding
         out.push(finding(
             Rule::PanicPath,
             Severity::Medium,
-            format!(
-                "{} has {} panic paths",
-                file.path, rust.performance.unwraps
-            ),
+            format!("{} has {} panic paths", file.path, rust.performance.unwraps),
             format!(
                 "{} calls to `unwrap` or `expect` outside test code, each one a way for this to abort at runtime.",
                 rust.performance.unwraps
             ),
             "Return a `Result` with a specific error variant instead; keep `expect` only where the invariant is genuinely local, and give it a message that states that invariant.".to_owned(),
-            at_file(&file.path),
+            Some(at_file(&file.path)),
             metric(rust.performance.unwraps),
         ));
     }
@@ -299,13 +319,16 @@ fn rust_rules(file: &FileMetrics, thresholds: &Thresholds, out: &mut Vec<Finding
         out.push(finding(
             Rule::UnfinishedWork,
             Severity::Low,
-            format!("{} has {} unfinished-work markers", file.path, rust.todo_markers),
+            format!(
+                "{} has {} unfinished-work markers",
+                file.path, rust.todo_markers
+            ),
             format!(
                 "{} `TODO`, `FIXME`, `HACK`, or `XXX` markers in comments.",
                 rust.todo_markers
             ),
             "Turn each one into a tracked issue and reference it from the comment, or delete it; a marker nobody is going to act on is noise that hides the ones somebody would.".to_owned(),
-            at_file(&file.path),
+            Some(at_file(&file.path)),
             metric(rust.todo_markers),
         ));
     }
@@ -331,7 +354,7 @@ fn directories(
                 directory.files, directory.lines.total, directory.path, thresholds.large_directory_files
             ),
             "Group the files by the thing they do into subdirectories with their own module roots; a flat directory this size means the module boundary is missing rather than large.".to_owned(),
-            at_file(&directory.path),
+            Some(at_file(&directory.path)),
             metric(directory.files),
         ));
     }
@@ -431,7 +454,7 @@ fn dead_code(candidates: &[DeadCodeCandidate], out: &mut Vec<Finding>) {
             candidates.len()
         ),
         "Delete them. Anything worth keeping for later is in the history; anything reached only through a macro belongs in the dead-code `ignore` list so the report stays worth reading.".to_owned(),
-        example.and_then(|candidate| at_line(&candidate.file, candidate.line)),
+        example.map(|candidate| at_line(&candidate.file, candidate.line)),
         metric(certain),
     ));
 }
@@ -449,7 +472,7 @@ fn parse_failures(failures: &[ParseFailureReport], out: &mut Vec<Finding>) {
             format!("{} could not be parsed", failure.path),
             format!("Line {}: {}", failure.line, failure.message),
             "The file is counted in the line totals but absent from every item, complexity, and dead-code measurement. Check whether it uses syntax newer than this tool's parser.".to_owned(),
-            at_line(&failure.path, failure.line),
+            Some(at_line(&failure.path, failure.line)),
             1.0,
         ));
     }

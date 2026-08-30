@@ -14,6 +14,11 @@ use std::path::PathBuf;
 use tinyanalyzer_core::{Config, Result, StartView};
 
 /// Analyze a Rust codebase and explore it in a terminal dashboard.
+//
+// The switches are independent on/off choices, which is what a command line is:
+// grouping them into an enum would make `--no-deps --hidden` unrepresentable
+// for no gain.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Parser)]
 #[command(name = "tinyanalyzer", version, about, long_about = None)]
 pub struct Cli {
