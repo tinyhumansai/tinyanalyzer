@@ -1059,7 +1059,7 @@ fn mouse_clicks_select_tabs_and_rows_and_the_wheel_moves_the_cursor() {
     let area = Rect::new(0, 0, 160, 48);
 
     let files_tab = action_for_event(
-        mouse(MouseEventKind::Down(MouseButton::Left), 14, 1),
+        &mouse(MouseEventKind::Down(MouseButton::Left), 14, 1),
         area,
         &dashboard,
     );
@@ -1067,7 +1067,7 @@ fn mouse_clicks_select_tabs_and_rows_and_the_wheel_moves_the_cursor() {
     dashboard.apply(files_tab.expect("the files tab is clickable"));
 
     let second_row = action_for_event(
-        mouse(MouseEventKind::Down(MouseButton::Left), 2, 5),
+        &mouse(MouseEventKind::Down(MouseButton::Left), 2, 5),
         area,
         &dashboard,
     );
@@ -1076,7 +1076,7 @@ fn mouse_clicks_select_tabs_and_rows_and_the_wheel_moves_the_cursor() {
     assert_eq!(dashboard.cursor(), 1);
 
     dashboard.apply(
-        action_for_event(mouse(MouseEventKind::ScrollUp, 2, 5), area, &dashboard)
+        action_for_event(&mouse(MouseEventKind::ScrollUp, 2, 5), area, &dashboard)
             .expect("the wheel is handled"),
     );
     assert_eq!(dashboard.cursor(), 0);
@@ -1089,7 +1089,7 @@ fn mouse_clicks_enter_directories_and_right_click_leaves_them() {
     dashboard.apply(Action::SelectView(View::Directories.index()));
 
     let first_row = action_for_event(
-        mouse(MouseEventKind::Down(MouseButton::Left), 2, 4),
+        &mouse(MouseEventKind::Down(MouseButton::Left), 2, 4),
         area,
         &dashboard,
     );
@@ -1099,7 +1099,7 @@ fn mouse_clicks_enter_directories_and_right_click_leaves_them() {
 
     dashboard.apply(
         action_for_event(
-            mouse(MouseEventKind::Down(MouseButton::Right), 2, 4),
+            &mouse(MouseEventKind::Down(MouseButton::Right), 2, 4),
             area,
             &dashboard,
         )

@@ -95,7 +95,7 @@ where
                 source: std::io::Error::other(source),
             })?;
 
-        if let Some(action) = action_for_event(events()?, area, dashboard) {
+        if let Some(action) = action_for_event(&events()?, area, dashboard) {
             dashboard.apply(action);
         }
     }
@@ -104,7 +104,7 @@ where
 }
 
 /// Maps a terminal event to a dashboard action.
-fn action_for_event(event: Event, area: Rect, dashboard: &Dashboard) -> Option<Action> {
+fn action_for_event(event: &Event, area: Rect, dashboard: &Dashboard) -> Option<Action> {
     match event {
         Event::Key(key) if dashboard.view() == View::Directories && !dashboard.editing_filter() => {
             match key.code {
@@ -114,12 +114,12 @@ fn action_for_event(event: Event, area: Rect, dashboard: &Dashboard) -> Option<A
                 KeyCode::Backspace | KeyCode::Left | KeyCode::Char('h') => {
                     Some(Action::LeaveDirectory)
                 }
-                _ => action_for(key, false),
+                _ => action_for(*key, false),
             }
         }
-        Event::Key(key) => action_for(key, dashboard.editing_filter()),
+        Event::Key(key) => action_for(*key, dashboard.editing_filter()),
         Event::Mouse(mouse) if !dashboard.editing_filter() => {
-            action_for_mouse(mouse, area, dashboard)
+            action_for_mouse(*mouse, area, dashboard)
         }
         _ => None,
     }

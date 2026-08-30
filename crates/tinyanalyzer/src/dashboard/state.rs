@@ -11,8 +11,8 @@
 //! this struct, answerable without drawing anything.
 
 use tinyanalyzer_core::{
-    DeadCodeCandidate, DirectoryMetrics, FileMetrics, Finding, PackageNode, Report, StartView,
-    Totals,
+    DeadCodeCandidate, DirectoryMetrics, FileMetrics, Finding, LineCounts, PackageNode, Report,
+    StartView, Totals,
 };
 
 /// A pane of the dashboard.
@@ -249,7 +249,7 @@ impl Dashboard {
                     path: child_path,
                     files: 0,
                     bytes: 0,
-                    lines: Default::default(),
+                    lines: LineCounts::default(),
                     is_test_only: true,
                 });
             entry.files = entry.files.saturating_add(1);
