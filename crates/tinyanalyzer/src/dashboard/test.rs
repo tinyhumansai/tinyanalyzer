@@ -96,12 +96,14 @@ fn graph_dashboard() -> (TempDir, Dashboard) {
         "//! App.\n\n/// Runs.\npub fn run() -> u8 { engine::add(1, 2) }\n",
     );
 
-    let mut config = Config::default();
-    config.notes = vec![tinyanalyzer_core::Note {
-        path: "crates/engine/src/lib.rs".to_owned(),
-        note: "the hot path lives here".to_owned(),
-        level: tinyanalyzer_core::NoteLevel::Warning,
-    }];
+    let config = Config {
+        notes: vec![tinyanalyzer_core::Note {
+            path: "crates/engine/src/lib.rs".to_owned(),
+            note: "the hot path lives here".to_owned(),
+            level: tinyanalyzer_core::NoteLevel::Warning,
+        }],
+        ..Config::default()
+    };
 
     let mut report = analyze_with(root.path(), &config).expect("a resolvable workspace");
 
