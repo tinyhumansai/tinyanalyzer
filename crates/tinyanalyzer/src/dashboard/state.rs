@@ -190,6 +190,7 @@ enum DirectoryVisibility {
 struct DependencySimulation {
     reachable: BTreeSet<String>,
     counts: BTreeMap<String, (usize, usize)>,
+    adjacency: BTreeMap<String, Vec<String>>,
 }
 
 impl BrowserEntry<'_> {
@@ -597,6 +598,24 @@ impl Dashboard {
             .as_ref()
             .and_then(|simulation| simulation.counts.get(id))
             .copied()
+            .unwrap_or_default()
+    }
+
+    /// Number of immediate dependencies below a package in the simulated graph.
+    #[must_use]
+    pub fn dependency_child_count(&self, id: &str) -> usize {
+        self.ensure_dependency_simulation();
+        self.dependency_simulation
+            .borrow()
+            .as_ref()
+            .and_then(|simulation| {
+                simulation.adjacency.get(id).map(|children| {
+                    children
+                        .iter()
+                        .filter(|child| simulation.reachable.contains(*child))
+                        .count()
+                })
+            })
             .unwrap_or_default()
     }
 
@@ -1167,7 +1186,11 @@ impl Dashboard {
 
         self.dependency_simulation_builds
             .set(self.dependency_simulation_builds.get().saturating_add(1));
-        *self.dependency_simulation.borrow_mut() = Some(DependencySimulation { reachable, counts });
+        *self.dependency_simulation.borrow_mut() = Some(DependencySimulation {
+            reachable,
+            counts,
+            adjacency,
+        });
     }
 
     /// Number of simulated graph snapshots built, for cache regression tests.
@@ -1189,6 +1212,10 @@ impl Dashboard {
                 .entry(edge.from.clone())
                 .or_default()
                 .push(edge.to.clone());
+        }
+        for children in adjacency.values_mut() {
+            children.sort();
+            children.dedup();
         }
         adjacency
     }
