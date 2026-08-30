@@ -11,6 +11,7 @@
 //! this struct, answerable without drawing anything.
 
 use regex::{Regex, RegexBuilder};
+use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use tinyanalyzer_core::{
     DeadCodeCandidate, DirectoryMetrics, FileMetrics, Finding, LineCounts, PackageNode, Report,
@@ -166,14 +167,14 @@ pub struct Dashboard {
     sorts: [usize; View::ALL.len()],
     filter: String,
     filter_regex: Option<Regex>,
-    filter_regex_valid: bool,
+    filter_syntax: FilterSyntax,
     editing_filter: bool,
     directory_path: String,
     directory_cursors: Vec<usize>,
     removed_dependencies: BTreeSet<String>,
     feature_overrides: BTreeMap<String, BTreeSet<String>>,
     feature_cursor: usize,
-    feature_root_target: bool,
+    feature_target: FeatureTarget,
     quit: bool,
 }
 
@@ -190,14 +191,14 @@ impl Dashboard {
             sorts: [0; View::ALL.len()],
             filter: String::new(),
             filter_regex: None,
-            filter_regex_valid: true,
+            filter_syntax: FilterSyntax::Regex,
             editing_filter: false,
             directory_path: ".".to_owned(),
             directory_cursors: Vec::new(),
             removed_dependencies: BTreeSet::new(),
             feature_overrides: BTreeMap::new(),
             feature_cursor: 0,
-            feature_root_target: false,
+            feature_target: FeatureTarget::Dependency,
             quit: false,
         }
     }
@@ -229,7 +230,7 @@ impl Dashboard {
     /// Whether the current filter is a valid regular expression.
     #[must_use]
     pub const fn filter_regex_valid(&self) -> bool {
-        self.filter_regex_valid
+        self.filter_syntax == FilterSyntax::Regex
     }
 
     /// Label of the active view's current sort order.
@@ -240,19 +241,16 @@ impl Dashboard {
             (View::Overview | View::Findings, 1) => "title",
             (View::Overview | View::Findings, _) => "rule",
             (View::Files, 0) => "weight",
-            (View::Files, 1) => "path",
+            (View::Files | View::Directories, 1) => "path",
             (View::Files, 2) => "lines",
-            (View::Files, 3) => "size",
+            (View::Files, 3) | (View::Directories, 0) => "size",
             (View::Files, _) => "complexity",
-            (View::Directories, 0) => "size",
-            (View::Directories, 1) => "path",
             (View::Directories, 2) => "files",
             (View::Directories, _) => "lines",
             (View::Dependencies, 0) => "exclusive",
-            (View::Dependencies, 1) => "name",
+            (View::Dependencies | View::DeadCode, 1) => "name",
             (View::Dependencies, _) => "reachable",
             (View::DeadCode, 0) => "confidence",
-            (View::DeadCode, 1) => "name",
             (View::DeadCode, _) => "file",
         }
     }
@@ -307,7 +305,7 @@ impl Dashboard {
             2 => files.sort_by(|left, right| {
                 self.file_lines(right).code.cmp(&self.file_lines(left).code)
             }),
-            3 => files.sort_by(|left, right| right.bytes.cmp(&left.bytes)),
+            3 => files.sort_by_key(|file| Reverse(file.bytes)),
             _ => files.sort_by(|left, right| {
                 self.file_complexity(right)
                     .cmp(&self.file_complexity(left))
@@ -369,10 +367,10 @@ impl Dashboard {
 
         let mut rows: Vec<_> = children.into_values().collect();
         match self.sorts[View::Directories.index()] {
-            0 => rows.sort_by(|left, right| right.bytes.cmp(&left.bytes)),
+            0 => rows.sort_by_key(|row| Reverse(row.bytes)),
             1 => rows.sort_by(|left, right| left.path.cmp(&right.path)),
-            2 => rows.sort_by(|left, right| right.files.cmp(&left.files)),
-            _ => rows.sort_by(|left, right| right.lines.code.cmp(&left.lines.code)),
+            2 => rows.sort_by_key(|row| Reverse(row.files)),
+            _ => rows.sort_by_key(|row| Reverse(row.lines.code)),
         }
         rows
     }
@@ -395,9 +393,9 @@ impl Dashboard {
             .filter(|package| self.matches(&package.name))
             .collect();
         match self.sorts[View::Dependencies.index()] {
-            0 => packages.sort_by(|left, right| right.exclusive_count.cmp(&left.exclusive_count)),
+            0 => packages.sort_by_key(|package| Reverse(package.exclusive_count)),
             1 => packages.sort_by(|left, right| left.name.cmp(&right.name)),
-            _ => packages.sort_by(|left, right| right.transitive_count.cmp(&left.transitive_count)),
+            _ => packages.sort_by_key(|package| Reverse(package.transitive_count)),
         }
         packages
     }
@@ -482,7 +480,7 @@ impl Dashboard {
     /// Package whose Cargo features are currently being simulated.
     #[must_use]
     pub fn feature_target_package(&self) -> Option<&PackageNode> {
-        if self.feature_root_target {
+        if self.feature_target == FeatureTarget::Root {
             self.report
                 .dependencies
                 .packages
@@ -531,7 +529,7 @@ impl Dashboard {
     /// Whether feature controls currently target the workspace root package.
     #[must_use]
     pub const fn feature_root_target(&self) -> bool {
-        self.feature_root_target
+        self.feature_target == FeatureTarget::Root
     }
 
     /// How many rows the current view has.
@@ -687,7 +685,10 @@ impl Dashboard {
             Action::PreviousFeature => self.move_feature(-1),
             Action::ToggleFeature => self.toggle_feature(),
             Action::ToggleFeatureTarget => {
-                self.feature_root_target = !self.feature_root_target;
+                self.feature_target = match self.feature_target {
+                    FeatureTarget::Dependency => FeatureTarget::Root,
+                    FeatureTarget::Root => FeatureTarget::Dependency,
+                };
                 self.feature_cursor = 0;
             }
             Action::ToggleTests => {
@@ -789,24 +790,21 @@ impl Dashboard {
     fn compile_filter(&mut self) {
         if self.filter.is_empty() {
             self.filter_regex = None;
-            self.filter_regex_valid = true;
+            self.filter_syntax = FilterSyntax::Regex;
             return;
         }
-        match RegexBuilder::new(&self.filter)
+        if let Ok(regex) = RegexBuilder::new(&self.filter)
             .case_insensitive(true)
             .build()
         {
-            Ok(regex) => {
-                self.filter_regex = Some(regex);
-                self.filter_regex_valid = true;
-            }
-            Err(_) => {
-                self.filter_regex = RegexBuilder::new(&regex::escape(&self.filter))
-                    .case_insensitive(true)
-                    .build()
-                    .ok();
-                self.filter_regex_valid = false;
-            }
+            self.filter_regex = Some(regex);
+            self.filter_syntax = FilterSyntax::Regex;
+        } else {
+            self.filter_regex = RegexBuilder::new(&regex::escape(&self.filter))
+                .case_insensitive(true)
+                .build()
+                .ok();
+            self.filter_syntax = FilterSyntax::Literal;
         }
     }
 
@@ -895,6 +893,18 @@ impl Dashboard {
                 .sum()
         })
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FilterSyntax {
+    Regex,
+    Literal,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FeatureTarget {
+    Dependency,
+    Root,
 }
 
 const fn sort_count(view: View) -> usize {
