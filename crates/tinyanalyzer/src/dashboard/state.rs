@@ -134,6 +134,10 @@ pub enum Action {
     EnterDependency,
     /// Return to the parent dependency level.
     LeaveDependency,
+    /// Move down in the focused dependency detail pane.
+    MoveDependencyDown,
+    /// Move up in the focused dependency detail pane.
+    MoveDependencyUp,
     /// Toggle the selected dependency in the simulated graph.
     SimulateRemoveDependency,
     /// Restore every dependency removed from the simulation.
@@ -266,8 +270,11 @@ pub struct Dashboard {
     directory_cursors: Vec<usize>,
     directory_visibility: DirectoryVisibility,
     removed_dependencies: BTreeSet<String>,
-    dependency_path: Vec<String>,
-    dependency_cursors: Vec<usize>,
+    dependency_detail_root: Option<String>,
+    dependency_detail_path: Vec<String>,
+    dependency_detail_cursors: Vec<usize>,
+    dependency_detail_cursor: usize,
+    dependency_detail_focused: bool,
     dependency_simulation: RefCell<Option<DependencySimulation>>,
     dependency_simulation_builds: Cell<usize>,
     feature_overrides: BTreeMap<String, BTreeSet<String>>,
@@ -297,8 +304,11 @@ impl Dashboard {
             directory_cursors: Vec::new(),
             directory_visibility: DirectoryVisibility::All,
             removed_dependencies: BTreeSet::new(),
-            dependency_path: Vec::new(),
-            dependency_cursors: Vec::new(),
+            dependency_detail_root: None,
+            dependency_detail_path: Vec::new(),
+            dependency_detail_cursors: Vec::new(),
+            dependency_detail_cursor: 0,
+            dependency_detail_focused: false,
             dependency_simulation: RefCell::new(None),
             dependency_simulation_builds: Cell::new(0),
             feature_overrides: BTreeMap::new(),
@@ -399,8 +409,7 @@ impl Dashboard {
     /// Replaces analysis results after the ignore policy changes.
     pub fn replace_report(&mut self, report: Report) {
         self.report = report;
-        self.dependency_path.clear();
-        self.dependency_cursors.clear();
+        self.reset_dependency_detail();
         self.invalidate_dependency_simulation();
         self.clamp_cursor();
     }
@@ -580,17 +589,16 @@ impl Dashboard {
         &self.directory_path
     }
 
-    /// Dependencies at the current graph level matching the current filter.
+    /// Direct dependencies matching the current filter.
     #[must_use]
     pub fn packages(&self) -> Vec<&PackageNode> {
-        let mut packages: Vec<_> = if let Some(parent) = self.dependency_path.last() {
-            self.dependency_children(parent)
-        } else {
-            self.report.dependencies.heaviest_direct()
-        }
-        .into_iter()
-        .filter(|package| self.matches(&package.name))
-        .collect();
+        let mut packages: Vec<_> = self
+            .report
+            .dependencies
+            .heaviest_direct()
+            .into_iter()
+            .filter(|package| self.matches(&package.name))
+            .collect();
         match self.sorts[View::Dependencies.index()] {
             0 => packages.sort_by_key(|package| Reverse(self.dependency_counts(&package.id).0)),
             1 => packages.sort_by(|left, right| left.name.cmp(&right.name)),
@@ -600,18 +608,48 @@ impl Dashboard {
         packages
     }
 
-    /// Whether the dependency browser is showing workspace roots.
+    /// Whether keyboard movement is targeting the dependency detail pane.
     #[must_use]
-    pub fn dependency_at_root(&self) -> bool {
-        self.dependency_path.is_empty()
+    pub const fn dependency_detail_focused(&self) -> bool {
+        self.dependency_detail_focused
     }
 
-    /// Package whose children form the current dependency level.
+    /// Package whose children form the current detail level.
     #[must_use]
-    pub fn dependency_parent(&self) -> Option<&PackageNode> {
-        self.dependency_path
+    pub fn dependency_detail_parent(&self) -> Option<&PackageNode> {
+        self.dependency_detail_path
             .last()
+            .or(self.dependency_detail_root.as_ref())
             .and_then(|id| self.report.dependencies.package(id))
+    }
+
+    /// Sorted children at the current dependency detail level.
+    #[must_use]
+    pub fn dependency_detail_packages(&self) -> Vec<&PackageNode> {
+        let Some(parent) = self.dependency_detail_parent() else {
+            return Vec::new();
+        };
+        let mut packages: Vec<_> = self
+            .dependency_children(&parent.id)
+            .into_iter()
+            .filter(|package| self.matches(&package.name))
+            .collect();
+        self.sort_packages(&mut packages);
+        packages
+    }
+
+    /// Cursor in the dependency detail pane.
+    #[must_use]
+    pub const fn dependency_detail_cursor(&self) -> usize {
+        self.dependency_detail_cursor
+    }
+
+    /// Selected child in the dependency detail pane.
+    #[must_use]
+    pub fn selected_dependency_detail_package(&self) -> Option<&PackageNode> {
+        self.dependency_detail_packages()
+            .get(self.dependency_detail_cursor)
+            .copied()
     }
 
     /// Simulated `(exclusive, reachable)` crate counts for a direct dependency.
