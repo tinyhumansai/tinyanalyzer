@@ -1142,17 +1142,17 @@ impl Dashboard {
         }
     }
 
-    /// Moves the cursor by `delta`, clamped to the current view's rows.
+    /// Cycles the shared sort while preserving a focused dependency root.
     fn next_sort(&mut self) {
         let view = self.view.index();
         self.sorts[view] = (self.sorts[view] + 1) % sort_count(self.view);
         self.detail_scrolls[view] = 0;
         if self.view == View::Dependencies && self.dependency_detail_focused() {
-            if let Some(root) = &self.dependency_detail_root {
+            if let Some(root) = self.dependency_detail_root.clone() {
                 self.cursors[view] = self
                     .packages()
                     .iter()
-                    .position(|package| package.id == *root)
+                    .position(|package| package.id == root)
                     .unwrap_or_default();
             }
             self.dependency_detail_cursor = 0;
