@@ -719,7 +719,10 @@ fn tables_and_file_kinds_use_the_dashboard_palette() {
         .expect("the fixture contains a test file");
     assert_eq!(
         buffer
-            .cell((1, 4 + u16::try_from(test_row).expect("the fixture is small")))
+            .cell((
+                1,
+                4 + u16::try_from(test_row).expect("the fixture is small")
+            ))
             .expect("the test file is visible")
             .fg,
         ratatui::style::Color::DarkGray,
