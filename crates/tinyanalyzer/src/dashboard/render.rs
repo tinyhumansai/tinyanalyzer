@@ -224,7 +224,12 @@ fn status(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
             spans.push(Span::styled(" · d", Style::default().fg(Color::LightRed)));
             spans.push(Span::raw(" mock remove · "));
             spans.push(Span::styled("r", Style::default().fg(Color::LightGreen)));
-            spans.push(Span::raw(" restore"));
+            spans.push(Span::raw(" restore · "));
+            spans.push(Span::styled(
+                "[]/f/w",
+                Style::default().fg(Color::LightMagenta),
+            ));
+            spans.push(Span::raw(" features"));
         }
 
         Line::from(spans)
@@ -674,7 +679,12 @@ fn dependencies(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
 
 /// The subtree beneath the selected dependency.
 fn dependency_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
-    let simulation = simulation_lines(dashboard);
+    let mut simulation = simulation_lines(dashboard);
+    let features = feature_lines(dashboard);
+    if !simulation.is_empty() && !features.is_empty() {
+        simulation.push(Line::from(""));
+    }
+    simulation.extend(features);
     let Some(package) = dashboard.selected_package() else {
         frame.render_widget(
             Paragraph::new(if simulation.is_empty() {
@@ -771,6 +781,57 @@ fn simulation_lines(dashboard: &Dashboard) -> Vec<Line<'static>> {
             unreachable.len() - 12
         )));
     }
+    lines
+}
+
+/// Cargo feature controls for either the selected dependency or workspace root.
+fn feature_lines(dashboard: &Dashboard) -> Vec<Line<'static>> {
+    let Some(package) = dashboard.feature_target_package() else {
+        return Vec::new();
+    };
+    let features = dashboard.simulated_features();
+    let mut lines = vec![Line::from(Span::styled(
+        format!(
+            "features · {} · {}",
+            if dashboard.feature_root_target() {
+                "workspace root"
+            } else {
+                "dependency"
+            },
+            package.name
+        ),
+        Style::default()
+            .fg(Color::LightMagenta)
+            .add_modifier(Modifier::BOLD),
+    ))];
+    if features.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "  no declared features",
+            Style::default().fg(MUTED),
+        )));
+        return lines;
+    }
+    for (index, (feature, enabled)) in features.iter().enumerate().take(12) {
+        lines.push(Line::from(vec![
+            Span::styled(
+                if index == dashboard.feature_cursor() {
+                    "> "
+                } else {
+                    "  "
+                },
+                Style::default().fg(ACCENT),
+            ),
+            Span::styled(
+                if *enabled { "[x] " } else { "[ ] " },
+                Style::default().fg(if *enabled { Color::LightGreen } else { MUTED }),
+            ),
+            Span::raw((*feature).to_owned()),
+        ]));
+    }
+    lines.push(Line::from(Span::styled(
+        "  simulated feature state; rerun analysis to resolve Cargo graph changes",
+        Style::default().fg(WARNING),
+    )));
     lines
 }
 

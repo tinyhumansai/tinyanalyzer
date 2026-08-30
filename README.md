@@ -71,6 +71,7 @@ items, split along the seams already in it" is.
 | `/` | Filter rows with a case-insensitive regex; `Enter` keeps it, `Esc` clears it |
 | `s` | Cycle the current pane's sort order |
 | `d`, `r` in Dependencies | Mock-remove the selected direct dependency; restore all removals |
+| `[`, `]`, `f`, `w` in Dependencies | Select/toggle a Cargo feature; switch dependency/root target |
 | `Enter`, `→`, `l` / `Backspace`, `←`, `h` | Enter / leave a directory |
 | Mouse | Click tabs and rows, wheel to move, right-click to leave a directory |
 
@@ -87,6 +88,12 @@ In Dependencies, `d` runs a reversible removal simulation. The selected direct
 dependency disappears, workspace reachability is recomputed, and the graph
 lists every crate that would become unreachable. Press `d` repeatedly to model
 several removals and `r` to restore the original graph.
+
+The dependency detail also exposes Cargo features. `[` and `]` select a feature,
+`f` toggles it in the simulation, and `w` switches between the selected direct
+dependency and the root workspace package. Feature state is modeled without
+editing manifests; because Cargo must resolve optional dependencies, the pane
+labels graph effects as pending a fresh analysis rather than inventing them.
 
 ## Configuration
 
