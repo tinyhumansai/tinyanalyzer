@@ -26,7 +26,6 @@ jobs:
           # This job executes repository code (cargo build/test); don't persist
           # the token in git config.
           persist-credentials: false
-          submodules: recursive
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -57,28 +56,39 @@ jobs:
       # promises `cargo run -p template --example basic` works, and a compiled
       # example can still fail on its first line.
       - name: Run the bundled example
-        run: cargo run -p template --example basic
+        run: cargo run -p tinyanalyzer --example summarize
 
-      # `crates/template-bus` exists so a host can name the payload types
-      # without compiling the module. That promise is invisible in a diff,
-      # because a forbidden dependency arrives transitively through a feature
-      # someone enabled one crate away — so it is asserted rather than
+      # `crates/tinyanalyzer-core` exists so another tool can embed the
+      # analysis without linking a terminal UI into itself. That promise is
+      # invisible in a diff, because a renderer arrives transitively through a
+      # feature somebody enabled one crate away — so it is asserted rather than
       # documented.
       #
-      # The FORWARD form is required. `cargo tree -i <crate> -p template-bus`
+      # The FORWARD form is required. `cargo tree -i <crate> -p tinyanalyzer-core`
       # discards the `-p` scope, prints the whole-workspace inverse tree, and
       # exits 0 looking clean even when this crate is the one at fault.
-      - name: Assert the contract crate stays transport-free
+      - name: Assert the engine stays free of the user interface
         run: |
           set -euo pipefail
-          forbidden="$(cargo tree -p template-bus -e normal,build --prefix none \
-            | grep -Ei 'tinybus|tokio|reqwest|ureq|hyper|rusqlite|git2' || true)"
+          forbidden="$(cargo tree -p tinyanalyzer-core -e normal,build --prefix none \
+            | grep -Ei 'ratatui|crossterm|clap|axum|hyper|tokio|reqwest|ureq' || true)"
           if [ -n "$forbidden" ]; then
-            echo "template-bus pulled in a dependency its manifest forbids:" >&2
+            echo "tinyanalyzer-core pulled in a dependency its manifest forbids:" >&2
             echo "$forbidden" >&2
             echo >&2
-            echo "The contract is what a host compiles against. It must stay free" >&2
-            echo "of transports, async runtimes, HTTP clients and native libraries." >&2
+            echo "The engine is what another tool embeds. It must stay free of" >&2
+            echo "terminal UIs, argument parsers, servers and async runtimes." >&2
+            exit 1
+          fi
+
+      # The dashboard is the program, not something the program downloads. A
+      # release that shipped a binary needing a network fetch to render its own
+      # interface would fail in exactly the environment this tool is for.
+      - name: Assert the binary carries its own interface
+        run: |
+          set -euo pipefail
+          if grep -rInE 'https?://(cdn|unpkg|esm|fonts)\.' crates/ ; then
+            echo "the dashboard must not reference an external asset host" >&2
             exit 1
           fi
 
@@ -100,7 +110,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-          submodules: recursive
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -118,7 +127,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-          submodules: recursive
 
       # `rust-version` is inherited from `[workspace.package]`, so every member
       # reports the same value. Read it off the package the module ships as
@@ -128,7 +136,7 @@ jobs:
         run: |
           set -euo pipefail
           msrv="$(cargo metadata --format-version 1 --no-deps \
-            | jq -r '.packages[] | select(.name == "template") | .rust_version')"
+            | jq -r '.packages[] | select(.name == "tinyanalyzer") | .rust_version')"
           if [[ -z "$msrv" || "$msrv" == "null" ]]; then
             echo "workspace.package.rust-version is not set in Cargo.toml" >&2
             exit 1
@@ -151,7 +159,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-          submodules: recursive
 
       - name: Check advisories, licenses, bans, and sources
         uses: EmbarkStudios/cargo-deny-action@v2
