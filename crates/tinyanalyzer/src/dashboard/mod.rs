@@ -17,6 +17,8 @@ mod state;
 pub use state::{Action, Dashboard, View};
 
 use crate::error::{Error, Result};
+use ratatui::Terminal;
+use ratatui::backend::Backend;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use tinyanalyzer_core::{Report, StartView};
 
@@ -28,10 +30,9 @@ use tinyanalyzer_core::{Report, StartView};
 /// read from, or restored.
 pub fn run(report: Report, start: StartView, hide_tests: bool) -> Result<()> {
     let mut dashboard = Dashboard::new(report, start, hide_tests);
-
     let mut terminal = ratatui::try_init().map_err(|source| Error::Terminal { source })?;
 
-    let outcome = event_loop(&mut terminal, &mut dashboard);
+    let outcome = drive(&mut terminal, &mut dashboard, &mut read_event);
 
     // Restored before the outcome is inspected: a failure inside the loop must
     // not leave the terminal in raw mode on the way out.
@@ -40,16 +41,37 @@ pub fn run(report: Report, start: StartView, hide_tests: bool) -> Result<()> {
     outcome.and(restored)
 }
 
-/// Draws and reads events until the dashboard is asked to close.
-fn event_loop(terminal: &mut ratatui::DefaultTerminal, dashboard: &mut Dashboard) -> Result<()> {
+/// Blocks until the terminal reports an event.
+///
+/// # Errors
+///
+/// Returns [`Error::Terminal`] if the terminal cannot be read.
+fn read_event() -> Result<Event> {
+    event::read().map_err(|source| Error::Terminal { source })
+}
+
+/// Draws and applies events until the dashboard is asked to close.
+///
+/// The event source is a parameter rather than a call to `event::read`, which
+/// is what makes the loop testable: a test drives it with a scripted list of
+/// key presses against an in-memory terminal, and asserts on the state that
+/// comes out. A loop that could only be exercised by a human at a real
+/// terminal would be the one part of this program nothing ever checked.
+///
+/// # Errors
+///
+/// Returns [`Error::Terminal`] if drawing or reading fails.
+pub(crate) fn drive<B: Backend>(
+    terminal: &mut Terminal<B>,
+    dashboard: &mut Dashboard,
+    events: &mut dyn FnMut() -> Result<Event>,
+) -> Result<()> {
     while !dashboard.should_quit() {
         terminal
             .draw(|frame| render::draw(frame, dashboard))
             .map_err(|source| Error::Terminal { source })?;
 
-        let event = event::read().map_err(|source| Error::Terminal { source })?;
-
-        if let Event::Key(key) = event
+        if let Event::Key(key) = events()?
             && let Some(action) = action_for(key, dashboard.editing_filter())
         {
             dashboard.apply(action);
