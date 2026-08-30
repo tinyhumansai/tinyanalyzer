@@ -53,7 +53,7 @@ jobs:
         run: cargo test
 
       # `cargo build --all-targets` only *compiles* an example. `AGENTS.md`
-      # promises `cargo run -p template --example basic` works, and a compiled
+      # promises `cargo run -p tinyanalyzer --example summarize` works, and a compiled
       # example can still fail on its first line.
       - name: Run the bundled example
         run: cargo run -p tinyanalyzer --example summarize

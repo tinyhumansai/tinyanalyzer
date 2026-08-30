@@ -1,0 +1,46 @@
+# tinyanalyzer's own configuration, which is also the worked example: every
+# section below is optional, and the values shown are the ones this project
+# deviates on rather than a copy of the defaults.
+#
+# Run `tinyanalyzer` in this directory to see the result.
+
+[project]
+name = "tinyanalyzer"
+description = "Analyze a Rust codebase and explore it in a terminal dashboard"
+
+[thresholds]
+# This workspace keeps its modules small on purpose — `AGENTS.md` asks for a
+# module directory per feature area rather than a few broad files — so the
+# file-size thresholds are tighter than the defaults.
+large_file_lines = 300
+huge_file_lines = 550
+
+[dead_code]
+# `main` is called by the runtime, not by this workspace.
+ignore = ["main"]
+
+[dependencies]
+ignore_unused = [
+    # Used only through `#[derive(...)]` and `#[error(...)]`, so no source file
+    # names either crate in a `use`.
+    "thiserror",
+    "serde",
+]
+
+[ui]
+start_view = "overview"
+
+[[notes]]
+path = "crates/tinyanalyzer/src/dashboard/render.rs"
+note = "long by design: a widget tree is wide rather than deep, and splitting it would hide the layout"
+level = "info"
+
+[[notes]]
+path = "crates/tinyanalyzer-core/src/rust_source/mod.rs"
+note = "the visitor is one match over syn's item kinds; its length is the size of the language, not of the logic"
+level = "info"
+
+[[notes]]
+path = "crates/tinyanalyzer-core/src/dead_code/mod.rs"
+note = "identifier census, not name resolution — read the module docs before trusting a result"
+level = "warning"
