@@ -53,14 +53,7 @@ pub fn analyze(
     references: &CrateReferences,
 ) -> Result<DependencyReport> {
     let root = root.as_ref();
-
-    let metadata = MetadataCommand::new()
-        .manifest_path(root.join("Cargo.toml"))
-        .exec()
-        .map_err(|source| Error::CargoMetadata {
-            root: root.to_path_buf(),
-            message: source.to_string(),
-        })?;
+    let metadata = resolved_metadata(root)?;
 
     let resolve = metadata
         .resolve
@@ -103,10 +96,16 @@ pub fn analyze(
 
     let depths = shortest_depths(&members, &adjacency);
     let direct = direct_dependencies(&members, &adjacency);
+    let member_ids: Vec<String> = members.iter().cloned().collect();
+    let mut included = reachable_from(&member_ids, &adjacency);
+    included.extend(members.iter().cloned());
 
     let mut packages = Vec::new();
     for node in &resolve.nodes {
         let id = node.id.to_string();
+        if !included.contains(&id) {
+            continue;
+        }
         let Some(package) = metadata.packages.iter().find(|entry| entry.id == node.id) else {
             continue;
         };
@@ -167,6 +166,17 @@ pub fn analyze(
         external_packages,
         max_depth,
     })
+}
+
+/// Asks Cargo for the workspace graph, preserving its diagnostic on failure.
+fn resolved_metadata(root: &Path) -> Result<cargo_metadata::Metadata> {
+    MetadataCommand::new()
+        .manifest_path(root.join("Cargo.toml"))
+        .exec()
+        .map_err(|source| Error::CargoMetadata {
+            root: root.to_path_buf(),
+            message: source.to_string(),
+        })
 }
 
 /// Measures the checked-out source Cargo would compile for one package.

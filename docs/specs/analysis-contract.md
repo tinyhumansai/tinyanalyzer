@@ -32,7 +32,10 @@ somebody acts on it.
   function.
 - **The dependency graph.** From `cargo metadata` — cargo's own resolution,
   including features, optional dependencies, platform-specific edges, and
-  version unification. A tool that re-implemented any of those would disagree
+  version unification. Development-only edges and packages are excluded by
+  default so this graph describes production cost; `dependencies.include_dev =
+  true` opts into them. Build dependencies remain because production targets
+  require them. A tool that re-implemented Cargo's resolution would disagree
   with the build it is describing.
 - **Dependency source size.** The bytes in each resolved external package's
   checked-out source directory, excluding `.git` and `target`. This measures the
@@ -101,6 +104,10 @@ question this tool exists to answer. `tests_count_as_uses = true` reverses that.
 A declared dependency that no source file in the declaring package *names*, with
 hyphens folded to underscores. A crate reached only through a derive macro, a
 build script, or a linker side effect has no `use` naming it.
+
+Development dependencies are not unused-production candidates by default. When
+`dependencies.include_dev = true`, they participate in this check alongside the
+development dependency graph.
 
 The remedy in the finding says so: remove it and build. If the build passes it
 was costing compile time for nothing; if it fails, the crate belongs in
