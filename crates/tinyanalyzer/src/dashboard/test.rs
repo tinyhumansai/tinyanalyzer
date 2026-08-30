@@ -1066,7 +1066,7 @@ fn cargo_features_can_be_toggled_for_a_dependency_and_the_workspace_root() {
         dashboard.simulated_features(),
         vec![("default", true), ("cli", false)]
     );
-    assert!(rendered(&dashboard).contains("workspace root"));
+    assert!(rendered(&dashboard).contains("root package"));
 }
 
 #[test]
