@@ -71,7 +71,7 @@ items, split along the seams already in it" is.
 | `/` | Filter rows with a case-insensitive regex; `Enter` keeps it, `Esc` clears it |
 | `s` | Cycle the current pane's sort order |
 | `i` | Toggle whether discovery follows `.gitignore` and rebuild the report |
-| `d`, `r` in Dependencies | Mock-remove the selected direct dependency; restore all removals |
+| `d`, `r` in Dependencies | Toggle mock removal for the selected dependency; restore all removals |
 | `[`, `]`, `f`, `w` in Dependencies | Select/toggle a Cargo feature; switch dependency/root target |
 | `Enter`, `→`, `l` / `Backspace`, `←`, `h` | Enter / leave a directory |
 | `o` in Directories | Toggle between directories and directories + files |
@@ -93,8 +93,8 @@ recomputed, and the graph lists every crate that would become unreachable. The
 headline shows direct and total dependency counts plus the exact number of
 external crates and checked-out dependency source bytes the simulated build
 graph retains. This is source size, not a target-specific prediction of linked
-binary size. Press `d` repeatedly to model several removals and `r` to restore
-the original graph.
+binary size. Press `d` again on a marked dependency to restore it, use `d` on
+other rows to model several removals, or press `r` to restore the whole graph.
 
 The dependency detail also exposes Cargo features. `[` and `]` select a feature,
 `f` toggles it in the simulation, and `w` switches between the selected direct

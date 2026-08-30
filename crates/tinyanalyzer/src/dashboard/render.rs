@@ -257,7 +257,7 @@ fn status(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
 
         if dashboard.view() == View::Dependencies {
             spans.push(Span::styled(" · d", Style::default().fg(Color::LightRed)));
-            spans.push(Span::raw(" mock remove · "));
+            spans.push(Span::raw(" toggle mock remove · "));
             spans.push(Span::styled("r", Style::default().fg(Color::LightGreen)));
             spans.push(Span::raw(" restore · "));
             spans.push(Span::styled(

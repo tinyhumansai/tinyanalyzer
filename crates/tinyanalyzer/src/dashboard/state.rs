@@ -129,7 +129,7 @@ pub enum Action {
     ScrollDetailUp,
     /// Cycle to the next sort for the active view.
     NextSort,
-    /// Remove the selected dependency from the simulated graph.
+    /// Toggle the selected dependency in the simulated graph.
     SimulateRemoveDependency,
     /// Restore every dependency removed from the simulation.
     RestoreDependencies,
@@ -1059,7 +1059,7 @@ impl Dashboard {
         }
     }
 
-    /// Removes the selected direct dependency from the simulated workspace edges.
+    /// Toggles the selected direct dependency in the simulated workspace edges.
     fn simulate_remove_dependency(&mut self) {
         if self.view != View::Dependencies {
             return;
@@ -1067,7 +1067,9 @@ impl Dashboard {
         let Some(id) = self.selected_package().map(|package| package.id.clone()) else {
             return;
         };
-        self.removed_dependencies.insert(id);
+        if !self.removed_dependencies.remove(&id) {
+            self.removed_dependencies.insert(id);
+        }
         self.clamp_cursor();
     }
 

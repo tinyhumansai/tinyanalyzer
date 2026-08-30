@@ -1054,6 +1054,12 @@ fn dependency_removal_simulation_recomputes_the_visible_graph() {
     assert!(text.contains("2 direct deps · 3 total deps · 100 B dependency source"));
     assert!(text.contains("1 crates if built"));
 
+    dashboard.apply(Action::SimulateRemoveDependency);
+
+    assert_eq!(dashboard.removed_dependency_count(), 0);
+    assert!(!dashboard.dependency_is_removed(&removed));
+    assert_eq!(dashboard.simulated_build_dependency_count(), 3);
+
     dashboard.apply(Action::RestoreDependencies);
     assert_eq!(dashboard.removed_dependency_count(), 0);
     assert_eq!(dashboard.packages().len(), before);
