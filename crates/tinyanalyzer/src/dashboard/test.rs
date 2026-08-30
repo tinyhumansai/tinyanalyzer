@@ -549,3 +549,96 @@ fn the_filter_prompt_appears_while_typing() {
 
     assert!(rendered.contains("filter:"));
 }
+
+
+/// Drives the loop with a scripted list of key presses.
+///
+/// The last event must quit, or the loop would never return. A script that ran
+/// out is a test that would hang, so it is turned into a terminal error rather
+/// than being allowed to block the suite.
+fn drive_with(dashboard: &mut Dashboard, keys: &[KeyEvent]) -> Result<()> {
+    let backend = TestBackend::new(120, 40);
+    let mut terminal = Terminal::new(backend).expect("an in-memory terminal");
+
+    let mut remaining = keys.iter().copied();
+    let mut next = move || -> Result<Event> {
+        remaining.next().map(Event::Key).ok_or_else(|| Error::Terminal {
+            source: std::io::Error::other("the scripted events ran out"),
+        })
+    };
+
+    super::drive(&mut terminal, dashboard, &mut next)
+}
+
+#[test]
+fn the_loop_draws_applies_events_and_returns_when_asked_to_quit() {
+    let (_root, mut dashboard) = dashboard();
+
+    drive_with(
+        &mut dashboard,
+        &[
+            key(KeyCode::Char('2')),
+            key(KeyCode::Down),
+            key(KeyCode::Char('t')),
+            key(KeyCode::Char('q')),
+        ],
+    )
+    .expect("the script quits, so the loop returns");
+
+    assert_eq!(dashboard.view(), View::Files);
+    assert!(dashboard.hide_tests());
+    assert!(dashboard.should_quit());
+}
+
+#[test]
+fn the_loop_returns_the_error_when_the_event_source_fails() {
+    let (_root, mut dashboard) = dashboard();
+
+    let error = drive_with(&mut dashboard, &[]).expect_err("the script is empty");
+
+    assert!(matches!(error, Error::Terminal { .. }));
+    assert!(!dashboard.should_quit());
+}
+
+#[test]
+fn the_loop_ignores_an_event_that_means_nothing_here() {
+    let (_root, mut dashboard) = dashboard();
+
+    drive_with(
+        &mut dashboard,
+        &[key(KeyCode::Char('%')), key(KeyCode::F(4)), key(KeyCode::Char('q'))],
+    )
+    .expect("an unmapped key is not an error");
+
+    assert_eq!(dashboard.view(), View::Overview);
+}
+
+#[test]
+fn a_dashboard_that_is_already_quitting_draws_nothing() {
+    let (_root, mut dashboard) = dashboard();
+    dashboard.apply(Action::Quit);
+
+    drive_with(&mut dashboard, &[]).expect("the loop returns without reading an event");
+}
+
+#[test]
+fn a_filter_typed_through_the_loop_narrows_the_rows() {
+    let (_root, mut dashboard) = dashboard();
+
+    drive_with(
+        &mut dashboard,
+        &[
+            key(KeyCode::Char('2')),
+            key(KeyCode::Char('/')),
+            key(KeyCode::Char('s')),
+            key(KeyCode::Char('m')),
+            key(KeyCode::Enter),
+            key(KeyCode::Char('q')),
+        ],
+    )
+    .expect("the script quits");
+
+    assert_eq!(dashboard.filter(), "sm");
+    assert!(!dashboard.editing_filter());
+    assert!(dashboard.row_count() < dashboard.report().files.len());
+}
