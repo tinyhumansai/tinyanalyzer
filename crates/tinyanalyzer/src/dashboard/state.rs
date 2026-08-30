@@ -849,6 +849,12 @@ impl Dashboard {
         let mut stack = vec![(id.to_owned(), 0usize)];
         let simulated_reachable = (!self.removed_dependencies.is_empty())
             .then(|| self.simulated_reachable());
+        if simulated_reachable
+            .as_ref()
+            .is_some_and(|reachable| !reachable.contains(id))
+        {
+            return out;
+        }
 
         while let Some((current, depth)) = stack.pop() {
             if depth > max_depth {
