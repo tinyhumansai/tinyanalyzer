@@ -10,7 +10,8 @@
 
 use super::{
     DependencyKind, DependencyReport, DuplicateVersions, PackageNode, direct_dependencies,
-    exclusive_weight, find_duplicates, normalize_crate_name, reachable_from, shortest_depths,
+    exclusive_weight, find_duplicates, normalize_crate_name, package_source_bytes, reachable_from,
+    shortest_depths,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -34,6 +35,7 @@ fn package(name: &str, version: &str, direct: bool, exclusive: usize) -> Package
         id: format!("{name}@{version}"),
         name: name.to_owned(),
         version: version.to_owned(),
+        source_bytes: 0,
         is_workspace_member: false,
         is_root_package: false,
         is_direct: direct,
@@ -44,6 +46,22 @@ fn package(name: &str, version: &str, direct: bool, exclusive: usize) -> Package
         exclusive_count: exclusive,
         depth: 1,
     }
+}
+
+#[test]
+fn package_source_size_counts_source_files_but_not_build_output() {
+    let root = tempfile::TempDir::new().expect("a temporary package source");
+    std::fs::create_dir_all(root.path().join("src")).expect("the source directory is writable");
+    std::fs::create_dir_all(root.path().join("target/debug"))
+        .expect("the target directory is writable");
+    std::fs::write(root.path().join("Cargo.toml"), b"12345")
+        .expect("the manifest is writable");
+    std::fs::write(root.path().join("src/lib.rs"), b"1234567")
+        .expect("the source is writable");
+    std::fs::write(root.path().join("target/debug/artifact"), vec![0; 1_000])
+        .expect("the artifact is writable");
+
+    assert_eq!(package_source_bytes(root.path()), 12);
 }
 
 #[test]

@@ -62,6 +62,9 @@ pub struct PackageNode {
     pub name: String,
     /// The resolved version.
     pub version: String,
+    /// Bytes occupied by the package's source tree before compilation.
+    #[serde(default)]
+    pub source_bytes: u64,
     /// Whether this package is a member of the workspace under analysis.
     pub is_workspace_member: bool,
     /// Whether this package is declared by the analyzed root `Cargo.toml`.

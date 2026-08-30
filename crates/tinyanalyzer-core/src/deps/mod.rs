@@ -30,6 +30,7 @@ use crate::config::DependencyConfig;
 use crate::error::{Error, Result};
 use cargo_metadata::MetadataCommand;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use ignore::WalkBuilder;
 use std::path::Path;
 
 /// Which crate names each workspace member's source files mention.
@@ -125,6 +126,12 @@ pub fn analyze(
             depth: depths.get(&id).copied().unwrap_or(usize::MAX),
             name: package.name.to_string(),
             version: package.version.to_string(),
+            source_bytes: package_source_bytes(
+                package
+                    .manifest_path
+                    .parent()
+                    .map_or(root, cargo_metadata::camino::Utf8Path::as_std_path),
+            ),
             id,
         });
     }
@@ -160,6 +167,26 @@ pub fn analyze(
         external_packages,
         max_depth,
     })
+}
+
+/// Measures the checked-out source Cargo would compile for one package.
+fn package_source_bytes(root: &Path) -> u64 {
+    WalkBuilder::new(root)
+        .hidden(false)
+        .git_ignore(false)
+        .git_global(false)
+        .git_exclude(false)
+        .build()
+        .filter_entry(|entry| {
+            entry.depth() == 0
+                || !matches!(entry.file_name().to_str(), Some("target" | ".git"))
+        })
+        .filter_map(std::result::Result::ok)
+        .filter(|entry| entry.file_type().is_some_and(|kind| kind.is_file()))
+        .filter_map(|entry| entry.metadata().ok())
+        .fold(0_u64, |total, metadata| {
+            total.saturating_add(metadata.len())
+        })
 }
 
 /// The dependency kinds one resolved edge carries.

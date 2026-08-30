@@ -170,6 +170,11 @@ fn external(
         id: format!("{name}@{version}"),
         name: name.to_owned(),
         version: version.to_owned(),
+        source_bytes: match name {
+            "heavy" => 2_400,
+            "deep" => 300,
+            _ => 100,
+        },
         is_workspace_member: false,
         is_root_package: false,
         is_direct: direct,
