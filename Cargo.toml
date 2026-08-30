@@ -69,8 +69,15 @@ rayon = "1"
 # backend. The analyzer ships as one binary with no runtime, no browser, and no
 # bundled web assets — the dashboard is the program, not something the program
 # serves.
-ratatui = "0.30"
-crossterm = "0.29"
+# `crossterm` is taken through ratatui's own re-export rather than declared
+# separately: the backend has to be built against exactly the version ratatui
+# links, and two entries in one manifest is the standard way to end up with two
+# incompatible `KeyEvent` types that differ only in a version number.
+ratatui = { version = "0.30", default-features = false, features = [
+    "crossterm",
+    "layout-cache",
+    "underline-color",
+] }
 # The command-line surface of the shipped binary.
 clap = { version = "4", features = ["derive", "env"] }
 # Integration tests build fixture trees that must not outlive the test.
