@@ -229,7 +229,7 @@ impl Dashboard {
 
     /// Whether the current filter is a valid regular expression.
     #[must_use]
-    pub const fn filter_regex_valid(&self) -> bool {
+    pub fn filter_regex_valid(&self) -> bool {
         self.filter_syntax == FilterSyntax::Regex
     }
 
@@ -528,7 +528,7 @@ impl Dashboard {
 
     /// Whether feature controls currently target the workspace root package.
     #[must_use]
-    pub const fn feature_root_target(&self) -> bool {
+    pub fn feature_root_target(&self) -> bool {
         self.feature_target == FeatureTarget::Root
     }
 
