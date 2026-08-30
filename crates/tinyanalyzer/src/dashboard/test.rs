@@ -1476,6 +1476,13 @@ fn the_mouse_wheel_scrolls_the_pane_under_the_pointer() {
     assert_eq!(dashboard.detail_scroll(), 3);
     assert_eq!(dashboard.cursor(), 0, "the file list stays selected");
 
+    let detail_up = action_for_event(
+        &mouse(MouseEventKind::ScrollUp, 120, 10),
+        area,
+        &dashboard,
+    );
+    assert_eq!(detail_up, Some(Action::ScrollDetailUp));
+
     let list_scroll =
         action_for_event(&mouse(MouseEventKind::ScrollDown, 10, 10), area, &dashboard);
     assert_eq!(list_scroll, Some(Action::MoveDown));
@@ -1485,6 +1492,38 @@ fn the_mouse_wheel_scrolls_the_pane_under_the_pointer() {
         dashboard.detail_scroll(),
         0,
         "selecting a new row starts its detail at the top"
+    );
+}
+
+#[test]
+fn irrelevant_or_out_of_range_mouse_events_do_nothing() {
+    let (_root, mut dashboard) = dashboard();
+    let area = Rect::new(0, 0, 160, 48);
+    dashboard.apply(Action::SelectView(View::Files.index()));
+
+    assert_eq!(
+        action_for_event(&mouse(MouseEventKind::Moved, 10, 10), area, &dashboard),
+        None
+    );
+    assert_eq!(
+        action_for_event(
+            &mouse(MouseEventKind::Down(MouseButton::Left), 2, 30),
+            area,
+            &dashboard
+        ),
+        None,
+        "a click below the last row is ignored"
+    );
+
+    dashboard.apply(Action::StartFilter);
+    assert_eq!(
+        action_for_event(
+            &mouse(MouseEventKind::ScrollDown, 10, 10),
+            area,
+            &dashboard
+        ),
+        None,
+        "mouse commands do not interrupt filter entry"
     );
 }
 
