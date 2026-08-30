@@ -177,8 +177,8 @@ pub struct Dashboard {
     feature_overrides: BTreeMap<String, BTreeSet<String>>,
     feature_cursor: usize,
     feature_target: FeatureTarget,
-    respect_gitignore: bool,
-    reload_requested: bool,
+    ignore_policy: IgnorePolicy,
+    reload_state: ReloadState,
     quit: bool,
 }
 
@@ -203,8 +203,8 @@ impl Dashboard {
             feature_overrides: BTreeMap::new(),
             feature_cursor: 0,
             feature_target: FeatureTarget::Dependency,
-            respect_gitignore: true,
-            reload_requested: false,
+            ignore_policy: IgnorePolicy::Respect,
+            reload_state: ReloadState::Current,
             quit: false,
         }
     }
@@ -276,22 +276,22 @@ impl Dashboard {
     /// Whether filesystem discovery currently respects ignore files.
     #[must_use]
     pub const fn respect_gitignore(&self) -> bool {
-        self.respect_gitignore
+        self.ignore_policy == IgnorePolicy::Respect
     }
 
     /// Whether the report must be rebuilt for a changed ignore policy.
     #[must_use]
     pub const fn reload_requested(&self) -> bool {
-        self.reload_requested
+        self.reload_state == ReloadState::Requested
     }
 
     /// Consumes a pending reload request and returns the new ignore policy.
     pub fn take_reload_request(&mut self) -> Option<bool> {
-        if !self.reload_requested {
+        if self.reload_state != ReloadState::Requested {
             return None;
         }
-        self.reload_requested = false;
-        Some(self.respect_gitignore)
+        self.reload_state = ReloadState::Current;
+        Some(self.respect_gitignore())
     }
 
     /// Replaces analysis results after the ignore policy changes.
@@ -302,7 +302,11 @@ impl Dashboard {
 
     /// Sets the initial ignore policy used by the interactive reload loop.
     pub fn set_respect_gitignore(&mut self, respect: bool) {
-        self.respect_gitignore = respect;
+        self.ignore_policy = if respect {
+            IgnorePolicy::Respect
+        } else {
+            IgnorePolicy::IncludeIgnored
+        };
     }
 
     /// The cursor position in the current view.
@@ -732,8 +736,11 @@ impl Dashboard {
                 self.clamp_cursor();
             }
             Action::ToggleGitignore => {
-                self.respect_gitignore = !self.respect_gitignore;
-                self.reload_requested = true;
+                self.ignore_policy = match self.ignore_policy {
+                    IgnorePolicy::Respect => IgnorePolicy::IncludeIgnored,
+                    IgnorePolicy::IncludeIgnored => IgnorePolicy::Respect,
+                };
+                self.reload_state = ReloadState::Requested;
             }
             Action::NextFeature => self.move_feature(1),
             Action::PreviousFeature => self.move_feature(-1),
@@ -964,6 +971,18 @@ enum FilterSyntax {
 enum FeatureTarget {
     Dependency,
     Root,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IgnorePolicy {
+    Respect,
+    IncludeIgnored,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReloadState {
+    Current,
+    Requested,
 }
 
 const fn sort_count(view: View) -> usize {
