@@ -37,9 +37,6 @@ pub struct Config {
     pub notes: Vec<Note>,
 }
 
-    }
-}
-
 /// Human-facing identity of the project under analysis.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
