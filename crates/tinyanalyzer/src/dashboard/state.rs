@@ -11,7 +11,7 @@
 //! this struct, answerable without drawing anything.
 
 use regex::{Regex, RegexBuilder};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use tinyanalyzer_core::{
@@ -262,6 +262,7 @@ pub struct Dashboard {
     directory_visibility: DirectoryVisibility,
     removed_dependencies: BTreeSet<String>,
     dependency_simulation: RefCell<Option<DependencySimulation>>,
+    dependency_simulation_builds: Cell<usize>,
     feature_overrides: BTreeMap<String, BTreeSet<String>>,
     feature_cursor: usize,
     feature_target: FeatureTarget,
@@ -290,6 +291,7 @@ impl Dashboard {
             directory_visibility: DirectoryVisibility::All,
             removed_dependencies: BTreeSet::new(),
             dependency_simulation: RefCell::new(None),
+            dependency_simulation_builds: Cell::new(0),
             feature_overrides: BTreeMap::new(),
             feature_cursor: 0,
             feature_target: FeatureTarget::Dependency,
@@ -955,6 +957,7 @@ impl Dashboard {
             Action::SimulateRemoveDependency => self.simulate_remove_dependency(),
             Action::RestoreDependencies => {
                 self.removed_dependencies.clear();
+                self.invalidate_dependency_simulation();
                 self.clamp_cursor();
             }
             Action::ToggleGitignore => {
@@ -1162,8 +1165,15 @@ impl Dashboard {
             counts.insert(package.id.clone(), (exclusive, descendants));
         }
 
-        *self.dependency_simulation.borrow_mut() =
-            Some(DependencySimulation { reachable, counts });
+        self.dependency_simulation_builds
+            .set(self.dependency_simulation_builds.get().saturating_add(1));
+        *self.dependency_simulation.borrow_mut() = Some(DependencySimulation { reachable, counts });
+    }
+
+    /// Number of simulated graph snapshots built, for cache regression tests.
+    #[cfg(test)]
+    pub(super) fn dependency_simulation_builds(&self) -> usize {
+        self.dependency_simulation_builds.get()
     }
 
     /// Invalidates derived graph data after a simulation or report change.
@@ -1257,6 +1267,28 @@ impl Dashboard {
                 .sum()
         })
     }
+}
+
+/// Number of currently reachable descendants below one package.
+fn dependency_descendants(
+    id: &str,
+    adjacency: &BTreeMap<String, Vec<String>>,
+    reachable: &BTreeSet<String>,
+) -> usize {
+    let mut descendants = BTreeSet::new();
+    let mut queue = VecDeque::from([id.to_owned()]);
+    while let Some(current) = queue.pop_front() {
+        let Some(children) = adjacency.get(&current) else {
+            continue;
+        };
+        for child in children {
+            if reachable.contains(child) && descendants.insert(child.clone()) {
+                queue.push_back(child.clone());
+            }
+        }
+    }
+    descendants.remove(id);
+    descendants.len()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
