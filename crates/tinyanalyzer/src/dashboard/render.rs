@@ -389,18 +389,17 @@ fn files(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
             } else {
                 Style::default().fg(Color::LightGreen)
             };
-            let name = if file.is_test {
-                Span::styled(truncate_path(&file.path, 48), name_style)
-            } else {
-                Span::styled(truncate_path(&file.path, 48), name_style)
-            };
+            let name = Span::styled(truncate_path(&file.path, 48), name_style);
 
             Row::new(vec![
                 Cell::from(name),
-                metric_cell(file.lines.code, METRIC),
-                metric_cell(file.lines.comment, DOCUMENTATION),
-                metric_cell(functions, Color::LightMagenta),
-                metric_cell(complexity, if complexity >= 15 { WARNING } else { METRIC }),
+                metric_cell(&file.lines.code, METRIC),
+                metric_cell(&file.lines.comment, DOCUMENTATION),
+                metric_cell(&functions, Color::LightMagenta),
+                metric_cell(
+                    &complexity,
+                    if complexity >= 15 { WARNING } else { METRIC },
+                ),
             ])
         })
         .collect();
@@ -537,9 +536,9 @@ fn directories(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                         })
                         .add_modifier(Modifier::BOLD),
                 )),
-                metric_cell(directory.files, Color::LightMagenta),
-                metric_cell(directory.lines.code, METRIC),
-                metric_cell(directory.lines.comment, DOCUMENTATION),
+                metric_cell(&directory.files, Color::LightMagenta),
+                metric_cell(&directory.lines.code, METRIC),
+                metric_cell(&directory.lines.comment, DOCUMENTATION),
                 Cell::from(Span::styled(
                     human_bytes(directory.bytes),
                     Style::default().fg(SIZE),
@@ -620,7 +619,7 @@ fn dependencies(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                         METRIC
                     }),
                 )),
-                metric_cell(package.transitive_count, Color::LightMagenta),
+                metric_cell(&package.transitive_count, Color::LightMagenta),
             ])
         })
         .collect();
@@ -878,7 +877,7 @@ fn header_row<'a>(labels: &[&'a str]) -> Row<'a> {
 }
 
 /// A consistently colored numeric table cell.
-fn metric_cell(value: impl ToString, color: Color) -> Cell<'static> {
+fn metric_cell(value: &impl ToString, color: Color) -> Cell<'static> {
     Cell::from(Span::styled(value.to_string(), Style::default().fg(color)))
 }
 
