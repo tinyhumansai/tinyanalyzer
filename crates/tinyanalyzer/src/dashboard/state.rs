@@ -1184,6 +1184,10 @@ impl Dashboard {
         let last = self.row_count().saturating_sub(1);
         let cursor = &mut self.cursors[self.view.index()];
         *cursor = (*cursor).min(last);
+        if self.view == View::Dependencies && self.dependency_detail_focused {
+            let detail_last = self.dependency_detail_packages().len().saturating_sub(1);
+            self.dependency_detail_cursor = self.dependency_detail_cursor.min(detail_last);
+        }
     }
 
     /// Opens the directory at `position` when it contains another level.
@@ -1236,31 +1240,74 @@ impl Dashboard {
         self.set_cursor(cursor);
     }
 
-    /// Opens the selected dependency when it has reachable children.
+    /// Focuses the detail pane or opens its selected dependency.
     fn enter_dependency(&mut self) {
         if self.view != View::Dependencies {
             return;
         }
-        let Some(id) = self.selected_package().map(|package| package.id.clone()) else {
-            return;
-        };
-        if self.dependency_child_count(&id) == 0 {
-            return;
+        if self.dependency_detail_focused {
+            let Some(id) = self
+                .selected_dependency_detail_package()
+                .map(|package| package.id.clone())
+            else {
+                return;
+            };
+            if self.dependency_child_count(&id) == 0 {
+                return;
+            }
+            self.dependency_detail_cursors
+                .push(self.dependency_detail_cursor);
+            self.dependency_detail_path.push(id);
+            self.dependency_detail_cursor = 0;
+        } else {
+            let Some(id) = self.selected_package().map(|package| package.id.clone()) else {
+                return;
+            };
+            if self.dependency_children(&id).is_empty() {
+                return;
+            }
+            self.dependency_detail_root = Some(id);
+            self.dependency_detail_focused = true;
+            self.dependency_detail_cursor = 0;
         }
-
-        self.dependency_cursors.push(self.cursor());
-        self.dependency_path.push(id);
-        self.set_cursor(0);
+        self.detail_scrolls[View::Dependencies.index()] = 0;
     }
 
-    /// Returns to the preceding dependency level and selection.
+    /// Returns to the preceding detail level, then to the direct list.
     fn leave_dependency(&mut self) {
-        if self.view != View::Dependencies || self.dependency_path.is_empty() {
+        if self.view != View::Dependencies || !self.dependency_detail_focused {
             return;
         }
-        self.dependency_path.pop();
-        let cursor = self.dependency_cursors.pop().unwrap_or_default();
-        self.set_cursor(cursor);
+        if self.dependency_detail_path.pop().is_some() {
+            self.dependency_detail_cursor = self
+                .dependency_detail_cursors
+                .pop()
+                .unwrap_or_default();
+        } else {
+            self.reset_dependency_detail();
+        }
+        self.detail_scrolls[View::Dependencies.index()] = 0;
+    }
+
+    /// Moves the highlighted dependency in the detail pane.
+    fn move_dependency_detail(&mut self, delta: i64) {
+        if !self.dependency_detail_focused {
+            return;
+        }
+        let current = i64::try_from(self.dependency_detail_cursor).unwrap_or(i64::MAX);
+        let last = i64::try_from(self.dependency_detail_packages().len().saturating_sub(1))
+            .unwrap_or(i64::MAX);
+        self.dependency_detail_cursor =
+            usize::try_from(current.saturating_add(delta).clamp(0, last)).unwrap_or_default();
+    }
+
+    /// Drops all right-sidebar navigation state.
+    fn reset_dependency_detail(&mut self) {
+        self.dependency_detail_root = None;
+        self.dependency_detail_path.clear();
+        self.dependency_detail_cursors.clear();
+        self.dependency_detail_cursor = 0;
+        self.dependency_detail_focused = false;
     }
 
     /// Compiles the filter, falling back to a literal while a regex is incomplete.
@@ -1288,7 +1335,7 @@ impl Dashboard {
 
     /// Toggles the selected direct dependency in the simulated workspace edges.
     fn simulate_remove_dependency(&mut self) {
-        if self.view != View::Dependencies || !self.dependency_path.is_empty() {
+        if self.view != View::Dependencies || self.dependency_detail_focused {
             return;
         }
         let Some(id) = self.selected_package().map(|package| package.id.clone()) else {
