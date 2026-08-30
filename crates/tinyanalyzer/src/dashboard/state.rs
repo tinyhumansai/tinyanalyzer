@@ -563,12 +563,54 @@ impl Dashboard {
             .filter(|package| self.matches(&package.name))
             .collect();
         match self.sorts[View::Dependencies.index()] {
-            0 => packages.sort_by_key(|package| Reverse(package.exclusive_count)),
+            0 => packages.sort_by_key(|package| Reverse(self.dependency_counts(&package.id).0)),
             1 => packages.sort_by(|left, right| left.name.cmp(&right.name)),
-            2 => packages.sort_by_key(|package| Reverse(package.transitive_count)),
+            2 => packages.sort_by_key(|package| Reverse(self.dependency_counts(&package.id).1)),
             _ => packages.sort_by_key(|package| Reverse(package.source_bytes)),
         }
         packages
+    }
+
+    /// Simulated `(exclusive, reachable)` crate counts for a direct dependency.
+    #[must_use]
+    pub fn dependency_counts(&self, id: &str) -> (usize, usize) {
+        if self.removed_dependencies.contains(id) {
+            return (0, 0);
+        }
+
+        let reachable = self.simulated_reachable();
+        if !reachable.contains(id) {
+            return (0, 0);
+        }
+
+        let mut descendants = BTreeSet::new();
+        let mut queue = VecDeque::from([id.to_owned()]);
+        while let Some(current) = queue.pop_front() {
+            for edge in self
+                .report
+                .dependencies
+                .edges
+                .iter()
+                .filter(|edge| edge.from == current && reachable.contains(&edge.to))
+            {
+                if descendants.insert(edge.to.clone()) {
+                    queue.push_back(edge.to.clone());
+                }
+            }
+        }
+        descendants.remove(id);
+
+        let without = self.simulated_reachable_without(Some(id));
+        let exclusive = reachable
+            .difference(&without)
+            .filter(|package_id| {
+                self.report
+                    .dependencies
+                    .package(package_id)
+                    .is_some_and(|package| !package.is_workspace_member)
+            })
+            .count();
+        (exclusive, descendants.len())
     }
 
     /// Whether a direct dependency is disabled in the current simulation.
@@ -805,6 +847,8 @@ impl Dashboard {
         let mut out = Vec::new();
         let mut seen = std::collections::BTreeSet::new();
         let mut stack = vec![(id.to_owned(), 0usize)];
+        let simulated_reachable = (!self.removed_dependencies.is_empty())
+            .then(|| self.simulated_reachable());
 
         while let Some((current, depth)) = stack.pop() {
             if depth > max_depth {
@@ -825,6 +869,12 @@ impl Dashboard {
             // Reversed, because the stack pops last-in first and the tree
             // should read in the order the children are sorted.
             for child in children.into_iter().rev() {
+                if simulated_reachable
+                    .as_ref()
+                    .is_some_and(|reachable| !reachable.contains(child))
+                {
+                    continue;
+                }
                 if !seen.insert(child.to_owned()) {
                     continue;
                 }
@@ -1070,13 +1120,23 @@ impl Dashboard {
             return;
         };
         if !self.removed_dependencies.remove(&id) {
-            self.removed_dependencies.insert(id);
+            self.removed_dependencies.insert(id.clone());
         }
-        self.clamp_cursor();
+        let position = self
+            .packages()
+            .iter()
+            .position(|package| package.id == id)
+            .unwrap_or_default();
+        self.set_cursor(position);
     }
 
     /// IDs reachable from workspace members after simulated direct edges are removed.
     fn simulated_reachable(&self) -> BTreeSet<String> {
+        self.simulated_reachable_without(None)
+    }
+
+    /// IDs reachable with one additional direct dependency edge removed.
+    fn simulated_reachable_without(&self, additional: Option<&str>) -> BTreeSet<String> {
         let mut seen = BTreeSet::new();
         let mut queue: VecDeque<String> = self
             .report
@@ -1094,7 +1154,8 @@ impl Dashboard {
                 .iter()
                 .filter(|edge| edge.from == id)
             {
-                if self.removed_dependencies.contains(&edge.to)
+                if (self.removed_dependencies.contains(&edge.to)
+                    || additional.is_some_and(|id| id == edge.to))
                     && self
                         .report
                         .dependencies
