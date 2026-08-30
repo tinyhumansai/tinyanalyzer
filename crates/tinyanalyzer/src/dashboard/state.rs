@@ -139,6 +139,8 @@ pub enum Action {
     ToggleFeature,
     /// Switch feature simulation between the selected dependency and workspace root.
     ToggleFeatureTarget,
+    /// Toggle whether filesystem discovery respects gitignore rules.
+    ToggleGitignore,
     /// Show or hide test code.
     ToggleTests,
     /// Start typing a filter.
@@ -407,6 +409,18 @@ impl Dashboard {
             1 => rows.sort_by(|left, right| left.path.cmp(&right.path)),
             2 => rows.sort_by_key(|row| Reverse(row.files)),
             _ => rows.sort_by_key(|row| Reverse(row.lines.code)),
+        }
+        if self.directory_path != "." {
+            rows.insert(
+                0,
+                DirectoryMetrics {
+                    path: "..".to_owned(),
+                    files: 0,
+                    bytes: 0,
+                    lines: LineCounts::default(),
+                    is_test_only: false,
+                },
+            );
         }
         rows
     }
@@ -796,6 +810,10 @@ impl Dashboard {
         let Some(selected) = rows.get(position) else {
             return;
         };
+        if selected.path == ".." {
+            self.leave_directory();
+            return;
+        }
         let selected_path = selected.path.clone();
         let has_children = self.files().iter().any(|file| {
             file.directory
