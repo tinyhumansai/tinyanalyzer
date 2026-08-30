@@ -43,6 +43,7 @@ pub(super) const WORDMARK: [&str; 7] = [
 ];
 
 const MIN_OVERVIEW_WITH_WORDMARK_HEIGHT: u16 = 36;
+const WORDMARK_HEIGHT: u16 = 7;
 
 /// Draws the whole dashboard.
 pub(super) fn draw(frame: &mut Frame<'_>, dashboard: &Dashboard) {
@@ -347,7 +348,7 @@ fn overview(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     let content = overview_content(area);
     if content != area {
         let logo = Rect {
-            height: WORDMARK.len() as u16,
+            height: WORDMARK_HEIGHT,
             ..area
         };
         wordmark(frame, logo);
@@ -376,8 +377,8 @@ fn overview_content(area: Rect) -> Rect {
 
     if fits {
         Rect {
-            y: area.y.saturating_add(WORDMARK.len() as u16),
-            height: area.height.saturating_sub(WORDMARK.len() as u16),
+            y: area.y.saturating_add(WORDMARK_HEIGHT),
+            height: area.height.saturating_sub(WORDMARK_HEIGHT),
             ..area
         }
     } else {
