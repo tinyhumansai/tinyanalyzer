@@ -1098,11 +1098,8 @@ fn the_mouse_wheel_scrolls_the_pane_under_the_pointer() {
     assert_eq!(dashboard.detail_scroll(), 3);
     assert_eq!(dashboard.cursor(), 0, "the file list stays selected");
 
-    let list_scroll = action_for_event(
-        &mouse(MouseEventKind::ScrollDown, 10, 10),
-        area,
-        &dashboard,
-    );
+    let list_scroll =
+        action_for_event(&mouse(MouseEventKind::ScrollDown, 10, 10), area, &dashboard);
     assert_eq!(list_scroll, Some(Action::MoveDown));
     dashboard.apply(list_scroll.expect("the list pane handles its wheel event"));
     assert_eq!(dashboard.cursor(), 1);
