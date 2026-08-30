@@ -192,11 +192,21 @@ fn action_for_event(event: &Event, area: Rect, dashboard: &Dashboard) -> Option<
                 KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
                     Some(Action::EnterDependency)
                 }
-                KeyCode::Esc if !dashboard.dependency_at_root() => Some(Action::LeaveDependency),
-                KeyCode::Backspace | KeyCode::Left | KeyCode::Char('h') => {
+                KeyCode::Esc if dashboard.dependency_detail_focused() => {
                     Some(Action::LeaveDependency)
                 }
-                KeyCode::Char('d') if dashboard.dependency_at_root() => {
+                KeyCode::Backspace | KeyCode::Left | KeyCode::Char('h')
+                    if dashboard.dependency_detail_focused() =>
+                {
+                    Some(Action::LeaveDependency)
+                }
+                KeyCode::Down | KeyCode::Char('j') if dashboard.dependency_detail_focused() => {
+                    Some(Action::MoveDependencyDown)
+                }
+                KeyCode::Up | KeyCode::Char('k') if dashboard.dependency_detail_focused() => {
+                    Some(Action::MoveDependencyUp)
+                }
+                KeyCode::Char('d') if !dashboard.dependency_detail_focused() => {
                     Some(Action::SimulateRemoveDependency)
                 }
                 KeyCode::Char('r') => Some(Action::RestoreDependencies),
