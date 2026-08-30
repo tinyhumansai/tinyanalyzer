@@ -1169,6 +1169,20 @@ fn dependency_tree_rows_show_source_size_and_immediate_child_count() {
             .map(|package| package.name.as_str()),
         Some("heavy")
     );
+    dashboard.apply(Action::MoveDependencyDown);
+    assert_eq!(
+        dashboard
+            .selected_dependency_detail_package()
+            .map(|package| package.name.as_str()),
+        Some("leaf")
+    );
+    dashboard.apply(Action::MoveDependencyUp);
+    assert_eq!(
+        dashboard
+            .selected_dependency_detail_package()
+            .map(|package| package.name.as_str()),
+        Some("deep")
+    );
     dashboard.apply(Action::EnterDependency);
     assert_eq!(
         dashboard
