@@ -38,6 +38,7 @@ fn package(name: &str, version: &str, direct: bool, exclusive: usize) -> Package
         is_direct: direct,
         kinds: vec![DependencyKind::Normal],
         features: Vec::new(),
+        available_features: Vec::new(),
         transitive_count: exclusive,
         exclusive_count: exclusive,
         depth: 1,

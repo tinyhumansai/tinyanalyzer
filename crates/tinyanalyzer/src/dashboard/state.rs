@@ -291,9 +291,7 @@ impl Dashboard {
             0 => files.sort_by(|left, right| right.weight.total_cmp(&left.weight)),
             1 => files.sort_by(|left, right| left.path.cmp(&right.path)),
             2 => files.sort_by(|left, right| {
-                self.file_lines(right)
-                    .code
-                    .cmp(&self.file_lines(left).code)
+                self.file_lines(right).code.cmp(&self.file_lines(left).code)
             }),
             3 => files.sort_by(|left, right| right.bytes.cmp(&left.bytes)),
             _ => files.sort_by(|left, right| {
