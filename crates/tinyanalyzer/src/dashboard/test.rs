@@ -1344,6 +1344,26 @@ fn dependency_keys_are_contextual() {
         Some(Action::NextSort),
         "ordinary keys still use the shared mapping"
     );
+    assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Enter)), area, &dashboard),
+        Some(Action::EnterDependency)
+    );
+
+    dashboard.apply(Action::EnterDependency);
+    assert!(dashboard.dependency_detail_focused());
+    assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Down)), area, &dashboard),
+        Some(Action::MoveDependencyDown)
+    );
+    assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Esc)), area, &dashboard),
+        Some(Action::LeaveDependency)
+    );
+    assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Char('d'))), area, &dashboard),
+        Some(Action::PageDown),
+        "mock removal remains scoped to the direct-dependency list"
+    );
 }
 
 #[test]
