@@ -290,15 +290,40 @@ impl Dashboard {
         match self.sorts[View::Files.index()] {
             0 => files.sort_by(|left, right| right.weight.total_cmp(&left.weight)),
             1 => files.sort_by(|left, right| left.path.cmp(&right.path)),
-            2 => files.sort_by(|left, right| right.lines.code.cmp(&left.lines.code)),
+            2 => files.sort_by(|left, right| {
+                self.file_lines(right)
+                    .code
+                    .cmp(&self.file_lines(left).code)
+            }),
             3 => files.sort_by(|left, right| right.bytes.cmp(&left.bytes)),
             _ => files.sort_by(|left, right| {
-                file_complexity(right)
-                    .cmp(&file_complexity(left))
+                self.file_complexity(right)
+                    .cmp(&self.file_complexity(left))
                     .then_with(|| left.path.cmp(&right.path))
             }),
         }
         files
+    }
+
+    /// Line counts for a file after applying the test-code filter.
+    #[must_use]
+    pub fn file_lines(&self, file: &FileMetrics) -> LineCounts {
+        if self.hide_tests {
+            file.lines.without(file.test_lines)
+        } else {
+            file.lines
+        }
+    }
+
+    /// Function count for a file after applying the test-code filter.
+    #[must_use]
+    pub fn file_function_count(&self, file: &FileMetrics) -> usize {
+        file.rust.as_ref().map_or(0, |rust| {
+            rust.functions
+                .iter()
+                .filter(|function| !(self.hide_tests && function.is_test))
+                .count()
+        })
     }
 
     /// Immediate child directories at the current browser level.
@@ -326,7 +351,7 @@ impl Dashboard {
                 });
             entry.files = entry.files.saturating_add(1);
             entry.bytes = entry.bytes.saturating_add(file.bytes);
-            entry.lines.add(file.lines);
+            entry.lines.add(self.file_lines(file));
             entry.is_test_only = entry.is_test_only && file.is_test;
         }
 
@@ -758,15 +783,16 @@ impl Dashboard {
         }
         seen
     }
-}
 
-fn file_complexity(file: &FileMetrics) -> u32 {
-    file.rust.as_ref().map_or(0, |rust| {
-        rust.functions
-            .iter()
-            .map(|function| function.complexity)
-            .sum()
-    })
+    fn file_complexity(&self, file: &FileMetrics) -> u32 {
+        file.rust.as_ref().map_or(0, |rust| {
+            rust.functions
+                .iter()
+                .filter(|function| !(self.hide_tests && function.is_test))
+                .map(|function| function.complexity)
+                .sum()
+        })
+    }
 }
 
 const fn sort_count(view: View) -> usize {

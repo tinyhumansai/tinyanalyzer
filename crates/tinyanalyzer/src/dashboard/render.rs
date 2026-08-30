@@ -385,17 +385,19 @@ fn files(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         .files()
         .iter()
         .map(|file| {
+            let file_lines = dashboard.file_lines(file);
             let complexity: u32 = file
                 .rust
                 .as_ref()
                 .map(|rust| {
                     rust.functions
                         .iter()
+                        .filter(|function| !(dashboard.hide_tests() && function.is_test))
                         .map(|function| function.complexity)
                         .sum()
                 })
                 .unwrap_or_default();
-            let functions = file.rust.as_ref().map_or(0, |rust| rust.functions.len());
+            let functions = dashboard.file_function_count(file);
 
             let name_style = if file.is_test {
                 Style::default().fg(MUTED)
@@ -410,8 +412,8 @@ fn files(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
 
             Row::new(vec![
                 Cell::from(name),
-                metric_cell(&file.lines.code, METRIC),
-                metric_cell(&file.lines.comment, DOCUMENTATION),
+                metric_cell(&file_lines.code, METRIC),
+                metric_cell(&file_lines.comment, DOCUMENTATION),
                 metric_cell(&functions, Color::LightMagenta),
                 metric_cell(&complexity, if complexity >= 15 { WARNING } else { METRIC }),
             ])
@@ -448,6 +450,7 @@ fn file_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         return;
     };
 
+    let file_lines = dashboard.file_lines(file);
     let mut lines = vec![
         Line::from(Span::styled(
             file.path.clone(),
@@ -469,7 +472,7 @@ fn file_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         Line::from(""),
         Line::from(format!(
             "{} code · {} comment · {} blank",
-            file.lines.code, file.lines.comment, file.lines.blank
+            file_lines.code, file_lines.comment, file_lines.blank
         )),
     ];
 
@@ -488,7 +491,11 @@ fn file_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
             rust.performance.unwraps
         )));
 
-        let mut heaviest: Vec<_> = rust.functions.iter().collect();
+        let mut heaviest: Vec<_> = rust
+            .functions
+            .iter()
+            .filter(|function| !(dashboard.hide_tests() && function.is_test))
+            .collect();
         heaviest.sort_by(|left, right| {
             right
                 .complexity
