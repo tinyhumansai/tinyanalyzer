@@ -270,8 +270,15 @@ fn status(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         }
 
         if dashboard.view() == View::Dependencies {
-            spans.push(Span::styled(" · d", Style::default().fg(Color::LightRed)));
-            spans.push(Span::raw(" toggle mock remove · "));
+            spans.push(Span::styled(" · enter", Style::default().fg(ACCENT)));
+            spans.push(Span::raw(" open · "));
+            if dashboard.dependency_at_root() {
+                spans.push(Span::styled("d", Style::default().fg(Color::LightRed)));
+                spans.push(Span::raw(" toggle mock remove · "));
+            } else {
+                spans.push(Span::styled("esc", Style::default().fg(ACCENT)));
+                spans.push(Span::raw(" parent · "));
+            }
             spans.push(Span::styled("r", Style::default().fg(Color::LightGreen)));
             spans.push(Span::raw(" restore · "));
             spans.push(Span::styled(
@@ -535,6 +542,18 @@ fn files(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         Constraint::Length(6),
         Constraint::Length(6),
     ];
+
+    let list_title = if let Some(parent) = dashboard.dependency_parent() {
+        format!("Dependencies of {} ({})", parent.name, dashboard.row_count())
+    } else if dashboard.removed_dependency_count() == 0 {
+        format!("Direct dependencies ({})", dashboard.row_count())
+    } else {
+        format!(
+            "Simulation · {} removed · {} crates reclaimed",
+            dashboard.removed_dependency_count(),
+            dashboard.simulated_reclaimed_packages()
+        )
+    };
 
     table(
         frame,
@@ -801,15 +820,7 @@ fn dependencies(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                 "exclusive",
                 "reaches",
             ]))
-            .block(panel(&if dashboard.removed_dependency_count() == 0 {
-                format!("Direct dependencies ({})", dashboard.row_count())
-            } else {
-                format!(
-                    "Simulation · {} removed · {} crates reclaimed",
-                    dashboard.removed_dependency_count(),
-                    dashboard.simulated_reclaimed_packages()
-                )
-            })),
+            .block(panel(&list_title)),
         dashboard.cursor(),
     );
 
