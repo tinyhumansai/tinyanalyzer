@@ -331,7 +331,8 @@ impl Dashboard {
             (View::Directories, _) => "lines",
             (View::Dependencies, 0) => "exclusive",
             (View::Dependencies | View::DeadCode, 1) => "name",
-            (View::Dependencies, _) => "reachable",
+            (View::Dependencies, 2) => "reachable",
+            (View::Dependencies, _) => "source size",
             (View::DeadCode, 0) => "confidence",
             (View::DeadCode, _) => "file",
         }
@@ -564,7 +565,8 @@ impl Dashboard {
         match self.sorts[View::Dependencies.index()] {
             0 => packages.sort_by_key(|package| Reverse(package.exclusive_count)),
             1 => packages.sort_by(|left, right| left.name.cmp(&right.name)),
-            _ => packages.sort_by_key(|package| Reverse(package.transitive_count)),
+            2 => packages.sort_by_key(|package| Reverse(package.transitive_count)),
+            _ => packages.sort_by_key(|package| Reverse(package.source_bytes)),
         }
         packages
     }
@@ -1174,8 +1176,8 @@ enum ReloadState {
 
 const fn sort_count(view: View) -> usize {
     match view {
-        View::Overview | View::Findings | View::Dependencies | View::DeadCode => 3,
-        View::Directories => 4,
+        View::Overview | View::Findings | View::DeadCode => 3,
+        View::Dependencies | View::Directories => 4,
         View::Files => 5,
     }
 }

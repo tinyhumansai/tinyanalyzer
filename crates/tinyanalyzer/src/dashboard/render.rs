@@ -705,6 +705,10 @@ fn dependencies(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                     Style::default().fg(if removed { Color::LightRed } else { MUTED }),
                 )),
                 Cell::from(Span::styled(
+                    human_bytes(package.source_bytes),
+                    Style::default().fg(SIZE),
+                )),
+                Cell::from(Span::styled(
                     package.exclusive_count.to_string(),
                     Style::default().fg(if package.exclusive_count >= 20 {
                         Color::LightRed
@@ -721,6 +725,7 @@ fn dependencies(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         Constraint::Min(16),
         Constraint::Length(12),
         Constraint::Length(11),
+        Constraint::Length(11),
         Constraint::Length(9),
     ];
 
@@ -728,7 +733,13 @@ fn dependencies(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         frame,
         panes[0],
         Table::new(rows, widths)
-            .header(header_row(&["crate", "version", "exclusive", "reaches"]))
+            .header(header_row(&[
+                "crate",
+                "version",
+                "source size",
+                "exclusive",
+                "reaches",
+            ]))
             .block(panel(&if dashboard.removed_dependency_count() == 0 {
                 format!("Direct dependencies ({})", dashboard.row_count())
             } else {

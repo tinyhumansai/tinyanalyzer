@@ -497,7 +497,10 @@ fn each_view_cycles_through_sort_orders() {
             &["weight", "path", "lines", "size", "complexity"],
         ),
         (View::Directories, &["size", "path", "files", "lines"]),
-        (View::Dependencies, &["exclusive", "name", "reachable"]),
+        (
+            View::Dependencies,
+            &["exclusive", "name", "reachable", "source size"],
+        ),
         (View::DeadCode, &["confidence", "name", "file"]),
         (View::Findings, &["severity", "title", "rule"]),
     ];
@@ -1064,6 +1067,8 @@ fn the_dependency_view_ranks_direct_dependencies_and_shows_the_subtree() {
     assert!(text.contains("Direct dependencies"));
     assert!(text.contains("heavy"));
     assert!(text.contains("exclusive"));
+    assert!(text.contains("source size"));
+    assert!(text.contains("2.3 KiB"));
     assert!(text.contains("features: default"));
     assert!(text.contains("deep"), "the subtree is drawn beneath it");
 }
