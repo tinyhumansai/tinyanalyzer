@@ -871,12 +871,24 @@ fn dependency_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         lines.push(Line::from("Depends on nothing else."));
     } else {
         for (depth, child) in subtree.iter().take(60) {
-            lines.push(Line::from(format!(
-                "{}{} v{}",
-                "  ".repeat(depth.saturating_add(1)),
-                child.name,
-                child.version
-            )));
+            let child_count = dashboard.dependency_child_count(&child.id);
+            let child_label = if child_count == 1 {
+                "child dep"
+            } else {
+                "child deps"
+            };
+            lines.push(Line::from(vec![
+                Span::raw("  ".repeat(depth.saturating_add(1))),
+                Span::styled(
+                    format!("{} v{}", child.name, child.version),
+                    Style::default().fg(DIRECTORY),
+                ),
+                Span::raw(" · "),
+                Span::styled(human_bytes(child.source_bytes), Style::default().fg(SIZE)),
+                Span::raw(" · "),
+                Span::styled(child_count.to_string(), Style::default().fg(METRIC)),
+                Span::raw(format!(" {child_label}")),
+            ]));
         }
     }
 
