@@ -106,6 +106,12 @@ impl ItemCounts {
 }
 
 /// One function or method.
+//
+// The `is_*` flags are five independent facts about one function, each one a
+// column in a table an operator sorts and filters by. Packing them into a
+// bitflag or an enum would make the report harder to read and to serialize
+// without removing a single piece of state.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Function {
     /// The function's own name, without any `impl` qualification.

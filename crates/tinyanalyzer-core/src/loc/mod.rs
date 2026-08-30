@@ -117,7 +117,7 @@ fn classify(
     }
 
     match first_block_open(language, trimmed) {
-        Some((at, open, close)) if at == 0 => {
+        Some((0, open, close)) => {
             let after = &trimmed[open.len()..];
             match after.find(close) {
                 None => {

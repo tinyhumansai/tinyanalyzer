@@ -348,12 +348,13 @@ impl<'ast> Visit<'ast> for FileVisitor {
     }
 
     fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
-        match &node.default {
-            Some(block) => self.record_function(&node.sig, &node.attrs, block, true, false),
-            None => {
-                self.file.items.functions = self.file.items.functions.saturating_add(1);
-                visit::visit_trait_item_fn(self, node);
-            }
+        // A required method has no body to measure, so it counts as an item
+        // and nothing more.
+        if let Some(block) = &node.default {
+            self.record_function(&node.sig, &node.attrs, block, true, false);
+        } else {
+            self.file.items.functions = self.file.items.functions.saturating_add(1);
+            visit::visit_trait_item_fn(self, node);
         }
     }
 

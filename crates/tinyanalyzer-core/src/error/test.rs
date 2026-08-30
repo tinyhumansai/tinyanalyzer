@@ -89,6 +89,10 @@ fn renders_a_serialization_failure_and_keeps_its_source() {
 #[test]
 fn the_result_alias_carries_the_crate_error() {
     let ok: Result<u8> = Ok(1);
+    let failed: Result<u8> = Err(Error::RootNotADirectory {
+        path: PathBuf::from("/nope"),
+    });
 
-    assert_eq!(ok.unwrap(), 1);
+    assert!(matches!(ok, Ok(1)));
+    assert!(matches!(failed, Err(Error::RootNotADirectory { .. })));
 }
