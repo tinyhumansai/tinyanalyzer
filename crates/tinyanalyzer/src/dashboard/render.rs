@@ -685,6 +685,7 @@ fn dependencies(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         .iter()
         .map(|package| {
             let removed = dashboard.dependency_is_removed(&package.id);
+            let (exclusive, reaches) = dashboard.dependency_counts(&package.id);
             Row::new(vec![
                 Cell::from(Span::styled(
                     if removed {
@@ -709,14 +710,14 @@ fn dependencies(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                     Style::default().fg(SIZE),
                 )),
                 Cell::from(Span::styled(
-                    package.exclusive_count.to_string(),
-                    Style::default().fg(if package.exclusive_count >= 20 {
+                    exclusive.to_string(),
+                    Style::default().fg(if exclusive >= 20 {
                         Color::LightRed
                     } else {
                         METRIC
                     }),
                 )),
-                metric_cell(&package.transitive_count, Color::LightMagenta),
+                metric_cell(&reaches, Color::LightMagenta),
             ])
         })
         .collect();
@@ -781,6 +782,7 @@ fn dependency_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     if !lines.is_empty() {
         lines.push(Line::from(""));
     }
+    let (exclusive, reaches) = dashboard.dependency_counts(&package.id);
     lines.extend([
         Line::from(Span::styled(
             format!("{} v{}", package.name, package.version),
@@ -789,7 +791,7 @@ fn dependency_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         Line::from(Span::styled(
             format!(
                 "{} crates leave the build with it · {} reachable · depth {}",
-                package.exclusive_count, package.transitive_count, package.depth
+                exclusive, reaches, package.depth
             ),
             Style::default().fg(MUTED),
         )),
