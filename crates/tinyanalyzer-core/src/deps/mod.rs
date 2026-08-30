@@ -176,11 +176,11 @@ fn package_source_bytes(root: &Path) -> u64 {
         .git_ignore(false)
         .git_global(false)
         .git_exclude(false)
-        .build()
         .filter_entry(|entry| {
             entry.depth() == 0
                 || !matches!(entry.file_name().to_str(), Some("target" | ".git"))
         })
+        .build()
         .filter_map(std::result::Result::ok)
         .filter(|entry| entry.file_type().is_some_and(|kind| kind.is_file()))
         .filter_map(|entry| entry.metadata().ok())
