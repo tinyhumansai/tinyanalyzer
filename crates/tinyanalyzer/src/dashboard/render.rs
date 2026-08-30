@@ -206,7 +206,7 @@ fn totals_panel(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
 
     let pair = |label: &str, value: String| {
         Line::from(vec![
-            Span::styled(format!("{label:<20}"), Style::default().fg(Color::Gray)),
+            Span::styled(format!("{label:<22}"), Style::default().fg(Color::Gray)),
             Span::styled(value, Style::default().add_modifier(Modifier::BOLD)),
         ])
     };

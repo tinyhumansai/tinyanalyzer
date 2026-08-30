@@ -117,6 +117,14 @@ fn at_line(path: &str, line: usize) -> Location {
     }
 }
 
+/// The plural `s`, or nothing.
+///
+/// A report that says "1 times" reads as a machine that was not finished, which
+/// costs it more credibility than the sentence is worth.
+const fn plural(count: usize) -> &'static str {
+    if count == 1 { "" } else { "s" }
+}
+
 /// Widens a count for use as a ranking metric.
 ///
 /// Every count in this crate is a line number, an item count, or a package
@@ -234,8 +242,11 @@ fn function_rules(
                 function.qualified_name, function.complexity
             ),
             format!(
-                "Cyclomatic complexity {} against a threshold of {}, nested {} blocks deep.",
-                function.complexity, thresholds.high_complexity, function.max_nesting
+                "Cyclomatic complexity {} against a threshold of {}, nested {} block{} deep.",
+                function.complexity,
+                thresholds.high_complexity,
+                function.max_nesting,
+                plural(function.max_nesting)
             ),
             "Replace the branch ladder with an early return per failure case, then push what remains into a `match` on a type that makes the impossible states unrepresentable.".to_owned(),
             Some(at_line(&file.path, function.start_line)),
@@ -269,12 +280,15 @@ fn file_signals(file: &FileMetrics, rust: &RustFile, out: &mut Vec<Finding>) {
             Rule::AllocationInLoop,
             Severity::High,
             format!(
-                "{} allocates {} times inside loops",
-                file.path, rust.performance.allocations_in_loops
+                "{} allocates {} time{} inside loops",
+                file.path,
+                rust.performance.allocations_in_loops,
+                plural(rust.performance.allocations_in_loops)
             ),
             format!(
-                "{} allocating calls occur inside loop bodies, so their cost is paid once per iteration.",
-                rust.performance.allocations_in_loops
+                "{} allocating call{} occur inside loop bodies, so their cost is paid once per iteration.",
+                rust.performance.allocations_in_loops,
+                plural(rust.performance.allocations_in_loops)
             ),
             "Hoist the allocation out of the loop and reuse the buffer with `clear()`, take `&str` instead of `String` at the boundary, or size the collection once with `with_capacity` before the loop.".to_owned(),
             Some(at_file(&file.path)),
@@ -287,8 +301,10 @@ fn file_signals(file: &FileMetrics, rust: &RustFile, out: &mut Vec<Finding>) {
             Rule::NestedLoop,
             Severity::Medium,
             format!(
-                "{} has {} nested loops",
-                file.path, rust.performance.nested_loops
+                "{} has {} nested loop{}",
+                file.path,
+                rust.performance.nested_loops,
+                plural(rust.performance.nested_loops)
             ),
             format!(
                 "{} loops sit directly inside another loop, which is quadratic in the inputs unless the inner range is bounded.",
@@ -304,7 +320,12 @@ fn file_signals(file: &FileMetrics, rust: &RustFile, out: &mut Vec<Finding>) {
         out.push(finding(
             Rule::PanicPath,
             Severity::Medium,
-            format!("{} has {} panic paths", file.path, rust.performance.unwraps),
+            format!(
+                "{} has {} panic path{}",
+                file.path,
+                rust.performance.unwraps,
+                plural(rust.performance.unwraps)
+            ),
             format!(
                 "{} calls to `unwrap` or `expect` outside test code, each one a way for this to abort at runtime.",
                 rust.performance.unwraps
@@ -320,8 +341,10 @@ fn file_signals(file: &FileMetrics, rust: &RustFile, out: &mut Vec<Finding>) {
             Rule::UnfinishedWork,
             Severity::Low,
             format!(
-                "{} has {} unfinished-work markers",
-                file.path, rust.todo_markers
+                "{} has {} unfinished-work marker{}",
+                file.path,
+                rust.todo_markers,
+                plural(rust.todo_markers)
             ),
             format!(
                 "{} `TODO`, `FIXME`, `HACK`, or `XXX` markers in comments.",

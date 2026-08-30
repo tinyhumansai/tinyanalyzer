@@ -429,6 +429,22 @@ fn findings_are_ordered_by_severity_then_by_measurement() {
 }
 
 #[test]
+fn a_count_of_one_is_not_reported_in_the_plural() {
+    let source = "fn a(s: &str) { for _ in 0..3 { let _ = s.to_string(); } }";
+    let metrics = file("src/hot.rs", lines(3, 3), Some(source));
+
+    let findings = run(&[metrics], &Thresholds::default());
+    let alloc = findings
+        .iter()
+        .find(|finding| finding.rule == Rule::AllocationInLoop)
+        .expect("one allocation inside a loop");
+
+    assert!(alloc.title.contains("1 time inside"));
+    assert!(!alloc.title.contains("1 times"));
+    assert!(alloc.detail.starts_with("1 allocating call occur"));
+}
+
+#[test]
 fn every_rule_has_an_identifier_and_a_description() {
     for rule in [
         Rule::HugeFile,
