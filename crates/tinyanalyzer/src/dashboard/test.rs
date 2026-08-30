@@ -212,6 +212,28 @@ fn rendered(dashboard: &Dashboard) -> String {
         .collect()
 }
 
+fn rendered_rows(dashboard: &Dashboard, width: u16, height: u16) -> Vec<String> {
+    let backend = TestBackend::new(width, height);
+    let mut terminal = Terminal::new(backend).expect("an in-memory terminal");
+    terminal
+        .draw(|frame| render::draw(frame, dashboard))
+        .expect("the view draws");
+    let buffer = terminal.backend().buffer();
+
+    (0..height)
+        .map(|y| {
+            (0..width)
+                .map(|x| {
+                    buffer
+                        .cell((x, y))
+                        .expect("the coordinate is inside the test terminal")
+                        .symbol()
+                })
+                .collect()
+        })
+        .collect()
+}
+
 fn key(code: KeyCode) -> KeyEvent {
     KeyEvent::new(code, KeyModifiers::NONE)
 }
@@ -834,6 +856,34 @@ fn the_rendered_dashboard_shows_the_project_and_the_tab_bar() {
 }
 
 #[test]
+fn the_wordmark_sits_immediately_above_the_overview_totals() {
+    let (_root, dashboard) = dashboard();
+    let rows = rendered_rows(&dashboard, 180, 50);
+    let body_start = 2;
+
+    for (offset, art) in render::WORDMARK.iter().enumerate() {
+        assert!(
+            rows[body_start + offset].starts_with(art),
+            "row {offset} is {:?}, wanted the wordmark",
+            rows[body_start + offset]
+        );
+    }
+    assert!(
+        rows[body_start + render::WORDMARK.len()].starts_with("┌ Totals"),
+        "the totals panel should begin on the row immediately after the wordmark"
+    );
+}
+
+#[test]
+fn a_narrow_overview_keeps_the_totals_and_drops_the_wordmark() {
+    let (_root, dashboard) = dashboard();
+    let rows = rendered_rows(&dashboard, 60, 50);
+
+    assert!(rows[2].starts_with("┌ Totals"));
+    assert!(!rows.iter().any(|row| row.contains("▀██▀▀")));
+}
+
+#[test]
 fn tables_and_file_kinds_use_the_dashboard_palette() {
     let (_root, mut dashboard) = dashboard();
     dashboard.apply(Action::SelectView(View::Files.index()));
@@ -1152,6 +1202,27 @@ fn dependency_counts_recompute_when_another_direct_dependency_is_toggled() {
 
     dashboard.apply(Action::SimulateRemoveDependency);
     assert_eq!(dashboard.dependency_counts("heavy@1.2.3"), (1, 1));
+}
+
+#[test]
+fn dependency_metrics_are_cached_across_a_complete_redraw() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Dependencies.index()));
+
+    assert_eq!(dashboard.dependency_simulation_builds(), 0);
+    let _first_frame = rendered(&dashboard);
+    assert_eq!(dashboard.dependency_simulation_builds(), 1);
+    let _second_frame = rendered(&dashboard);
+    assert_eq!(
+        dashboard.dependency_simulation_builds(),
+        1,
+        "sorting, rows, and detail must reuse one graph snapshot"
+    );
+
+    dashboard.apply(Action::SimulateRemoveDependency);
+    assert_eq!(dashboard.dependency_simulation_builds(), 2);
+    let _simulated_frame = rendered(&dashboard);
+    assert_eq!(dashboard.dependency_simulation_builds(), 2);
 }
 
 #[test]
