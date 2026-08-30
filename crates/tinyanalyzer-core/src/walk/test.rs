@@ -271,6 +271,66 @@ fn an_invalid_glob_is_reported_before_the_walk() {
 }
 
 #[test]
+fn an_unreadable_directory_fails_the_walk_rather_than_being_skipped_silently() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    // Running as root defeats the permission bits entirely, and the analysis
+    // would succeed. That is the operating system being right, not this
+    // function being wrong, so the case is skipped rather than failed.
+    if unsafe_is_root() {
+        return;
+    }
+
+    let root = TempDir::new().expect("a temporary directory");
+    write(root.path(), "visible.rs", "pub fn a() {}\n");
+    write(root.path(), "closed/inner.rs", "pub fn b() {}\n");
+
+    let closed = root.path().join("closed");
+    std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o000))
+        .expect("the fixture is writable");
+
+    let outcome = discover(root.path(), &ScanConfig::default());
+
+    // Restore before asserting, so a failed assertion still leaves a directory
+    // the temporary-directory guard can remove.
+    std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o755))
+        .expect("the fixture is writable");
+
+    let error = outcome.expect_err("an unreadable directory is reported");
+    assert!(matches!(error, Error::Walk { .. }));
+    assert!(error.to_string().contains("cannot walk"));
+}
+
+/// Whether this process can read anything regardless of permission bits.
+fn unsafe_is_root() -> bool {
+    // `id -u` rather than a libc call: this workspace forbids `unsafe`, and the
+    // check only guards a test that would otherwise be misleading.
+    std::process::Command::new("id")
+        .arg("-u")
+        .output()
+        .is_ok_and(|output| String::from_utf8_lossy(&output.stdout).trim() == "0")
+}
+
+#[test]
+fn a_followed_link_leaving_the_tree_is_named_by_the_path_it_was_reached_through() {
+    let outside = TempDir::new().expect("a temporary directory");
+    write(outside.path(), "external.rs", "pub fn a() {}\n");
+
+    let root = TempDir::new().expect("a temporary directory");
+    write(root.path(), "own.rs", "pub fn b() {}\n");
+    std::os::unix::fs::symlink(outside.path(), root.path().join("linked"))
+        .expect("the fixture supports symbolic links");
+
+    let scan = ScanConfig {
+        follow_symlinks: true,
+        ..ScanConfig::default()
+    };
+    let files = discover(root.path(), &scan).expect("a walkable tree");
+
+    assert_eq!(paths(&files), ["linked/external.rs", "own.rs"]);
+}
+
+#[test]
 fn an_empty_directory_yields_no_files() {
     let root = TempDir::new().expect("a temporary directory");
 
