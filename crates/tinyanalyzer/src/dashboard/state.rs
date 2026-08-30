@@ -130,6 +130,10 @@ pub enum Action {
     ScrollDetailUp,
     /// Cycle to the next sort for the active view.
     NextSort,
+    /// Open the selected dependency's immediate children.
+    EnterDependency,
+    /// Return to the parent dependency level.
+    LeaveDependency,
     /// Toggle the selected dependency in the simulated graph.
     SimulateRemoveDependency,
     /// Restore every dependency removed from the simulation.
@@ -262,6 +266,8 @@ pub struct Dashboard {
     directory_cursors: Vec<usize>,
     directory_visibility: DirectoryVisibility,
     removed_dependencies: BTreeSet<String>,
+    dependency_path: Vec<String>,
+    dependency_cursors: Vec<usize>,
     dependency_simulation: RefCell<Option<DependencySimulation>>,
     dependency_simulation_builds: Cell<usize>,
     feature_overrides: BTreeMap<String, BTreeSet<String>>,
@@ -291,6 +297,8 @@ impl Dashboard {
             directory_cursors: Vec::new(),
             directory_visibility: DirectoryVisibility::All,
             removed_dependencies: BTreeSet::new(),
+            dependency_path: Vec::new(),
+            dependency_cursors: Vec::new(),
             dependency_simulation: RefCell::new(None),
             dependency_simulation_builds: Cell::new(0),
             feature_overrides: BTreeMap::new(),
@@ -391,6 +399,8 @@ impl Dashboard {
     /// Replaces analysis results after the ignore policy changes.
     pub fn replace_report(&mut self, report: Report) {
         self.report = report;
+        self.dependency_path.clear();
+        self.dependency_cursors.clear();
         self.invalidate_dependency_simulation();
         self.clamp_cursor();
     }
@@ -570,14 +580,15 @@ impl Dashboard {
         &self.directory_path
     }
 
-    /// Direct dependencies matching the current filter, heaviest first.
+    /// Dependencies at the current graph level matching the current filter.
     #[must_use]
     pub fn packages(&self) -> Vec<&PackageNode> {
-        let mut packages: Vec<_> = self
-            .report
-            .dependencies
-            .heaviest_direct()
-            .into_iter()
+        let mut packages: Vec<_> = if let Some(parent) = self.dependency_path.last() {
+            self.dependency_children(parent)
+        } else {
+            self.report.dependencies.heaviest_direct()
+        }
+        .into_iter()
             .filter(|package| self.matches(&package.name))
             .collect();
         match self.sorts[View::Dependencies.index()] {
@@ -589,16 +600,62 @@ impl Dashboard {
         packages
     }
 
+    /// Whether the dependency browser is showing workspace roots.
+    #[must_use]
+    pub fn dependency_at_root(&self) -> bool {
+        self.dependency_path.is_empty()
+    }
+
+    /// Package whose children form the current dependency level.
+    #[must_use]
+    pub fn dependency_parent(&self) -> Option<&PackageNode> {
+        self.dependency_path
+            .last()
+            .and_then(|id| self.report.dependencies.package(id))
+    }
+
     /// Simulated `(exclusive, reachable)` crate counts for a direct dependency.
     #[must_use]
     pub fn dependency_counts(&self, id: &str) -> (usize, usize) {
         self.ensure_dependency_simulation();
-        self.dependency_simulation
+        if let Some(counts) = self
+            .dependency_simulation
             .borrow()
             .as_ref()
             .and_then(|simulation| simulation.counts.get(id))
             .copied()
-            .unwrap_or_default()
+        {
+            return counts;
+        }
+
+        let counts = {
+            let simulation = self.dependency_simulation.borrow();
+            let Some(simulation) = simulation.as_ref() else {
+                return (0, 0);
+            };
+            if self.removed_dependencies.contains(id) || !simulation.reachable.contains(id) {
+                (0, 0)
+            } else {
+                let descendants =
+                    dependency_descendants(id, &simulation.adjacency, &simulation.reachable);
+                let without = self.reachable_dependencies(&simulation.adjacency, Some(id));
+                let exclusive = simulation
+                    .reachable
+                    .difference(&without)
+                    .filter(|package_id| {
+                        self.report
+                            .dependencies
+                            .package(package_id)
+                            .is_some_and(|candidate| !candidate.is_workspace_member)
+                    })
+                    .count();
+                (exclusive, descendants)
+            }
+        };
+        if let Some(simulation) = self.dependency_simulation.borrow_mut().as_mut() {
+            simulation.counts.insert(id.to_owned(), counts);
+        }
+        counts
     }
 
     /// Number of immediate dependencies below a package in the simulated graph.
@@ -952,6 +1009,8 @@ impl Dashboard {
             Action::EnterDirectory => self.enter_directory(self.cursor()),
             Action::EnterDirectoryAt(position) => self.enter_directory(position),
             Action::LeaveDirectory => self.leave_directory(),
+            Action::EnterDependency => self.enter_dependency(),
+            Action::LeaveDependency => self.leave_dependency(),
             Action::ToggleDirectoriesOnly => {
                 self.directory_visibility = match self.directory_visibility {
                     DirectoryVisibility::All => DirectoryVisibility::DirectoriesOnly,
@@ -1098,6 +1157,33 @@ impl Dashboard {
             .rsplit_once('/')
             .map_or_else(|| ".".to_owned(), |(parent, _)| parent.to_owned());
         let cursor = self.directory_cursors.pop().unwrap_or_default();
+        self.set_cursor(cursor);
+    }
+
+    /// Opens the selected dependency when it has reachable children.
+    fn enter_dependency(&mut self) {
+        if self.view != View::Dependencies {
+            return;
+        }
+        let Some(id) = self.selected_package().map(|package| package.id.clone()) else {
+            return;
+        };
+        if self.dependency_child_count(&id) == 0 {
+            return;
+        }
+
+        self.dependency_cursors.push(self.cursor());
+        self.dependency_path.push(id);
+        self.set_cursor(0);
+    }
+
+    /// Returns to the preceding dependency level and selection.
+    fn leave_dependency(&mut self) {
+        if self.view != View::Dependencies || self.dependency_path.is_empty() {
+            return;
+        }
+        self.dependency_path.pop();
+        let cursor = self.dependency_cursors.pop().unwrap_or_default();
         self.set_cursor(cursor);
     }
 
