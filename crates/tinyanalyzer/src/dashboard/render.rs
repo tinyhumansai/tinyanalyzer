@@ -835,7 +835,7 @@ fn dependency_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         simulation.push(Line::from(""));
     }
     simulation.extend(features);
-    let Some(package) = dashboard.selected_package() else {
+    let Some(package) = dashboard.dependency_detail_parent() else {
         frame.render_widget(
             Paragraph::new(if simulation.is_empty() {
                 vec![Line::from("No dependency selected.")]
@@ -877,24 +877,31 @@ fn dependency_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
 
     lines.push(Line::from(""));
 
-    let subtree = dashboard.subtree(&package.id, 3);
-    if subtree.is_empty() {
+    let children = dashboard.dependency_detail_packages();
+    if children.is_empty() {
         lines.push(Line::from("Depends on nothing else."));
     } else {
-        for (depth, child) in subtree.iter().take(60) {
+        for (index, child) in children.iter().take(60).enumerate() {
             let child_count = dashboard.dependency_child_count(&child.id);
             lines.push(dependency_tree_line(
-                *depth,
+                0,
                 child,
                 child_count,
                 usize::from(area.width.saturating_sub(2)),
+                dashboard.dependency_detail_focused()
+                    && index == dashboard.dependency_detail_cursor(),
             ));
         }
     }
 
+    let graph_title = if dashboard.dependency_detail_focused() {
+        format!("Graph · {} · focused", package.name)
+    } else {
+        format!("Graph · {}", package.name)
+    };
     frame.render_widget(
         Paragraph::new(lines)
-            .block(panel("Graph"))
+            .block(panel(&graph_title))
             .scroll((dashboard.detail_scroll(), 0))
             .wrap(Wrap { trim: false }),
         area,
@@ -907,6 +914,7 @@ fn dependency_tree_line<'a>(
     child: &PackageNode,
     child_count: usize,
     width: usize,
+    selected: bool,
 ) -> Line<'a> {
     const SIZE_WIDTH: usize = 9;
     const COUNT_WIDTH: usize = 3;
@@ -934,20 +942,31 @@ fn dependency_tree_line<'a>(
             .saturating_sub(identity.chars().count().saturating_add(METRICS_WIDTH))
             .max(1)
     };
+    let selected_style = Style::default()
+        .fg(Color::White)
+        .bg(Color::Blue)
+        .add_modifier(Modifier::BOLD);
+    let style = |color| {
+        if selected {
+            selected_style
+        } else {
+            Style::default().fg(color)
+        }
+    };
 
     Line::from(vec![
-        Span::styled(identity, Style::default().fg(DIRECTORY)),
-        Span::raw(" ".repeat(padding)),
+        Span::styled(identity, style(DIRECTORY)),
+        Span::styled(" ".repeat(padding), style(Color::Reset)),
         Span::styled(
             format!("{:>SIZE_WIDTH$}", human_bytes(child.source_bytes)),
-            Style::default().fg(SIZE),
+            style(SIZE),
         ),
-        Span::raw(" · "),
+        Span::styled(" · ", style(Color::Reset)),
         Span::styled(
             format!("{child_count:>COUNT_WIDTH$}"),
-            Style::default().fg(METRIC),
+            style(METRIC),
         ),
-        Span::raw(format!(" {child_label:<LABEL_WIDTH$}")),
+        Span::styled(format!(" {child_label:<LABEL_WIDTH$}"), style(Color::Reset)),
     ])
 }
 
