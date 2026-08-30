@@ -1083,12 +1083,21 @@ fn dependency_removal_simulation_recomputes_the_visible_graph() {
         .expect("the graph has a selected direct dependency")
         .id
         .clone();
+    assert_eq!(dashboard.dependency_counts(&removed), (2, 1));
 
     dashboard.apply(Action::SimulateRemoveDependency);
 
     assert_eq!(dashboard.removed_dependency_count(), 1);
     assert_eq!(dashboard.packages().len(), before);
     assert!(dashboard.simulated_reclaimed_packages() > 0);
+    assert_eq!(dashboard.dependency_counts(&removed), (0, 0));
+    assert_eq!(
+        dashboard
+            .selected_package()
+            .map(|package| package.id.as_str()),
+        Some(removed.as_str()),
+        "the toggled row remains selected after dynamic re-sorting"
+    );
     assert!(
         dashboard
             .packages()
@@ -1105,11 +1114,43 @@ fn dependency_removal_simulation_recomputes_the_visible_graph() {
 
     assert_eq!(dashboard.removed_dependency_count(), 0);
     assert!(!dashboard.dependency_is_removed(&removed));
+    assert_eq!(dashboard.dependency_counts(&removed), (2, 1));
     assert_eq!(dashboard.simulated_build_dependency_count(), 3);
 
     dashboard.apply(Action::RestoreDependencies);
     assert_eq!(dashboard.removed_dependency_count(), 0);
     assert_eq!(dashboard.packages().len(), before);
+}
+
+#[test]
+fn dependency_counts_recompute_when_another_direct_dependency_is_toggled() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard
+        .report
+        .dependencies
+        .edges
+        .push(edge("leaf@0.1.0", "deep@2.0.0"));
+    dashboard.apply(Action::SelectView(View::Dependencies.index()));
+
+    assert_eq!(dashboard.dependency_counts("heavy@1.2.3"), (1, 1));
+    let leaf = dashboard
+        .packages()
+        .iter()
+        .position(|package| package.id == "leaf@0.1.0")
+        .expect("leaf is a direct dependency");
+    dashboard.apply(Action::SelectRow(leaf));
+    dashboard.apply(Action::SimulateRemoveDependency);
+
+    assert_eq!(dashboard.dependency_counts("leaf@0.1.0"), (0, 0));
+    assert_eq!(
+        dashboard.dependency_counts("heavy@1.2.3"),
+        (2, 1),
+        "deep becomes exclusive to heavy once leaf is disabled"
+    );
+    assert!(dashboard.subtree("leaf@0.1.0", 3).is_empty());
+
+    dashboard.apply(Action::SimulateRemoveDependency);
+    assert_eq!(dashboard.dependency_counts("heavy@1.2.3"), (1, 1));
 }
 
 #[test]
