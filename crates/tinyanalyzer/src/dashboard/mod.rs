@@ -61,15 +61,24 @@ fn read_event() -> Result<Event> {
 /// # Errors
 ///
 /// Returns [`Error::Terminal`] if drawing or reading fails.
-pub(crate) fn drive<B: Backend<Error = std::io::Error>>(
+pub(crate) fn drive<B>(
     terminal: &mut Terminal<B>,
     dashboard: &mut Dashboard,
     events: &mut dyn FnMut() -> Result<Event>,
-) -> Result<()> {
+) -> Result<()>
+where
+    B: Backend,
+    // Every real backend fails with an `io::Error`; the in-memory one the tests
+    // draw into cannot fail at all. Naming the bound this way admits both
+    // without the loop knowing which it is holding.
+    B::Error: std::error::Error + Send + Sync + 'static,
+{
     while !dashboard.should_quit() {
         terminal
             .draw(|frame| render::draw(frame, dashboard))
-            .map_err(|source| Error::Terminal { source })?;
+            .map_err(|source| Error::Terminal {
+                source: std::io::Error::other(source),
+            })?;
 
         if let Event::Key(key) = events()?
             && let Some(action) = action_for(key, dashboard.editing_filter())
