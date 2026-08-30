@@ -1330,9 +1330,8 @@ impl Dashboard {
                 continue;
             };
             for child in children {
-                if workspace.contains(&id)
-                    && (self.removed_dependencies.contains(child)
-                        || additional.is_some_and(|candidate| candidate == child))
+                if additional.is_some_and(|candidate| candidate == child)
+                    || (workspace.contains(&id) && self.removed_dependencies.contains(child))
                 {
                     continue;
                 }
