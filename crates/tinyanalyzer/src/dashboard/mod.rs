@@ -4,7 +4,7 @@
 //! the raw-mode lifecycle and the event loop — and nothing else. What a
 //! keystroke *means* is [`action_for`], a pure function; what it *does* is
 //! [`state::Dashboard::apply`], a pure state transition; what the result looks
-//! like is [`render::draw`], a pure map to widgets. The loop below just moves
+//! like is the renderer, a pure map to widgets. The loop below just moves
 //! values between them.
 //!
 //! The terminal is restored on every exit path, including a panic: leaving a

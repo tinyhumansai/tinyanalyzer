@@ -5,7 +5,8 @@
 //! useful report against a repository that has never heard of it, and a
 //! configuration file only ever records deviations from that baseline.
 //!
-//! Everything the file can say lives in [`types`]; this module is the loading,
+//! Everything the file can say lives in [`Config`] and the section types it
+//! holds; this module is the loading,
 //! the file-name policy, and the note lookup the report assembly uses.
 //!
 //! # Example
