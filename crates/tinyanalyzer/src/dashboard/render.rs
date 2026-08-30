@@ -180,10 +180,7 @@ fn status(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                 format!("{}█", dashboard.filter()),
                 Style::default().fg(Color::Yellow),
             ),
-            Span::styled(
-                "  enter to keep · esc to clear",
-                Style::default().fg(MUTED),
-            ),
+            Span::styled("  enter to keep · esc to clear", Style::default().fg(MUTED)),
         ])
     } else {
         let tests = if dashboard.hide_tests() {
@@ -393,10 +390,7 @@ fn files(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                 Style::default().fg(Color::LightGreen)
             };
             let name = if file.is_test {
-                Span::styled(
-                    truncate_path(&file.path, 48),
-                    name_style,
-                )
+                Span::styled(truncate_path(&file.path, 48), name_style)
             } else {
                 Span::styled(truncate_path(&file.path, 48), name_style)
             };
@@ -445,10 +439,8 @@ fn file_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         Line::from(Span::styled(
             file.path.clone(),
             Style::default()
-                .fg(
-                    severity_for_path(dashboard, &file.path, false)
-                        .map_or(Color::LightGreen, severity_color),
-                )
+                .fg(severity_for_path(dashboard, &file.path, false)
+                    .map_or(Color::LightGreen, severity_color))
                 .add_modifier(Modifier::BOLD),
         )),
         Line::from(Span::styled(
@@ -538,7 +530,11 @@ fn directories(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                 Cell::from(Span::styled(
                     format!("{}/", directory.path.rsplit('/').next().unwrap_or(".")),
                     Style::default()
-                        .fg(if directory.is_test_only { MUTED } else { directory_color })
+                        .fg(if directory.is_test_only {
+                            MUTED
+                        } else {
+                            directory_color
+                        })
                         .add_modifier(Modifier::BOLD),
                 )),
                 metric_cell(directory.files, Color::LightMagenta),
@@ -742,11 +738,7 @@ fn dead_code(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                     Style::default().fg(Color::LightGreen),
                 )),
                 Cell::from(Span::styled(
-                    format!(
-                        "{}:{}",
-                        truncate_path(&candidate.file, 40),
-                        candidate.line
-                    ),
+                    format!("{}:{}", truncate_path(&candidate.file, 40), candidate.line),
                     Style::default().fg(DIRECTORY),
                 )),
             ])
