@@ -9,7 +9,7 @@
 //! so that switching views moves the content and not the furniture.
 
 use super::state::{Dashboard, View};
-use crate::summary::{human_bytes, truncate_path};
+use crate::summary::{human_bytes, truncate_label, truncate_path};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -872,23 +872,12 @@ fn dependency_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     } else {
         for (depth, child) in subtree.iter().take(60) {
             let child_count = dashboard.dependency_child_count(&child.id);
-            let child_label = if child_count == 1 {
-                "child dep"
-            } else {
-                "child deps"
-            };
-            lines.push(Line::from(vec![
-                Span::raw("  ".repeat(depth.saturating_add(1))),
-                Span::styled(
-                    format!("{} v{}", child.name, child.version),
-                    Style::default().fg(DIRECTORY),
-                ),
-                Span::raw(" · "),
-                Span::styled(human_bytes(child.source_bytes), Style::default().fg(SIZE)),
-                Span::raw(" · "),
-                Span::styled(child_count.to_string(), Style::default().fg(METRIC)),
-                Span::raw(format!(" {child_label}")),
-            ]));
+            lines.push(dependency_tree_line(
+                *depth,
+                child,
+                child_count,
+                usize::from(area.width.saturating_sub(2)),
+            ));
         }
     }
 
@@ -899,6 +888,48 @@ fn dependency_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
             .wrap(Wrap { trim: false }),
         area,
     );
+}
+
+/// One tree row with identity on the left and comparable metrics at the right.
+fn dependency_tree_line<'a>(
+    depth: usize,
+    child: &PackageNode,
+    child_count: usize,
+    width: usize,
+) -> Line<'a> {
+    const SIZE_WIDTH: usize = 9;
+    const COUNT_WIDTH: usize = 3;
+    const LABEL_WIDTH: usize = 4;
+    const SEPARATOR_WIDTH: usize = 3;
+    const METRICS_WIDTH: usize = SIZE_WIDTH + SEPARATOR_WIDTH + COUNT_WIDTH + 1 + LABEL_WIDTH;
+
+    let child_label = if child_count == 1 { "dep" } else { "deps" };
+    let identity = format!(
+        "{}{} v{}",
+        "  ".repeat(depth.saturating_add(1)),
+        child.name,
+        child.version
+    );
+    let identity_width = width.saturating_sub(METRICS_WIDTH.saturating_add(1));
+    let identity = truncate_label(&identity, identity_width);
+    let padding = width
+        .saturating_sub(identity.chars().count().saturating_add(METRICS_WIDTH))
+        .max(1);
+
+    Line::from(vec![
+        Span::styled(identity, Style::default().fg(DIRECTORY)),
+        Span::raw(" ".repeat(padding)),
+        Span::styled(
+            format!("{:>SIZE_WIDTH$}", human_bytes(child.source_bytes)),
+            Style::default().fg(SIZE),
+        ),
+        Span::raw(" · "),
+        Span::styled(
+            format!("{child_count:>COUNT_WIDTH$}"),
+            Style::default().fg(METRIC),
+        ),
+        Span::raw(format!(" {child_label:<LABEL_WIDTH$}")),
+    ])
 }
 
 /// Lines explaining the current dependency-removal simulation.
