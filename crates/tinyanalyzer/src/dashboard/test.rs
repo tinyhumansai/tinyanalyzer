@@ -103,9 +103,62 @@ fn graph_dashboard() -> (TempDir, Dashboard) {
         level: tinyanalyzer_core::NoteLevel::Warning,
     }];
 
-    let report = analyze_with(root.path(), &config).expect("a resolvable workspace");
+    let mut report = analyze_with(root.path(), &config).expect("a resolvable workspace");
+
+    // A workspace whose only dependencies are path dependencies has no
+    // *external* graph, and `heaviest_direct` reports external cost. Rather
+    // than make the fixture reach the registry — which would fail on a machine
+    // with no network — the external half of the graph is written in directly.
+    // These tests are about the views, not about cargo; the resolver itself is
+    // exercised in the engine's own integration suite.
+    let workspace_root = report
+        .dependencies
+        .packages
+        .iter()
+        .find(|package| package.is_workspace_member)
+        .map(|package| package.id.clone())
+        .expect("the fixture resolves to at least one member");
+
+    report.dependencies.packages.push(external("heavy", "1.2.3", 24, 40, true));
+    report.dependencies.packages.push(external("leaf", "0.1.0", 1, 0, true));
+    report.dependencies.packages.push(external("deep", "2.0.0", 1, 0, false));
+    report.dependencies.edges.extend([
+        edge(&workspace_root, "heavy@1.2.3"),
+        edge(&workspace_root, "leaf@0.1.0"),
+        edge("heavy@1.2.3", "deep@2.0.0"),
+    ]);
+    report.dependencies.external_packages = 3;
 
     (root, Dashboard::new(report, StartView::Overview, false))
+}
+
+fn external(
+    name: &str,
+    version: &str,
+    exclusive: usize,
+    transitive: usize,
+    direct: bool,
+) -> tinyanalyzer_core::PackageNode {
+    tinyanalyzer_core::PackageNode {
+        id: format!("{name}@{version}"),
+        name: name.to_owned(),
+        version: version.to_owned(),
+        is_workspace_member: false,
+        is_direct: direct,
+        kinds: vec![tinyanalyzer_core::DependencyKind::Normal],
+        features: vec!["default".to_owned()],
+        transitive_count: transitive,
+        exclusive_count: exclusive,
+        depth: 1,
+    }
+}
+
+fn edge(from: &str, to: &str) -> tinyanalyzer_core::DependencyEdge {
+    tinyanalyzer_core::DependencyEdge {
+        from: from.to_owned(),
+        to: to.to_owned(),
+        kind: tinyanalyzer_core::DependencyKind::Normal,
+    }
 }
 
 fn rendered(dashboard: &Dashboard) -> String {
@@ -721,10 +774,30 @@ fn the_dependency_view_ranks_direct_dependencies_and_shows_the_subtree() {
         .expect("the cursor is on a package");
     assert!(!selected.name.is_empty());
 
+    assert_eq!(
+        selected.name, "heavy",
+        "the heaviest direct dependency comes first"
+    );
+
     let text = rendered(&dashboard);
     assert!(text.contains("Direct dependencies"));
-    assert!(text.contains("engine"));
+    assert!(text.contains("heavy"));
     assert!(text.contains("exclusive"));
+    assert!(text.contains("features: default"));
+    assert!(text.contains("deep"), "the subtree is drawn beneath it");
+}
+
+#[test]
+fn a_dependency_that_reaches_nothing_says_so() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Dependencies.index()));
+    dashboard.apply(Action::MoveDown);
+
+    assert_eq!(
+        dashboard.selected_package().map(|package| package.name.as_str()),
+        Some("leaf")
+    );
+    assert!(rendered(&dashboard).contains("Depends on nothing else."));
 }
 
 #[test]
@@ -747,7 +820,15 @@ fn a_subtree_walks_the_resolved_graph() {
         .map(|id| dashboard.subtree(id, 3).len())
         .sum();
 
-    assert!(reached > 0, "`app` reaches `engine`");
+    assert!(reached > 0, "the workspace reaches its dependencies");
+
+    let names: Vec<&str> = members
+        .iter()
+        .flat_map(|id| dashboard.subtree(id, 3))
+        .map(|(_, package)| package.name.as_str())
+        .collect();
+    assert!(names.contains(&"heavy"));
+    assert!(names.contains(&"deep"), "the walk goes deeper than one level");
 }
 
 #[test]
@@ -758,9 +839,9 @@ fn a_subtree_depth_limit_is_honored() {
         .dependencies
         .packages
         .iter()
-        .find(|package| package.name == "app")
+        .find(|package| package.is_workspace_member)
         .map(|package| package.id.clone())
-        .expect("the fixture has an app crate");
+        .expect("the fixture resolves to at least one member");
 
     let deep = dashboard.subtree(&root_id, 3);
     let shallow = dashboard.subtree(&root_id, 0);
@@ -819,10 +900,20 @@ fn the_file_detail_names_the_owning_crate_and_the_heaviest_functions() {
     let (_root, mut dashboard) = graph_dashboard();
     dashboard.apply(Action::SelectView(View::Files.index()));
 
+    let position = dashboard
+        .files()
+        .iter()
+        .position(|file| file.path == "crates/engine/src/lib.rs")
+        .expect("the fixture writes it");
+    for _ in 0..position {
+        dashboard.apply(Action::MoveDown);
+    }
+
     let text = rendered(&dashboard);
 
     assert!(text.contains("Heaviest functions"));
-    assert!(text.contains("Rust"));
+    assert!(text.contains("engine"), "the owning crate is named");
+    assert!(text.contains("items"));
 }
 
 #[test]
