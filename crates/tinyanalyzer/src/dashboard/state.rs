@@ -1100,6 +1100,13 @@ impl Dashboard {
                 self.sorts[view] = (self.sorts[view] + 1) % sort_count(self.view);
                 self.detail_scrolls[view] = 0;
                 if self.view == View::Dependencies && self.dependency_detail_focused {
+                    if let Some(root) = &self.dependency_detail_root {
+                        self.cursors[view] = self
+                            .packages()
+                            .iter()
+                            .position(|package| package.id == *root)
+                            .unwrap_or_default();
+                    }
                     self.dependency_detail_cursor = 0;
                 } else {
                     self.set_cursor(0);
