@@ -1121,7 +1121,8 @@ fn the_dependency_view_ranks_direct_dependencies_and_shows_the_subtree() {
     assert!(text.contains("2.3 KiB"));
     assert!(text.contains("features: default"));
     assert!(text.contains("deep"), "the subtree is drawn beneath it");
-    assert!(text.contains("deep v2.0.0 · 300 B · 0 child deps"));
+    assert!(text.contains("deep v2.0.0"));
+    assert!(text.contains("300 B ·   0 deps"));
 }
 
 #[test]
@@ -1138,9 +1139,20 @@ fn dependency_tree_rows_show_source_size_and_immediate_child_count() {
     assert_eq!(dashboard.dependency_child_count("deep@2.0.0"), 1);
     assert_eq!(dashboard.dependency_child_count("leaf@0.1.0"), 0);
 
-    let text = rendered(&dashboard);
-    assert!(text.contains("deep v2.0.0 · 300 B · 1 child dep"));
-    assert!(text.contains("leaf v0.1.0 · 100 B · 0 child deps"));
+    let rows = rendered_rows(&dashboard, 180, 50);
+    let deep = rows
+        .iter()
+        .find(|row| row.contains("deep v2.0.0"))
+        .expect("the non-leaf dependency is drawn");
+    let leaf = rows
+        .iter()
+        .find(|row| row.contains("leaf v0.1.0"))
+        .expect("the leaf dependency is drawn");
+
+    assert_eq!(deep.find("300 B"), leaf.find("100 B"));
+    assert_eq!(deep.find("  1 dep"), leaf.find("  0 deps"));
+    assert!(deep.contains("300 B ·   1 dep"));
+    assert!(leaf.contains("100 B ·   0 deps"));
 }
 
 #[test]
