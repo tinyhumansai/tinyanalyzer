@@ -280,7 +280,8 @@ impl Dashboard {
     /// Files matching the current filters, in report order.
     #[must_use]
     pub fn files(&self) -> Vec<&FileMetrics> {
-        let mut files: Vec<_> = self.report
+        let mut files: Vec<_> = self
+            .report
             .files
             .iter()
             .filter(|file| !(self.hide_tests && file.is_test))
@@ -348,7 +349,8 @@ impl Dashboard {
     /// Direct dependencies matching the current filter, heaviest first.
     #[must_use]
     pub fn packages(&self) -> Vec<&PackageNode> {
-        let mut packages: Vec<_> = self.report
+        let mut packages: Vec<_> = self
+            .report
             .dependencies
             .heaviest_direct()
             .into_iter()
@@ -366,7 +368,8 @@ impl Dashboard {
     /// Unreferenced items matching the current filters.
     #[must_use]
     pub fn dead_code(&self) -> Vec<&DeadCodeCandidate> {
-        let mut entries: Vec<_> = self.report
+        let mut entries: Vec<_> = self
+            .report
             .dead_code
             .iter()
             .filter(|candidate| !(self.hide_tests && candidate.is_test))
@@ -383,7 +386,8 @@ impl Dashboard {
     /// Findings matching the current filter.
     #[must_use]
     pub fn findings(&self) -> Vec<&Finding> {
-        let mut findings: Vec<_> = self.report
+        let mut findings: Vec<_> = self
+            .report
             .findings
             .iter()
             .filter(|finding| self.matches(&finding.title) || self.matches(finding.rule.id()))
@@ -667,7 +671,10 @@ impl Dashboard {
             self.filter_regex_valid = true;
             return;
         }
-        match RegexBuilder::new(&self.filter).case_insensitive(true).build() {
+        match RegexBuilder::new(&self.filter)
+            .case_insensitive(true)
+            .build()
+        {
             Ok(regex) => {
                 self.filter_regex = Some(regex);
                 self.filter_regex_valid = true;
@@ -733,7 +740,10 @@ impl Dashboard {
 
 fn file_complexity(file: &FileMetrics) -> u32 {
     file.rust.as_ref().map_or(0, |rust| {
-        rust.functions.iter().map(|function| function.complexity).sum()
+        rust.functions
+            .iter()
+            .map(|function| function.complexity)
+            .sum()
     })
 }
 

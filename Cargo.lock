@@ -1688,6 +1688,7 @@ version = "0.2.1"
 dependencies = [
  "clap",
  "ratatui",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",
