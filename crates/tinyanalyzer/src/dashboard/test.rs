@@ -497,10 +497,7 @@ fn each_view_cycles_through_sort_orders() {
             &["weight", "path", "lines", "size", "complexity"],
         ),
         (View::Directories, &["size", "path", "files", "lines"]),
-        (
-            View::Dependencies,
-            &["exclusive", "name", "reachable"],
-        ),
+        (View::Dependencies, &["exclusive", "name", "reachable"]),
         (View::DeadCode, &["confidence", "name", "file"]),
         (View::Findings, &["severity", "title", "rule"]),
     ];
@@ -1526,11 +1523,7 @@ fn the_mouse_wheel_scrolls_the_pane_under_the_pointer() {
     assert_eq!(dashboard.detail_scroll(), 3);
     assert_eq!(dashboard.cursor(), 0, "the file list stays selected");
 
-    let detail_up = action_for_event(
-        &mouse(MouseEventKind::ScrollUp, 120, 10),
-        area,
-        &dashboard,
-    );
+    let detail_up = action_for_event(&mouse(MouseEventKind::ScrollUp, 120, 10), area, &dashboard);
     assert_eq!(detail_up, Some(Action::ScrollDetailUp));
     dashboard.apply(detail_up.expect("the detail pane scrolls back up"));
     assert_eq!(dashboard.detail_scroll(), 0);
@@ -1569,11 +1562,7 @@ fn irrelevant_or_out_of_range_mouse_events_do_nothing() {
 
     dashboard.apply(Action::StartFilter);
     assert_eq!(
-        action_for_event(
-            &mouse(MouseEventKind::ScrollDown, 10, 10),
-            area,
-            &dashboard
-        ),
+        action_for_event(&mouse(MouseEventKind::ScrollDown, 10, 10), area, &dashboard),
         None,
         "mouse commands do not interrupt filter entry"
     );
