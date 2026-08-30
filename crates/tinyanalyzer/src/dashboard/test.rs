@@ -1035,19 +1035,32 @@ fn dependency_removal_simulation_recomputes_the_visible_graph() {
     dashboard.apply(Action::SimulateRemoveDependency);
 
     assert_eq!(dashboard.removed_dependency_count(), 1);
-    assert_eq!(dashboard.packages().len(), before - 1);
+    assert_eq!(dashboard.packages().len(), before);
     assert!(dashboard.simulated_reclaimed_packages() > 0);
     assert!(
         dashboard
             .packages()
             .iter()
-            .all(|package| package.id != removed)
+            .any(|package| package.id == removed)
     );
-    assert!(rendered(&dashboard).contains("crates reclaimed"));
+    let text = rendered(&dashboard);
+    assert!(text.contains("crates reclaimed"));
+    assert!(text.contains("mock removed"));
+    assert!(text.contains("2 direct deps · 3 total · 1 crates if built"));
 
     dashboard.apply(Action::RestoreDependencies);
     assert_eq!(dashboard.removed_dependency_count(), 0);
     assert_eq!(dashboard.packages().len(), before);
+}
+
+#[test]
+fn dependency_header_reports_the_resolved_build_graph_size() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Dependencies.index()));
+
+    let text = rendered(&dashboard);
+
+    assert!(text.contains("2 direct deps · 3 total · 3 crates if built"));
 }
 
 #[test]
