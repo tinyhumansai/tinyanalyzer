@@ -1277,7 +1277,7 @@ fn directory_browser_combines_files_and_directories_and_can_hide_files() {
         dashboard
             .browser_entries()
             .iter()
-            .all(|entry| entry.is_directory())
+            .all(super::state::BrowserEntry::is_directory)
     );
 }
 
