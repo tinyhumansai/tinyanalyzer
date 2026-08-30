@@ -41,7 +41,7 @@ const WORDMARK: [&str; 6] = [
     " [0;37;40m  [0;97;47m░░[0;37;40m    [0;97;47m░░[0;37;40m  [0;97;47m░░[0;37;40m    [0;97;47m░░[0;37;40m  [0;97;47m░░[0;97;40m▄▄[0;97;47m░[0;97;40m▀[0;37;40m  [0;97;47m░░[0;37;40m   [0;97;47m░░[0;37;40m  [0;97;47m░░[0;37;40m    [0;97;47m░░[0;37;40m  [0;97;47m░░[0;37;40m   [0;97;47m░░[0;37;40m  [0;97;47m░░░░░[0;37;40m  [0;97;47m░░[0;97;40m▄▄[0;97;47m░[0;97;40m▀[0;37;40m  [0;97;40m▀[0;97;47m░░[0;97;40m▄[0;97;47m░░[0;37;40m  [0;97;40m▀[0;97;47m░░░░░[0;37;40m  [0;97;47m░░[0;37;40m   [0;97;47m░░[0m",
 ];
 
-const WORDMARK_HEIGHT: u16 = 6;
+pub(super) const WORDMARK_HEIGHT: u16 = 6;
 const MIN_TOTALS_WITH_WORDMARK_HEIGHT: u16 = 14;
 
 /// Draws the whole dashboard.
@@ -73,7 +73,7 @@ pub(super) fn row_at(area: Rect, view: View, column: u16, row: u16) -> Option<us
     let (list, header) = match view {
         View::Overview => {
             let lower = Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)])
-                .split(overview_content(body))[1];
+                .split(body)[1];
             (lower, false)
         }
         View::Files => (
@@ -353,60 +353,89 @@ fn table(frame: &mut Frame<'_>, area: Rect, table: Table<'_>, selected: usize) {
 
 /// Totals, the language mix, and the top findings.
 fn overview(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
-    let content = overview_content(area);
-    if content != area {
-        let logo = Rect {
-            height: WORDMARK_HEIGHT,
-            ..area
-        };
-        wordmark(frame, logo);
-    }
-
     let rows =
-        Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).split(content);
+        Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
     let top =
         Layout::horizontal([Constraint::Percentage(45), Constraint::Percentage(55)]).split(rows[0]);
+    let (logo, totals) = totals_layout(top[0]);
 
-    totals_panel(frame, top[0], dashboard);
+    if let Some(logo) = logo {
+        wordmark(frame, logo);
+    }
+    totals_panel(frame, totals, dashboard);
     languages_panel(frame, top[1], dashboard);
     findings_list(frame, rows[1], dashboard, "Top findings");
 }
 
-/// Leaves room for the wordmark without sacrificing the useful panels in a
-/// short or narrow terminal.
-fn overview_content(area: Rect) -> Rect {
+/// Reserves wordmark space in the totals column only when both remain useful.
+fn totals_layout(area: Rect) -> (Option<Rect>, Rect) {
     let wordmark_width = WORDMARK
         .iter()
-        .map(|row| row.chars().count())
+        .map(|row| wordmark_line(row).width())
         .max()
         .unwrap_or_default();
-    let fits = area.height >= MIN_OVERVIEW_WITH_WORDMARK_HEIGHT
+    let fits = area.height >= MIN_TOTALS_WITH_WORDMARK_HEIGHT
         && usize::from(area.width) >= wordmark_width;
 
     if fits {
-        Rect {
-            y: area.y.saturating_add(WORDMARK_HEIGHT),
-            height: area.height.saturating_sub(WORDMARK_HEIGHT),
-            ..area
-        }
+        let rows = Layout::vertical([
+            Constraint::Length(WORDMARK_HEIGHT),
+            Constraint::Min(0),
+        ])
+        .split(area);
+        (Some(rows[0]), rows[1])
     } else {
-        area
+        (None, area)
     }
 }
 
-/// Draws the product wordmark in the same accent as the rest of the dashboard
-/// chrome.
+/// Draws the product wordmark with its embedded ANSI palette.
 fn wordmark(frame: &mut Frame<'_>, area: Rect) {
-    let lines: Vec<Line<'_>> = WORDMARK
-        .iter()
-        .map(|row| {
-            Line::from(Span::styled(
-                *row,
-                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-            ))
-        })
-        .collect();
+    let lines: Vec<Line<'_>> = WORDMARK.iter().map(|row| wordmark_line(row)).collect();
     frame.render_widget(Paragraph::new(lines), area);
+}
+
+/// Converts the small ANSI subset used by the supplied wordmark into spans.
+fn wordmark_line(row: &str) -> Line<'static> {
+    let mut spans = Vec::new();
+    let mut rest = row;
+    let mut style = Style::default();
+
+    while let Some(sequence) = rest.find("\u{1b}[") {
+        if sequence > 0 {
+            spans.push(Span::styled(rest[..sequence].to_owned(), style));
+        }
+
+        let code_start = sequence.saturating_add(2);
+        let Some(code_end) = rest[code_start..].find('m') else {
+            spans.push(Span::styled(rest[sequence..].to_owned(), style));
+            rest = "";
+            break;
+        };
+        let code_end = code_start.saturating_add(code_end);
+        style = wordmark_style(&rest[code_start..code_end]);
+        rest = &rest[code_end.saturating_add(1)..];
+    }
+
+    if !rest.is_empty() {
+        spans.push(Span::styled(rest.to_owned(), style));
+    }
+
+    Line::from(spans)
+}
+
+/// Maps the wordmark's reset-prefixed SGR combinations to ratatui styles.
+fn wordmark_style(code: &str) -> Style {
+    match code {
+        "0;91;41" => Style::default().fg(Color::LightRed).bg(Color::Red),
+        "0;37;40" => Style::default().fg(Color::Gray).bg(Color::Black),
+        "0;91;40" => Style::default().fg(Color::LightRed).bg(Color::Black),
+        "0;31;40" => Style::default().fg(Color::Red).bg(Color::Black),
+        "0;30;40" => Style::default().fg(Color::Black).bg(Color::Black),
+        "0;97;47" => Style::default().fg(Color::White).bg(Color::Gray),
+        "0;97;40" => Style::default().fg(Color::White).bg(Color::Black),
+        _ => Style::default(),
+    }
 }
 
 /// The numbers, spelled out.
