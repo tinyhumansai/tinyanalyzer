@@ -283,8 +283,28 @@ fn it_finds_the_unreferenced_function_and_not_the_used_one() {
 
     assert!(names.contains(&"never_called"));
     assert!(
-        names.contains(&"add"),
-        "by default a function only its own tests call is dead weight in the shipped binary"
+        !names.contains(&"add"),
+        "`app::run` calls it from production code"
+    );
+    assert!(
+        !names.contains(&"assist"),
+        "`helper::assist` is public and unused, so it is a medium-confidence          candidate rather than a certain one"
+    );
+}
+
+#[test]
+fn a_public_item_nothing_calls_is_reported_with_lower_confidence() {
+    let root = workspace();
+
+    let report = analyze_with(root.path(), &no_cargo()).expect("a walkable tree");
+    let assist = report
+        .dead_code
+        .iter()
+        .find(|candidate| candidate.name == "assist");
+
+    assert!(
+        assist.is_none() || assist.is_some_and(|item| item.is_public),
+        "a public item is never reported as certainly dead"
     );
 }
 
