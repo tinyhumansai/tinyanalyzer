@@ -487,8 +487,16 @@ impl Dashboard {
                 .dependencies
                 .packages
                 .iter()
-                .filter(|package| package.is_workspace_member)
+                .filter(|package| package.is_root_package)
                 .min_by(|left, right| left.name.cmp(&right.name))
+                .or_else(|| {
+                    self.report
+                        .dependencies
+                        .packages
+                        .iter()
+                        .filter(|package| package.is_workspace_member)
+                        .min_by(|left, right| left.name.cmp(&right.name))
+                })
         } else {
             self.selected_package()
         }

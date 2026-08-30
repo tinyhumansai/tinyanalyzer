@@ -64,6 +64,9 @@ pub struct PackageNode {
     pub version: String,
     /// Whether this package is a member of the workspace under analysis.
     pub is_workspace_member: bool,
+    /// Whether this package is declared by the analyzed root `Cargo.toml`.
+    #[serde(default)]
+    pub is_root_package: bool,
     /// Whether a workspace member names this package in its own manifest.
     pub is_direct: bool,
     /// How the graph reaches it.

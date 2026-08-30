@@ -794,7 +794,11 @@ fn feature_lines(dashboard: &Dashboard) -> Vec<Line<'static>> {
         format!(
             "features · {} · {}",
             if dashboard.feature_root_target() {
-                "workspace root"
+                if package.is_root_package {
+                    "root package"
+                } else {
+                    "workspace package"
+                }
             } else {
                 "dependency"
             },

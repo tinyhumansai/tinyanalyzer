@@ -35,6 +35,7 @@ fn package(name: &str, version: &str, direct: bool, exclusive: usize) -> Package
         name: name.to_owned(),
         version: version.to_owned(),
         is_workspace_member: false,
+        is_root_package: false,
         is_direct: direct,
         kinds: vec![DependencyKind::Normal],
         features: Vec::new(),

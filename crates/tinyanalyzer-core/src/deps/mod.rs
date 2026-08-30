@@ -115,6 +115,7 @@ pub fn analyze(
 
         packages.push(PackageNode {
             is_workspace_member: members.contains(&id),
+            is_root_package: package.manifest_path.as_std_path() == root.join("Cargo.toml"),
             is_direct: direct.contains(&id),
             kinds: kinds_for(&id, &edges),
             features: node.features.iter().map(ToString::to_string).collect(),

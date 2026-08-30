@@ -135,6 +135,7 @@ fn graph_dashboard() -> (TempDir, Dashboard) {
         .expect("the workspace package remains available");
     workspace_package.features = vec!["default".to_owned()];
     workspace_package.available_features = vec!["default".to_owned(), "cli".to_owned()];
+    workspace_package.is_root_package = true;
 
     report
         .dependencies
@@ -170,6 +171,7 @@ fn external(
         name: name.to_owned(),
         version: version.to_owned(),
         is_workspace_member: false,
+        is_root_package: false,
         is_direct: direct,
         kinds: vec![tinyanalyzer_core::DependencyKind::Normal],
         features: vec!["default".to_owned()],
