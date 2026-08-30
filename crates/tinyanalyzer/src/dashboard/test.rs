@@ -379,16 +379,16 @@ fn hiding_tests_subtracts_test_blocks_from_mixed_rust_files() {
         .files()
         .iter()
         .find(|file| file.path == "src/small.rs")
-        .copied()
+        .map(|file| (*file).clone())
         .expect("the fixture contains a mixed source file");
     assert!(!file.is_test);
-    let all_lines = dashboard.file_lines(file);
-    let all_functions = dashboard.file_function_count(file);
+    let all_lines = dashboard.file_lines(&file);
+    let all_functions = dashboard.file_function_count(&file);
 
     dashboard.apply(Action::ToggleTests);
 
-    assert!(dashboard.file_lines(file).code < all_lines.code);
-    assert_eq!(dashboard.file_function_count(file), all_functions - 1);
+    assert!(dashboard.file_lines(&file).code < all_lines.code);
+    assert_eq!(dashboard.file_function_count(&file), all_functions - 1);
 }
 
 #[test]
