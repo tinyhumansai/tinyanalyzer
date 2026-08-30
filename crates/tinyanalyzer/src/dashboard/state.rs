@@ -443,7 +443,6 @@ impl Dashboard {
             .dependencies
             .heaviest_direct()
             .into_iter()
-            .filter(|package| !self.removed_dependencies.contains(&package.id))
             .filter(|package| self.matches(&package.name))
             .collect();
         match self.sorts[View::Dependencies.index()] {
@@ -452,6 +451,33 @@ impl Dashboard {
             _ => packages.sort_by_key(|package| Reverse(package.transitive_count)),
         }
         packages
+    }
+
+    /// Whether a direct dependency is disabled in the current simulation.
+    #[must_use]
+    pub fn dependency_is_removed(&self, id: &str) -> bool {
+        self.removed_dependencies.contains(id)
+    }
+
+    /// Number of direct dependencies in the resolved graph.
+    #[must_use]
+    pub fn direct_dependency_count(&self) -> usize {
+        self.report.dependencies.heaviest_direct().len()
+    }
+
+    /// Number of external crates that the simulated build would compile.
+    #[must_use]
+    pub fn simulated_build_dependency_count(&self) -> usize {
+        if self.removed_dependencies.is_empty() {
+            return self.report.dependencies.external_packages;
+        }
+        let reachable = self.simulated_reachable();
+        self.report
+            .dependencies
+            .packages
+            .iter()
+            .filter(|package| !package.is_workspace_member && reachable.contains(&package.id))
+            .count()
     }
 
     /// Unreferenced items matching the current filters.
