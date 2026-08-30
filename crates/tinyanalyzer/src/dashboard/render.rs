@@ -200,14 +200,31 @@ fn status(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
             Span::raw(" tests · "),
             Span::styled("/", Style::default().fg(ACCENT)),
             Span::raw(" filter · "),
+            Span::styled("s", Style::default().fg(ACCENT)),
+            Span::raw(format!(" sort:{} · ", dashboard.sort_label())),
             tests,
         ];
 
         if !dashboard.filter().is_empty() {
             spans.push(Span::styled(
-                format!(" · filter “{}”", dashboard.filter()),
-                Style::default().fg(Color::Yellow),
+                format!(
+                    " · {} “{}”",
+                    if dashboard.filter_regex_valid() {
+                        "regex"
+                    } else {
+                        "literal (invalid regex)"
+                    },
+                    dashboard.filter()
+                ),
+                Style::default().fg(WARNING),
             ));
+        }
+
+        if dashboard.view() == View::Dependencies {
+            spans.push(Span::styled(" · d", Style::default().fg(Color::LightRed)));
+            spans.push(Span::raw(" mock remove · "));
+            spans.push(Span::styled("r", Style::default().fg(Color::LightGreen)));
+            spans.push(Span::raw(" restore"));
         }
 
         Line::from(spans)
@@ -633,10 +650,15 @@ fn dependencies(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         panes[0],
         Table::new(rows, widths)
             .header(header_row(&["crate", "version", "exclusive", "reaches"]))
-            .block(panel(&format!(
-                "Direct dependencies ({})",
-                dashboard.row_count()
-            ))),
+            .block(panel(&if dashboard.removed_dependency_count() == 0 {
+                format!("Direct dependencies ({})", dashboard.row_count())
+            } else {
+                format!(
+                    "Simulation · {} removed · {} crates reclaimed",
+                    dashboard.removed_dependency_count(),
+                    dashboard.simulated_reclaimed_packages()
+                )
+            })),
         dashboard.cursor(),
     );
 

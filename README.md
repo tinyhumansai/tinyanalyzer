@@ -68,7 +68,9 @@ items, split along the seams already in it" is.
 | `PgUp` `PgDn`, `u` `d` | Move a screenful |
 | `Home` `End`, `g` `G` | First and last row |
 | `t` | Show or hide test code, everywhere |
-| `/` | Filter rows; `Enter` keeps it, `Esc` clears it |
+| `/` | Filter rows with a case-insensitive regex; `Enter` keeps it, `Esc` clears it |
+| `s` | Cycle the current pane's sort order |
+| `d`, `r` in Dependencies | Mock-remove the selected direct dependency; restore all removals |
 | `Enter`, `→`, `l` / `Backspace`, `←`, `h` | Enter / leave a directory |
 | Mouse | Click tabs and rows, wheel to move, right-click to leave a directory |
 

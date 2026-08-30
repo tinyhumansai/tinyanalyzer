@@ -138,6 +138,15 @@ where
 /// Maps a terminal event to a dashboard action.
 fn action_for_event(event: &Event, area: Rect, dashboard: &Dashboard) -> Option<Action> {
     match event {
+        Event::Key(key)
+            if dashboard.view() == View::Dependencies && !dashboard.editing_filter() =>
+        {
+            match key.code {
+                KeyCode::Char('d') => Some(Action::SimulateRemoveDependency),
+                KeyCode::Char('r') => Some(Action::RestoreDependencies),
+                _ => action_for(*key, false),
+            }
+        }
         Event::Key(key) if dashboard.view() == View::Directories && !dashboard.editing_filter() => {
             match key.code {
                 KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
@@ -249,6 +258,7 @@ pub fn action_for(key: KeyEvent, editing_filter: bool) -> Option<Action> {
         KeyCode::Home | KeyCode::Char('g') => Some(Action::First),
         KeyCode::End | KeyCode::Char('G') => Some(Action::Last),
         KeyCode::Char('t') => Some(Action::ToggleTests),
+        KeyCode::Char('s') => Some(Action::NextSort),
         KeyCode::Char('/') => Some(Action::StartFilter),
         KeyCode::Char(digit @ '1'..='9') => {
             let position = digit.to_digit(10).unwrap_or(1).saturating_sub(1);
