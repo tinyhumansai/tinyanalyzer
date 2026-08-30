@@ -847,8 +847,8 @@ impl Dashboard {
         let mut out = Vec::new();
         let mut seen = std::collections::BTreeSet::new();
         let mut stack = vec![(id.to_owned(), 0usize)];
-        let simulated_reachable = (!self.removed_dependencies.is_empty())
-            .then(|| self.simulated_reachable());
+        let simulated_reachable =
+            (!self.removed_dependencies.is_empty()).then(|| self.simulated_reachable());
         if simulated_reachable
             .as_ref()
             .is_some_and(|reachable| !reachable.contains(id))
