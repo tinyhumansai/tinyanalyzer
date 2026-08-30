@@ -545,22 +545,6 @@ fn files(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         Constraint::Length(6),
     ];
 
-    let list_title = if let Some(parent) = dashboard.dependency_parent() {
-        format!(
-            "Dependencies of {} ({})",
-            parent.name,
-            dashboard.row_count()
-        )
-    } else if dashboard.removed_dependency_count() == 0 {
-        format!("Direct dependencies ({})", dashboard.row_count())
-    } else {
-        format!(
-            "Simulation · {} removed · {} crates reclaimed",
-            dashboard.removed_dependency_count(),
-            dashboard.simulated_reclaimed_packages()
-        )
-    };
-
     table(
         frame,
         panes[0],
@@ -814,6 +798,16 @@ fn dependencies(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         Constraint::Length(11),
         Constraint::Length(9),
     ];
+
+    let list_title = if dashboard.removed_dependency_count() == 0 {
+        format!("Direct dependencies ({})", dashboard.row_count())
+    } else {
+        format!(
+            "Simulation · {} removed · {} crates reclaimed",
+            dashboard.removed_dependency_count(),
+            dashboard.simulated_reclaimed_packages()
+        )
+    };
 
     table(
         frame,
