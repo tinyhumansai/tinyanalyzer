@@ -11,6 +11,7 @@
 //! this struct, answerable without drawing anything.
 
 use regex::{Regex, RegexBuilder};
+use std::cell::RefCell;
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use tinyanalyzer_core::{
@@ -180,6 +181,17 @@ enum DirectoryVisibility {
     DirectoriesOnly,
 }
 
+/// Reachability and per-direct-dependency costs for one simulated graph.
+///
+/// A dashboard frame asks for the same values while sorting, drawing every
+/// row, and drawing the selected row's detail. Keeping that immutable snapshot
+/// avoids walking the complete Cargo graph hundreds of times per redraw.
+#[derive(Debug, Clone, Default)]
+struct DependencySimulation {
+    reachable: BTreeSet<String>,
+    counts: BTreeMap<String, (usize, usize)>,
+}
+
 impl BrowserEntry<'_> {
     /// Full report-relative path.
     pub(super) fn path(&self) -> &str {
@@ -249,6 +261,7 @@ pub struct Dashboard {
     directory_cursors: Vec<usize>,
     directory_visibility: DirectoryVisibility,
     removed_dependencies: BTreeSet<String>,
+    dependency_simulation: RefCell<Option<DependencySimulation>>,
     feature_overrides: BTreeMap<String, BTreeSet<String>>,
     feature_cursor: usize,
     feature_target: FeatureTarget,
@@ -276,6 +289,7 @@ impl Dashboard {
             directory_cursors: Vec::new(),
             directory_visibility: DirectoryVisibility::All,
             removed_dependencies: BTreeSet::new(),
+            dependency_simulation: RefCell::new(None),
             feature_overrides: BTreeMap::new(),
             feature_cursor: 0,
             feature_target: FeatureTarget::Dependency,
@@ -374,6 +388,7 @@ impl Dashboard {
     /// Replaces analysis results after the ignore policy changes.
     pub fn replace_report(&mut self, report: Report) {
         self.report = report;
+        self.invalidate_dependency_simulation();
         self.clamp_cursor();
     }
 
@@ -574,43 +589,13 @@ impl Dashboard {
     /// Simulated `(exclusive, reachable)` crate counts for a direct dependency.
     #[must_use]
     pub fn dependency_counts(&self, id: &str) -> (usize, usize) {
-        if self.removed_dependencies.contains(id) {
-            return (0, 0);
-        }
-
-        let reachable = self.simulated_reachable();
-        if !reachable.contains(id) {
-            return (0, 0);
-        }
-
-        let mut descendants = BTreeSet::new();
-        let mut queue = VecDeque::from([id.to_owned()]);
-        while let Some(current) = queue.pop_front() {
-            for edge in self
-                .report
-                .dependencies
-                .edges
-                .iter()
-                .filter(|edge| edge.from == current && reachable.contains(&edge.to))
-            {
-                if descendants.insert(edge.to.clone()) {
-                    queue.push_back(edge.to.clone());
-                }
-            }
-        }
-        descendants.remove(id);
-
-        let without = self.simulated_reachable_without(Some(id));
-        let exclusive = reachable
-            .difference(&without)
-            .filter(|package_id| {
-                self.report
-                    .dependencies
-                    .package(package_id)
-                    .is_some_and(|package| !package.is_workspace_member)
-            })
-            .count();
-        (exclusive, descendants.len())
+        self.ensure_dependency_simulation();
+        self.dependency_simulation
+            .borrow()
+            .as_ref()
+            .and_then(|simulation| simulation.counts.get(id))
+            .copied()
+            .unwrap_or_default()
     }
 
     /// Whether a direct dependency is disabled in the current simulation.
@@ -1128,6 +1113,7 @@ impl Dashboard {
         if !self.removed_dependencies.remove(&id) {
             self.removed_dependencies.insert(id.clone());
         }
+        self.invalidate_dependency_simulation();
         let position = self
             .packages()
             .iter()
@@ -1138,13 +1124,72 @@ impl Dashboard {
 
     /// IDs reachable from workspace members after simulated direct edges are removed.
     fn simulated_reachable(&self) -> BTreeSet<String> {
-        self.simulated_reachable_without(None)
+        self.ensure_dependency_simulation();
+        self.dependency_simulation
+            .borrow()
+            .as_ref()
+            .map(|simulation| simulation.reachable.clone())
+            .unwrap_or_default()
     }
 
-    /// IDs reachable with one additional direct dependency edge removed.
-    fn simulated_reachable_without(&self, additional: Option<&str>) -> BTreeSet<String> {
-        let mut seen = BTreeSet::new();
-        let mut queue: VecDeque<String> = self
+    /// Builds the simulated graph once for all consumers of the current frame.
+    fn ensure_dependency_simulation(&self) {
+        if self.dependency_simulation.borrow().is_some() {
+            return;
+        }
+
+        let adjacency = self.dependency_adjacency();
+        let reachable = self.reachable_dependencies(&adjacency, None);
+        let mut counts = BTreeMap::new();
+
+        for package in self.report.dependencies.heaviest_direct() {
+            if self.removed_dependencies.contains(&package.id) || !reachable.contains(&package.id) {
+                counts.insert(package.id.clone(), (0, 0));
+                continue;
+            }
+
+            let descendants = dependency_descendants(&package.id, &adjacency, &reachable);
+            let without = self.reachable_dependencies(&adjacency, Some(&package.id));
+            let exclusive = reachable
+                .difference(&without)
+                .filter(|package_id| {
+                    self.report
+                        .dependencies
+                        .package(package_id)
+                        .is_some_and(|candidate| !candidate.is_workspace_member)
+                })
+                .count();
+            counts.insert(package.id.clone(), (exclusive, descendants));
+        }
+
+        *self.dependency_simulation.borrow_mut() =
+            Some(DependencySimulation { reachable, counts });
+    }
+
+    /// Invalidates derived graph data after a simulation or report change.
+    fn invalidate_dependency_simulation(&mut self) {
+        *self.dependency_simulation.get_mut() = None;
+    }
+
+    /// Adjacency list shared by all walks in one simulation calculation.
+    fn dependency_adjacency(&self) -> BTreeMap<String, Vec<String>> {
+        let mut adjacency: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for edge in &self.report.dependencies.edges {
+            adjacency
+                .entry(edge.from.clone())
+                .or_default()
+                .push(edge.to.clone());
+        }
+        adjacency
+    }
+
+    /// IDs reachable with an optional extra root dependency edge removed.
+    fn reachable_dependencies(
+        &self,
+        adjacency: &BTreeMap<String, Vec<String>>,
+        additional: Option<&str>,
+    ) -> BTreeSet<String> {
+        let workspace: BTreeSet<String> = self
             .report
             .dependencies
             .packages
@@ -1152,26 +1197,23 @@ impl Dashboard {
             .filter(|package| package.is_workspace_member)
             .map(|package| package.id.clone())
             .collect();
+        let mut visited = workspace.clone();
+        let mut seen = BTreeSet::new();
+        let mut queue: VecDeque<String> = workspace.iter().cloned().collect();
         while let Some(id) = queue.pop_front() {
-            for edge in self
-                .report
-                .dependencies
-                .edges
-                .iter()
-                .filter(|edge| edge.from == id)
-            {
-                if (self.removed_dependencies.contains(&edge.to)
-                    || additional.is_some_and(|id| id == edge.to))
-                    && self
-                        .report
-                        .dependencies
-                        .package(&id)
-                        .is_some_and(|package| package.is_workspace_member)
+            let Some(children) = adjacency.get(&id) else {
+                continue;
+            };
+            for child in children {
+                if workspace.contains(&id)
+                    && (self.removed_dependencies.contains(child)
+                        || additional.is_some_and(|candidate| candidate == child))
                 {
                     continue;
                 }
-                if seen.insert(edge.to.clone()) {
-                    queue.push_back(edge.to.clone());
+                if visited.insert(child.clone()) {
+                    seen.insert(child.clone());
+                    queue.push_back(child.clone());
                 }
             }
         }
