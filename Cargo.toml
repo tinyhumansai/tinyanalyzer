@@ -46,7 +46,7 @@ globset = "0.4"
 # The Rust source parser behind every per-file item, function-length, and
 # complexity metric. `full` is required to see function bodies; `visit` gives
 # the AST walker the analyzers are written against.
-syn = { version = "2", default-features = false, features = [
+syn = { version = "3", default-features = false, features = [
     "full",
     "parsing",
     "visit",
