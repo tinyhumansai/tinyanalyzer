@@ -119,9 +119,18 @@ fn graph_dashboard() -> (TempDir, Dashboard) {
         .map(|package| package.id.clone())
         .expect("the fixture resolves to at least one member");
 
-    report.dependencies.packages.push(external("heavy", "1.2.3", 24, 40, true));
-    report.dependencies.packages.push(external("leaf", "0.1.0", 1, 0, true));
-    report.dependencies.packages.push(external("deep", "2.0.0", 1, 0, false));
+    report
+        .dependencies
+        .packages
+        .push(external("heavy", "1.2.3", 24, 40, true));
+    report
+        .dependencies
+        .packages
+        .push(external("leaf", "0.1.0", 1, 0, true));
+    report
+        .dependencies
+        .packages
+        .push(external("deep", "2.0.0", 1, 0, false));
     report.dependencies.edges.extend([
         edge(&workspace_root, "heavy@1.2.3"),
         edge(&workspace_root, "leaf@0.1.0"),
@@ -668,7 +677,6 @@ fn the_filter_prompt_appears_while_typing() {
     assert!(rendered.contains("filter:"));
 }
 
-
 /// Drives the loop with a scripted list of key presses.
 ///
 /// The last event must quit, or the loop would never return. A script that ran
@@ -680,9 +688,12 @@ fn drive_with(dashboard: &mut Dashboard, keys: &[KeyEvent]) -> Result<()> {
 
     let mut remaining = keys.iter().copied();
     let mut next = move || -> Result<Event> {
-        remaining.next().map(Event::Key).ok_or_else(|| Error::Terminal {
-            source: std::io::Error::other("the scripted events ran out"),
-        })
+        remaining
+            .next()
+            .map(Event::Key)
+            .ok_or_else(|| Error::Terminal {
+                source: std::io::Error::other("the scripted events ran out"),
+            })
     };
 
     super::drive(&mut terminal, dashboard, &mut next)
@@ -724,7 +735,11 @@ fn the_loop_ignores_an_event_that_means_nothing_here() {
 
     drive_with(
         &mut dashboard,
-        &[key(KeyCode::Char('%')), key(KeyCode::F(4)), key(KeyCode::Char('q'))],
+        &[
+            key(KeyCode::Char('%')),
+            key(KeyCode::F(4)),
+            key(KeyCode::Char('q')),
+        ],
     )
     .expect("an unmapped key is not an error");
 
@@ -761,13 +776,15 @@ fn a_filter_typed_through_the_loop_narrows_the_rows() {
     assert!(dashboard.row_count() < dashboard.report().files.len());
 }
 
-
 #[test]
 fn the_dependency_view_ranks_direct_dependencies_and_shows_the_subtree() {
     let (_root, mut dashboard) = graph_dashboard();
     dashboard.apply(Action::SelectView(View::Dependencies.index()));
 
-    assert!(dashboard.row_count() > 0, "the fixture has direct dependencies");
+    assert!(
+        dashboard.row_count() > 0,
+        "the fixture has direct dependencies"
+    );
 
     let selected = dashboard
         .selected_package()
@@ -794,7 +811,9 @@ fn a_dependency_that_reaches_nothing_says_so() {
     dashboard.apply(Action::MoveDown);
 
     assert_eq!(
-        dashboard.selected_package().map(|package| package.name.as_str()),
+        dashboard
+            .selected_package()
+            .map(|package| package.name.as_str()),
         Some("leaf")
     );
     assert!(rendered(&dashboard).contains("Depends on nothing else."));
@@ -828,7 +847,10 @@ fn a_subtree_walks_the_resolved_graph() {
         .map(|(_, package)| package.name.as_str())
         .collect();
     assert!(names.contains(&"heavy"));
-    assert!(names.contains(&"deep"), "the walk goes deeper than one level");
+    assert!(
+        names.contains(&"deep"),
+        "the walk goes deeper than one level"
+    );
 }
 
 #[test]
@@ -960,7 +982,12 @@ fn hiding_tests_removes_a_test_only_directory_from_the_list() {
 
     dashboard.apply(Action::ToggleTests);
 
-    assert!(dashboard.directories().iter().all(|entry| !entry.is_test_only));
+    assert!(
+        dashboard
+            .directories()
+            .iter()
+            .all(|entry| !entry.is_test_only)
+    );
     assert!(dashboard.row_count() <= shown);
 }
 

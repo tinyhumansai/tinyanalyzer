@@ -211,7 +211,10 @@ fn development_edges_can_be_excluded_from_the_graph() {
             .count()
     };
 
-    assert!(development(&with_dev) > 0, "the fixture has a dev-dependency");
+    assert!(
+        development(&with_dev) > 0,
+        "the fixture has a dev-dependency"
+    );
     assert_eq!(development(&without_dev), 0);
 }
 
@@ -313,8 +316,10 @@ fn a_public_item_nothing_calls_is_reported_with_lower_confidence() {
     );
     assert_eq!(orphan.confidence, tinyanalyzer_core::Confidence::High);
     assert!(
-        report.dead_code.first().is_some_and(|first| first.confidence
-            == tinyanalyzer_core::Confidence::High),
+        report
+            .dead_code
+            .first()
+            .is_some_and(|first| first.confidence == tinyanalyzer_core::Confidence::High),
         "the most certain candidates come first"
     );
 }
