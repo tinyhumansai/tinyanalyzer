@@ -59,14 +59,16 @@ their callers may not be in this workspace at all.
 
 **Unused dependencies** (`deps`) are dependencies no source file *names*. A crate
 reached only through a derive macro or a linker side effect has no `use` naming
-it, which is what `ignore_unused` is for.
+it, which is what `ignore_unused` is for. Development dependencies and their
+transitive packages are excluded by default so the graph describes production
+cost; set `dependencies.include_dev = true` to include test and benchmark tooling.
 
 **Everything else** — line counts, item counts, function lengths, nesting, the
-dependency graph — is exact. The graph in particular comes from `cargo metadata`
-rather than from re-parsing manifests, because features, optional dependencies,
-platform-specific edges, and version unification are decided by the resolver, and
-a tool that re-implements any of them will disagree with the build it is
-describing.
+dependency graph — is exact. The graph in particular comes from Cargo's metadata
+and production tree rather than from re-parsing manifests, because features,
+optional dependencies, platform-specific edges, and version unification are
+decided by the resolver, and a tool that re-implements any of them will disagree
+with the build it is describing.
 
 ## Example
 

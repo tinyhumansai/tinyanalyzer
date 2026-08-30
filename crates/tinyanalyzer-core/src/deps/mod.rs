@@ -1,11 +1,10 @@
 //! Reading the resolved dependency graph.
 //!
-//! The graph comes from `cargo metadata` rather than from re-parsing manifests.
-//! That is the whole design decision of this module: features, optional
-//! dependencies, platform-specific edges, and version unification are decided
-//! by the resolver, and a tool that re-implements any of them will disagree
-//! with the build it is describing. Being slower and correct beats being
-//! instant and plausible.
+//! The graph comes from Cargo rather than from re-parsing manifests. Metadata
+//! supplies package identities and every resolved edge; Cargo's production tree
+//! supplies the normal/build-only feature context when development dependencies
+//! are excluded. Features, optional dependencies, platform-specific edges, and
+//! version unification remain Cargo's decisions rather than this module's.
 //!
 //! What this module adds on top of cargo's answer is the arithmetic cargo does
 //! not do:
@@ -32,6 +31,13 @@ use cargo_metadata::MetadataCommand;
 use ignore::WalkBuilder;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
+use std::process::Command;
+
+#[derive(Debug)]
+struct ProductionResolution {
+    package_ids: BTreeSet<String>,
+    features: BTreeMap<String, Vec<String>>,
+}
 
 /// Which crate names each workspace member's source files mention.
 ///
@@ -53,14 +59,10 @@ pub fn analyze(
     references: &CrateReferences,
 ) -> Result<DependencyReport> {
     let root = root.as_ref();
-
-    let metadata = MetadataCommand::new()
-        .manifest_path(root.join("Cargo.toml"))
-        .exec()
-        .map_err(|source| Error::CargoMetadata {
-            root: root.to_path_buf(),
-            message: source.to_string(),
-        })?;
+    let metadata = resolved_metadata(root)?;
+    let production = (!config.include_dev)
+        .then(|| production_resolution(root, &metadata))
+        .transpose()?;
 
     let resolve = metadata
         .resolve
@@ -76,37 +78,21 @@ pub fn analyze(
         .map(ToString::to_string)
         .collect();
 
-    let mut edges = Vec::new();
-    let mut adjacency: BTreeMap<String, Vec<String>> = BTreeMap::new();
-
-    for node in &resolve.nodes {
-        let from = node.id.to_string();
-
-        for dep in &node.deps {
-            let kinds = edge_kinds(dep, config.include_dev);
-            if kinds.is_empty() {
-                continue;
-            }
-
-            let to = dep.pkg.to_string();
-            adjacency.entry(from.clone()).or_default().push(to.clone());
-
-            for kind in kinds {
-                edges.push(DependencyEdge {
-                    from: from.clone(),
-                    to: to.clone(),
-                    kind,
-                });
-            }
-        }
-    }
+    let (mut edges, adjacency) = resolved_edges(resolve, config.include_dev, production.as_ref());
 
     let depths = shortest_depths(&members, &adjacency);
     let direct = direct_dependencies(&members, &adjacency);
+    let member_ids: Vec<String> = members.iter().cloned().collect();
+    let mut included = reachable_from(&member_ids, &adjacency);
+    included.extend(members.iter().cloned());
+    edges.retain(|edge| included.contains(&edge.from) && included.contains(&edge.to));
 
     let mut packages = Vec::new();
     for node in &resolve.nodes {
         let id = node.id.to_string();
+        if !included.contains(&id) {
+            continue;
+        }
         let Some(package) = metadata.packages.iter().find(|entry| entry.id == node.id) else {
             continue;
         };
@@ -119,7 +105,10 @@ pub fn analyze(
             is_root_package: package.manifest_path.as_std_path() == root.join("Cargo.toml"),
             is_direct: direct.contains(&id),
             kinds: kinds_for(&id, &edges),
-            features: node.features.iter().map(ToString::to_string).collect(),
+            features: production.as_ref().map_or_else(
+                || node.features.iter().map(ToString::to_string).collect(),
+                |resolution| resolution.features.get(&id).cloned().unwrap_or_default(),
+            ),
             available_features: package.features.keys().map(ToString::to_string).collect(),
             transitive_count: reachable.len(),
             exclusive_count: exclusive,
@@ -161,12 +150,139 @@ pub fn analyze(
 
     Ok(DependencyReport {
         duplicates: find_duplicates(&packages),
-        unused: find_unused(&metadata, &members, config, references),
+        unused: find_unused(&metadata, &members, &adjacency, config, references),
         packages,
         edges,
         external_packages,
         max_depth,
     })
+}
+
+/// Asks Cargo for the workspace graph, preserving its diagnostic on failure.
+fn resolved_metadata(root: &Path) -> Result<cargo_metadata::Metadata> {
+    MetadataCommand::new()
+        .manifest_path(root.join("Cargo.toml"))
+        .exec()
+        .map_err(|source| Error::CargoMetadata {
+            root: root.to_path_buf(),
+            message: source.to_string(),
+        })
+}
+
+/// Resolves the package and feature set Cargo uses for production targets.
+fn production_resolution(
+    root: &Path,
+    metadata: &cargo_metadata::Metadata,
+) -> Result<ProductionResolution> {
+    let output = Command::new("cargo")
+        .args([
+            "tree",
+            "--workspace",
+            "--target",
+            "all",
+            "--edges",
+            "normal,build",
+            "--prefix",
+            "none",
+            "--format",
+            "{p}|{f}",
+            "--manifest-path",
+        ])
+        .arg(root.join("Cargo.toml"))
+        .output()
+        .map_err(|source| Error::CargoMetadata {
+            root: root.to_path_buf(),
+            message: source.to_string(),
+        })?;
+
+    if !output.status.success() {
+        return Err(Error::CargoMetadata {
+            root: root.to_path_buf(),
+            message: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+        });
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut features_by_key: BTreeMap<(String, String), BTreeSet<String>> = BTreeMap::new();
+    for line in stdout.lines() {
+        let Some((package, features)) = line.split_once('|') else {
+            continue;
+        };
+        let Some(key) = tree_package_key(package) else {
+            continue;
+        };
+        features_by_key.entry(key).or_default().extend(
+            features
+                .split(',')
+                .filter(|feature| !feature.is_empty())
+                .map(ToOwned::to_owned),
+        );
+    }
+
+    let mut package_ids = BTreeSet::new();
+    let mut resolved_features = BTreeMap::new();
+    for package in &metadata.packages {
+        let key = (package.name.to_string(), package.version.to_string());
+        let Some(features) = features_by_key.get(&key) else {
+            continue;
+        };
+        let id = package.id.to_string();
+        package_ids.insert(id.clone());
+        resolved_features.insert(id, features.iter().cloned().collect());
+    }
+
+    Ok(ProductionResolution {
+        package_ids,
+        features: resolved_features,
+    })
+}
+
+/// Extracts the package name and version from Cargo's controlled tree format.
+fn tree_package_key(package: &str) -> Option<(String, String)> {
+    let mut fields = package.split_whitespace();
+    let name = fields.next()?.to_owned();
+    let version = fields.next()?.strip_prefix('v')?.to_owned();
+    Some((name, version))
+}
+
+/// Builds the closed edge list and adjacency map for one Cargo resolution.
+fn resolved_edges(
+    resolve: &cargo_metadata::Resolve,
+    include_dev: bool,
+    production: Option<&ProductionResolution>,
+) -> (Vec<DependencyEdge>, BTreeMap<String, Vec<String>>) {
+    let mut edges = Vec::new();
+    let mut adjacency: BTreeMap<String, Vec<String>> = BTreeMap::new();
+
+    for node in &resolve.nodes {
+        let from = node.id.to_string();
+
+        for dep in &node.deps {
+            let to = dep.pkg.to_string();
+            if production.is_some_and(|resolution| {
+                !resolution.package_ids.contains(&from) || !resolution.package_ids.contains(&to)
+            }) {
+                continue;
+            }
+
+            let kinds = edge_kinds(dep, include_dev);
+            if kinds.is_empty() {
+                continue;
+            }
+
+            adjacency.entry(from.clone()).or_default().push(to.clone());
+
+            for kind in kinds {
+                edges.push(DependencyEdge {
+                    from: from.clone(),
+                    to: to.clone(),
+                    kind,
+                });
+            }
+        }
+    }
+
+    (edges, adjacency)
 }
 
 /// Measures the checked-out source Cargo would compile for one package.
@@ -363,6 +479,7 @@ fn find_duplicates(packages: &[PackageNode]) -> Vec<DuplicateVersions> {
 fn find_unused(
     metadata: &cargo_metadata::Metadata,
     members: &BTreeSet<String>,
+    adjacency: &BTreeMap<String, Vec<String>>,
     config: &DependencyConfig,
     references: &CrateReferences,
 ) -> Vec<UnusedDependency> {
@@ -388,6 +505,10 @@ fn find_unused(
         };
 
         for dependency in &package.dependencies {
+            if !dependency_is_resolved(package, dependency, adjacency, metadata) {
+                continue;
+            }
+
             let kind = match dependency.kind {
                 cargo_metadata::DependencyKind::Normal => DependencyKind::Normal,
                 cargo_metadata::DependencyKind::Development if config.include_dev => {
@@ -422,6 +543,26 @@ fn find_unused(
     });
     unused.dedup();
     unused
+}
+
+/// Whether Cargo retained this declaration in the selected dependency graph.
+fn dependency_is_resolved(
+    package: &cargo_metadata::Package,
+    dependency: &cargo_metadata::Dependency,
+    adjacency: &BTreeMap<String, Vec<String>>,
+    metadata: &cargo_metadata::Metadata,
+) -> bool {
+    adjacency
+        .get(&package.id.to_string())
+        .into_iter()
+        .flatten()
+        .any(|id| {
+            metadata.packages.iter().any(|candidate| {
+                candidate.id.to_string() == *id
+                    && candidate.name == dependency.name
+                    && dependency.req.matches(&candidate.version)
+            })
+        })
 }
 
 /// Folds a manifest crate name into the identifier a `use` statement writes.

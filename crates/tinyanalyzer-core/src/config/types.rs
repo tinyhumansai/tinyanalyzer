@@ -201,7 +201,11 @@ pub struct DependencyConfig {
     /// Turning this off makes the analysis pure filesystem work, which is what
     /// you want against a tree that does not resolve.
     pub enabled: bool,
-    /// Whether development and build dependencies are included in the graph.
+    /// Whether development dependencies are included in the graph.
+    ///
+    /// Off by default so dependency cost describes production builds. Build
+    /// dependencies remain included because Cargo needs them to compile a
+    /// production target.
     pub include_dev: bool,
     /// Crate names never reported as unused, however unreferenced they look.
     ///
@@ -214,7 +218,7 @@ impl Default for DependencyConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            include_dev: true,
+            include_dev: false,
             ignore_unused: Vec::new(),
         }
     }

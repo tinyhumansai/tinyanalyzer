@@ -41,6 +41,8 @@ fn the_defaults_are_the_documented_ones() {
     assert!(!config.scan.follow_symlinks);
     assert!(config.dead_code.enabled);
     assert!(!config.dead_code.tests_count_as_uses);
+    assert!(config.dependencies.enabled);
+    assert!(!config.dependencies.include_dev);
     assert_eq!(config.ui.start_view, StartView::Overview);
     assert!(!config.ui.hide_tests);
     assert_eq!(config.ui.table_rows, 20);

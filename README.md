@@ -169,6 +169,7 @@ ignore = ["main", "some_macro_target"]
 tests_count_as_uses = false       # an item only its tests call is dead weight
 
 [dependencies]
+include_dev = true                  # opt in to test/benchmark-only dependency cost
 ignore_unused = ["thiserror"]     # reached only through a derive macro
 
 [ui]
