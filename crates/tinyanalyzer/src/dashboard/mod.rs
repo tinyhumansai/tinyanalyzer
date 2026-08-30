@@ -61,7 +61,7 @@ fn read_event() -> Result<Event> {
 /// # Errors
 ///
 /// Returns [`Error::Terminal`] if drawing or reading fails.
-pub(crate) fn drive<B: Backend>(
+pub(crate) fn drive<B: Backend<Error = std::io::Error>>(
     terminal: &mut Terminal<B>,
     dashboard: &mut Dashboard,
     events: &mut dyn FnMut() -> Result<Event>,
