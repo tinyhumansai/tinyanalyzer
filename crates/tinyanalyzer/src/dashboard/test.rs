@@ -1121,6 +1121,26 @@ fn the_dependency_view_ranks_direct_dependencies_and_shows_the_subtree() {
     assert!(text.contains("2.3 KiB"));
     assert!(text.contains("features: default"));
     assert!(text.contains("deep"), "the subtree is drawn beneath it");
+    assert!(text.contains("deep v2.0.0 · 300 B · 0 child deps"));
+}
+
+#[test]
+fn dependency_tree_rows_show_source_size_and_immediate_child_count() {
+    let (_root, original) = graph_dashboard();
+    let mut report = original.report().clone();
+    report
+        .dependencies
+        .edges
+        .push(edge("deep@2.0.0", "leaf@0.1.0"));
+    let mut dashboard = Dashboard::new(report, StartView::Dependencies, false);
+    dashboard.apply(Action::SelectView(View::Dependencies.index()));
+
+    assert_eq!(dashboard.dependency_child_count("deep@2.0.0"), 1);
+    assert_eq!(dashboard.dependency_child_count("leaf@0.1.0"), 0);
+
+    let text = rendered(&dashboard);
+    assert!(text.contains("deep v2.0.0 · 300 B · 1 child dep"));
+    assert!(text.contains("leaf v0.1.0 · 100 B · 0 child deps"));
 }
 
 #[test]
