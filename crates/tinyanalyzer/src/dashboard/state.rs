@@ -961,9 +961,11 @@ impl Dashboard {
         };
         let selected_path = directory.path.clone();
         let has_children = self.files().iter().any(|file| {
-            file.directory
-                .strip_prefix(&selected_path)
-                .is_some_and(|rest| rest.starts_with('/'))
+            file.directory == selected_path
+                || file
+                    .directory
+                    .strip_prefix(&selected_path)
+                    .is_some_and(|rest| rest.starts_with('/'))
         });
         if !has_children {
             self.set_cursor(position);
