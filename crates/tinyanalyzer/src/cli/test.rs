@@ -3,6 +3,8 @@
 //! The parser is exercised through `clap`'s own `try_parse_from`, so these
 //! assert the actual behavior a user gets rather than the shape of the struct.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::{Cli, Output, View};
 use clap::Parser;
 use std::path::{Path, PathBuf};

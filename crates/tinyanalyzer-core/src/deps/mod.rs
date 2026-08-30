@@ -107,7 +107,7 @@ pub fn analyze(
             continue;
         };
 
-        let reachable = reachable_from(&[id.clone()], &adjacency);
+        let reachable = reachable_from(std::slice::from_ref(&id), &adjacency);
         let exclusive = exclusive_weight(&id, &members, &adjacency, &reachable);
 
         packages.push(PackageNode {
@@ -352,7 +352,7 @@ fn find_unused(
         }
 
         let package_name = package.name.to_string();
-        let Some(referenced) = references.get(&package_name) else {
+        let Some(named) = references.get(&package_name) else {
             // No source files were analyzed for this member, so nothing can be
             // concluded about what it uses. Silence beats a page of false
             // positives.
@@ -375,7 +375,7 @@ fn find_unused(
                 .unwrap_or_else(|| dependency.name.clone());
             let normalized = normalize_crate_name(&name);
 
-            if ignored.contains(&normalized) || referenced.contains(&normalized) {
+            if ignored.contains(&normalized) || named.contains(&normalized) {
                 continue;
             }
 

@@ -7,6 +7,8 @@
 //! panicking, at a realistic size and at an absurdly small one" is an assertion
 //! rather than something discovered in front of a user.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::render;
 use super::state::{Action, Dashboard, View};
 use super::action_for;

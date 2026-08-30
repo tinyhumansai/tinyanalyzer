@@ -5,6 +5,8 @@
 //! one unit early or late is invisible in any test that uses obviously extreme
 //! inputs, and is exactly the kind of drift that erodes trust in the output.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::{FindingInputs, Rule, Severity, analyze};
 use crate::config::Thresholds;
 use crate::dead_code::{Confidence, DeadCodeCandidate};

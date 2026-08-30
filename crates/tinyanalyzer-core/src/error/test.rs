@@ -4,6 +4,8 @@
 //! terminal when an analysis fails, and the `#[source]` chain, because that is
 //! what a caller walks to find the real cause.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::{Error, Result};
 use std::error::Error as _;
 use std::io::{Error as IoError, ErrorKind};
@@ -88,5 +90,5 @@ fn renders_a_serialization_failure_and_keeps_its_source() {
 fn the_result_alias_carries_the_crate_error() {
     let ok: Result<u8> = Ok(1);
 
-    assert_eq!(ok.unwrap(), 1);
+    assert!(matches!(ok, Ok(1)));
 }

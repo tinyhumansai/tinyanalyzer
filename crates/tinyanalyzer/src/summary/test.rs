@@ -5,6 +5,8 @@
 //! on it directly is the only way to notice that a section quietly stopped
 //! being printed.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::{human_bytes, render, truncate_path};
 use std::path::Path;
 use tempfile::TempDir;

@@ -11,8 +11,9 @@ use serde::{Deserialize, Serialize};
 /// The whole of `tinyanalyzer.toml`.
 ///
 /// Load one with [`Config::load`](super::Config::load) rather than constructing
-/// it by hand; [`Config::default`] is what an unconfigured repository gets.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// it by hand; [`Config::default`] is what an unconfigured repository gets, and
+/// each section's own `Default` is the value that section documents.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     /// Human-facing identity of the project under analysis.
@@ -36,17 +37,6 @@ pub struct Config {
     pub notes: Vec<Note>,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            project: ProjectConfig::default(),
-            scan: ScanConfig::default(),
-            thresholds: Thresholds::default(),
-            dead_code: DeadCodeConfig::default(),
-            dependencies: DependencyConfig::default(),
-            ui: UiConfig::default(),
-            notes: Vec::new(),
-        }
     }
 }
 

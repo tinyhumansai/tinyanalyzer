@@ -4,6 +4,8 @@
 //! repository gets, and a silent change to one of them changes every number on
 //! every dashboard.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::{CONFIG_FILE_NAME, CONFIG_FILE_NAME_ALT, Config, NoteLevel, StartView, compile_glob_set};
 use crate::error::Error;
 use std::path::Path;

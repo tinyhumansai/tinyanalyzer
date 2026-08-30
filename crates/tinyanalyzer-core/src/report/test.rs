@@ -5,6 +5,8 @@
 //! that only appear when they do: a file counted twice, a total that disagrees
 //! with the rows it sums, a ranking that reorders itself between runs.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::{SCHEMA_VERSION, analyze, analyze_with, weight};
 use crate::config::{Config, DependencyConfig, Note, NoteLevel};
 use crate::error::Error;
