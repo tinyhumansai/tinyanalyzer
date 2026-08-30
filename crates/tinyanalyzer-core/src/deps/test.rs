@@ -54,10 +54,8 @@ fn package_source_size_counts_source_files_but_not_build_output() {
     std::fs::create_dir_all(root.path().join("src")).expect("the source directory is writable");
     std::fs::create_dir_all(root.path().join("target/debug"))
         .expect("the target directory is writable");
-    std::fs::write(root.path().join("Cargo.toml"), b"12345")
-        .expect("the manifest is writable");
-    std::fs::write(root.path().join("src/lib.rs"), b"1234567")
-        .expect("the source is writable");
+    std::fs::write(root.path().join("Cargo.toml"), b"12345").expect("the manifest is writable");
+    std::fs::write(root.path().join("src/lib.rs"), b"1234567").expect("the source is writable");
     std::fs::write(root.path().join("target/debug/artifact"), vec![0; 1_000])
         .expect("the artifact is writable");
 

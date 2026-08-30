@@ -29,8 +29,8 @@ pub use types::{
 use crate::config::DependencyConfig;
 use crate::error::{Error, Result};
 use cargo_metadata::MetadataCommand;
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use ignore::WalkBuilder;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::path::Path;
 
 /// Which crate names each workspace member's source files mention.
@@ -177,8 +177,7 @@ fn package_source_bytes(root: &Path) -> u64 {
         .git_global(false)
         .git_exclude(false)
         .filter_entry(|entry| {
-            entry.depth() == 0
-                || !matches!(entry.file_name().to_str(), Some("target" | ".git"))
+            entry.depth() == 0 || !matches!(entry.file_name().to_str(), Some("target" | ".git"))
         })
         .build()
         .filter_map(std::result::Result::ok)
