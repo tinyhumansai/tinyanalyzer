@@ -130,7 +130,7 @@ pub fn analyze(
                 package
                     .manifest_path
                     .parent()
-                    .map_or(root, cargo_metadata::camino::Utf8Path::as_std_path),
+                    .map_or(root, |path| path.as_std_path()),
             ),
             id,
         });
