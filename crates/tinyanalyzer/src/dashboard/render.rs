@@ -31,6 +31,19 @@ const SIZE: Color = Color::LightMagenta;
 const MUTED: Color = Color::DarkGray;
 const WARNING: Color = Color::Yellow;
 
+/// Product wordmark shown above the overview totals when the terminal has room.
+pub(super) const WORDMARK: [&str; 7] = [
+    "                                        ▄▄",
+    " ██   ▀▀                                ██",
+    "▀██▀▀ ██  ████▄ ██ ██  ▀▀█▄ ████▄  ▀▀█▄ ██ ██ ██ ▀▀▀██ ▄█▀█▄ ████▄",
+    " ██   ██  ██ ██ ██▄██ ▄█▀██ ██ ██ ▄█▀██ ██ ██▄██   ▄█▀ ██▄█▀ ██ ▀▀",
+    " ██   ██▄ ██ ██  ▀██▀ ▀█▄██ ██ ██ ▀█▄██ ██  ▀██▀ ▄██▄▄ ▀█▄▄▄ ██",
+    "                  ██                         ██",
+    "                ▀▀▀                        ▀▀▀",
+];
+
+const MIN_OVERVIEW_WITH_WORDMARK_HEIGHT: u16 = 36;
+
 /// Draws the whole dashboard.
 pub(super) fn draw(frame: &mut Frame<'_>, dashboard: &Dashboard) {
     let areas = Layout::vertical([
@@ -60,7 +73,7 @@ pub(super) fn row_at(area: Rect, view: View, column: u16, row: u16) -> Option<us
     let (list, header) = match view {
         View::Overview => {
             let lower = Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)])
-                .split(body)[1];
+                .split(overview_content(body))[1];
             (lower, false)
         }
         View::Files => (
@@ -331,14 +344,60 @@ fn table(frame: &mut Frame<'_>, area: Rect, table: Table<'_>, selected: usize) {
 
 /// Totals, the language mix, and the top findings.
 fn overview(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
+    let content = overview_content(area);
+    if content != area {
+        let logo = Rect {
+            height: WORDMARK.len() as u16,
+            ..area
+        };
+        wordmark(frame, logo);
+    }
+
     let rows =
-        Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
+        Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).split(content);
     let top =
         Layout::horizontal([Constraint::Percentage(45), Constraint::Percentage(55)]).split(rows[0]);
 
     totals_panel(frame, top[0], dashboard);
     languages_panel(frame, top[1], dashboard);
     findings_list(frame, rows[1], dashboard, "Top findings");
+}
+
+/// Leaves room for the wordmark without sacrificing the useful panels in a
+/// short or narrow terminal.
+fn overview_content(area: Rect) -> Rect {
+    let wordmark_width = WORDMARK
+        .iter()
+        .map(|row| row.chars().count())
+        .max()
+        .unwrap_or_default();
+    let fits = area.height >= MIN_OVERVIEW_WITH_WORDMARK_HEIGHT
+        && usize::from(area.width) >= wordmark_width;
+
+    if fits {
+        Rect {
+            y: area.y.saturating_add(WORDMARK.len() as u16),
+            height: area.height.saturating_sub(WORDMARK.len() as u16),
+            ..area
+        }
+    } else {
+        area
+    }
+}
+
+/// Draws the product wordmark in the same accent as the rest of the dashboard
+/// chrome.
+fn wordmark(frame: &mut Frame<'_>, area: Rect) {
+    let lines: Vec<Line<'_>> = WORDMARK
+        .iter()
+        .map(|row| {
+            Line::from(Span::styled(
+                *row,
+                Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+            ))
+        })
+        .collect();
+    frame.render_widget(Paragraph::new(lines), area);
 }
 
 /// The numbers, spelled out.
