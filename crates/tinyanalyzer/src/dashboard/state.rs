@@ -169,6 +169,9 @@ pub enum Action {
 /// How many rows a page key moves.
 const PAGE: usize = 10;
 
+/// Initial ordering for each tab; data panes with byte metrics start by size.
+const DEFAULT_SORTS: [usize; View::ALL.len()] = [0, 3, 0, 3, 0, 0];
+
 /// One row in the ncdu-style directory browser.
 #[derive(Debug)]
 pub(super) enum BrowserEntry<'a> {
@@ -294,7 +297,7 @@ impl Dashboard {
             hide_tests,
             cursors: [0; View::ALL.len()],
             detail_scrolls: [0; View::ALL.len()],
-            sorts: [0; View::ALL.len()],
+            sorts: DEFAULT_SORTS,
             filters: std::array::from_fn(|_| String::new()),
             filter_regexes: std::array::from_fn(|_| None),
             filter_syntaxes: [FilterSyntax::Regex; View::ALL.len()],
