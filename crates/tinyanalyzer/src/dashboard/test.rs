@@ -909,7 +909,7 @@ fn tables_and_file_kinds_use_the_dashboard_palette() {
 
     let header = buffer.cell((1, 3)).expect("the table header has a cell");
     assert_eq!(header.fg, ratatui::style::Color::Black);
-    assert_eq!(header.bg, ratatui::style::Color::LightCyan);
+    assert_eq!(header.bg, ratatui::style::Color::LightRed);
 
     let test_row = dashboard
         .files()

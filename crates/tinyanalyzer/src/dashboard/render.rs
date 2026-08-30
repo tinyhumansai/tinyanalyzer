@@ -23,7 +23,7 @@ use tinyanalyzer_core::{Finding, PackageNode, Severity};
 /// Shared palette. Standard ANSI colors remain legible without assuming a
 /// particular terminal background, while the bright variants provide enough
 /// contrast for structure and warnings.
-const ACCENT: Color = Color::LightCyan;
+const ACCENT: Color = Color::LightRed;
 const DIRECTORY: Color = Color::LightBlue;
 const METRIC: Color = Color::Cyan;
 const DOCUMENTATION: Color = Color::Green;
