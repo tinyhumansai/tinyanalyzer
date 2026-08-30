@@ -626,6 +626,7 @@ impl Dashboard {
             .last()
             .or(self.dependency_detail_root.as_ref())
             .and_then(|id| self.report.dependencies.package(id))
+            .or_else(|| self.selected_package())
     }
 
     /// Sorted children at the current dependency detail level.
@@ -1077,6 +1078,8 @@ impl Dashboard {
             Action::LeaveDirectory => self.leave_directory(),
             Action::EnterDependency => self.enter_dependency(),
             Action::LeaveDependency => self.leave_dependency(),
+            Action::MoveDependencyDown => self.move_dependency_detail(1),
+            Action::MoveDependencyUp => self.move_dependency_detail(-1),
             Action::ToggleDirectoriesOnly => {
                 self.directory_visibility = match self.directory_visibility {
                     DirectoryVisibility::All => DirectoryVisibility::DirectoriesOnly,
@@ -1096,7 +1099,11 @@ impl Dashboard {
                 let view = self.view.index();
                 self.sorts[view] = (self.sorts[view] + 1) % sort_count(self.view);
                 self.detail_scrolls[view] = 0;
-                self.set_cursor(0);
+                if self.view == View::Dependencies && self.dependency_detail_focused {
+                    self.dependency_detail_cursor = 0;
+                } else {
+                    self.set_cursor(0);
+                }
             }
             Action::SimulateRemoveDependency => self.simulate_remove_dependency(),
             Action::RestoreDependencies => {
@@ -1161,6 +1168,9 @@ impl Dashboard {
         let next = position.min(last);
         if self.cursors[view] != next {
             self.detail_scrolls[view] = 0;
+            if self.view == View::Dependencies {
+                self.reset_dependency_detail();
+            }
         }
         self.cursors[view] = next;
     }
