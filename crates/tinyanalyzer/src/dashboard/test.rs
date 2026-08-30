@@ -1097,6 +1097,51 @@ fn dependency_keys_are_contextual() {
         action_for_event(&Event::Key(key(KeyCode::Char('f'))), area, &dashboard),
         Some(Action::ToggleFeature)
     );
+    assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Char('['))), area, &dashboard),
+        Some(Action::PreviousFeature)
+    );
+    assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Char(']'))), area, &dashboard),
+        Some(Action::NextFeature)
+    );
+    assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Char('w'))), area, &dashboard),
+        Some(Action::ToggleFeatureTarget)
+    );
+    assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Char('s'))), area, &dashboard),
+        Some(Action::NextSort),
+        "ordinary keys still use the shared mapping"
+    );
+}
+
+#[test]
+fn directory_navigation_keys_are_contextual() {
+    let (_root, mut dashboard) = graph_dashboard();
+    let area = Rect::new(0, 0, 160, 48);
+    dashboard.apply(Action::SelectView(View::Directories.index()));
+
+    for code in [KeyCode::Enter, KeyCode::Right, KeyCode::Char('l')] {
+        assert_eq!(
+            action_for_event(&Event::Key(key(code)), area, &dashboard),
+            Some(Action::EnterDirectory)
+        );
+    }
+    for code in [KeyCode::Backspace, KeyCode::Left, KeyCode::Char('h')] {
+        assert_eq!(
+            action_for_event(&Event::Key(key(code)), area, &dashboard),
+            Some(Action::LeaveDirectory)
+        );
+    }
+    assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Char('o'))), area, &dashboard),
+        Some(Action::ToggleDirectoriesOnly)
+    );
+    assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Char('s'))), area, &dashboard),
+        Some(Action::NextSort)
+    );
 }
 
 #[test]
