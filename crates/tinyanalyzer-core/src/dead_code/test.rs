@@ -4,6 +4,8 @@
 //! an item used only from a macro, an item used only from a test, a public item
 //! with no caller in the workspace, and two unrelated items sharing a name.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::{Confidence, DeadCodeInput, analyze};
 use crate::config::DeadCodeConfig;
 use crate::rust_source::{RustFile, analyze as parse};

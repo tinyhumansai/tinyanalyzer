@@ -4,6 +4,8 @@
 //! whole point of this module is that it agrees with `.gitignore` and with what
 //! a developer sees, and neither is observable through a mock.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::{SourceFile, discover};
 use crate::config::ScanConfig;
 use crate::error::Error;

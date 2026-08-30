@@ -5,6 +5,8 @@
 //! these numbers and a quiet off-by-one in the parser would move every ranking
 //! on the dashboard.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::{DefinitionKind, RustFile, analyze};
 
 fn parsed(source: &str) -> RustFile {

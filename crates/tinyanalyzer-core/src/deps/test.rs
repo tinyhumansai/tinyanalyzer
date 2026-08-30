@@ -6,6 +6,8 @@
 //! crate's integration tests against a real fixture workspace, because there is
 //! nothing to learn from asserting against a mock of cargo's output.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::{
     DependencyKind, DependencyReport, DuplicateVersions, PackageNode, direct_dependencies,
     exclusive_weight, find_duplicates, normalize_crate_name, reachable_from, shortest_depths,

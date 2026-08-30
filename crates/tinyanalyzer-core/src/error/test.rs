@@ -4,6 +4,8 @@
 //! terminal when an analysis fails, and the `#[source]` chain, because that is
 //! what a caller walks to find the real cause.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::{Error, Result};
 use std::error::Error as _;
 use std::io::{Error as IoError, ErrorKind};

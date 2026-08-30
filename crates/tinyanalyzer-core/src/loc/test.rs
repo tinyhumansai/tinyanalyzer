@@ -5,6 +5,8 @@
 //! double-counts a line is the failure mode that would silently skew every
 //! total in the report.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use super::{Language, LineCounts, count_lines};
 
 fn counted(language: Language, text: &str) -> LineCounts {
