@@ -1320,8 +1320,14 @@ fn dependency_metrics_are_cached_across_a_complete_redraw() {
     );
 
     dashboard.apply(Action::SimulateRemoveDependency);
-    assert_eq!(dashboard.dependency_simulation_builds(), 2);
+    assert_eq!(
+        dashboard.dependency_simulation_builds(),
+        1,
+        "source-size sorting does not eagerly rebuild graph metrics"
+    );
     let _simulated_frame = rendered(&dashboard);
+    assert_eq!(dashboard.dependency_simulation_builds(), 2);
+    let _second_simulated_frame = rendered(&dashboard);
     assert_eq!(dashboard.dependency_simulation_builds(), 2);
 }
 
