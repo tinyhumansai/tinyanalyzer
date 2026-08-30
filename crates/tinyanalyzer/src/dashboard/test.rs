@@ -963,12 +963,34 @@ fn the_loop_ignores_an_event_that_means_nothing_here() {
 fn the_ignore_toggle_requests_a_report_reload() {
     let (_root, mut dashboard) = dashboard();
 
+    assert_eq!(dashboard.take_reload_request(), None);
+
     drive_with(&mut dashboard, &[key(KeyCode::Char('i'))])
         .expect("the loop returns so the report can be rebuilt");
 
     assert!(!dashboard.respect_gitignore());
     assert_eq!(dashboard.take_reload_request(), Some(false));
     assert!(!dashboard.reload_requested());
+
+    dashboard.apply(Action::ToggleGitignore);
+    assert!(dashboard.respect_gitignore());
+    assert_eq!(dashboard.take_reload_request(), Some(true));
+}
+
+#[test]
+fn initial_ignore_policy_and_reloaded_report_can_be_replaced() {
+    let (_root, mut dashboard) = dashboard();
+    dashboard.set_respect_gitignore(false);
+    assert!(!dashboard.respect_gitignore());
+
+    let mut replacement = dashboard.report().clone();
+    replacement.files.clear();
+    dashboard.apply(Action::SelectView(View::Files.index()));
+    dashboard.apply(Action::Last);
+    dashboard.replace_report(replacement);
+
+    assert_eq!(dashboard.row_count(), 0);
+    assert_eq!(dashboard.cursor(), 0);
 }
 
 #[test]
@@ -1482,6 +1504,8 @@ fn the_mouse_wheel_scrolls_the_pane_under_the_pointer() {
         &dashboard,
     );
     assert_eq!(detail_up, Some(Action::ScrollDetailUp));
+    dashboard.apply(detail_up.expect("the detail pane scrolls back up"));
+    assert_eq!(dashboard.detail_scroll(), 0);
 
     let list_scroll =
         action_for_event(&mouse(MouseEventKind::ScrollDown, 10, 10), area, &dashboard);
