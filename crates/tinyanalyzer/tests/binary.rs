@@ -310,10 +310,11 @@ fn the_dashboard_opens_in_a_real_terminal_and_leaves_it_as_it_found_it() {
 fn the_dashboard_navigates_before_it_closes() {
     let root = fixture();
 
-    // `2` opens the files view, `j` moves down, `t` hides tests, and `q` leaves.
-    // Held together they drive the whole loop no matter which keystroke the
-    // dashboard is ready for first.
-    let Some(output) = under_a_terminal(root.path(), "2jtq") else {
+    // `i` rebuilds with ignore files disabled, `2` opens the files view, `j`
+    // moves down, `t` hides tests, and `q` leaves. Held together they drive the
+    // reload and navigation loops no matter which keystroke the dashboard is
+    // ready for first.
+    let Some(output) = under_a_terminal(root.path(), "i2jtq") else {
         return;
     };
 
