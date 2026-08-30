@@ -11,7 +11,7 @@ use crate::dead_code::{Confidence, DeadCodeCandidate};
 use crate::deps::{DependencyReport, DuplicateVersions, UnusedDependency};
 use crate::loc::{Language, LineCounts};
 use crate::report::{DirectoryMetrics, FileMetrics, ParseFailureReport, weight};
-use crate::rust_source::{DefinitionKind, RustFile, analyze as parse};
+use crate::rust_source::{DefinitionKind, analyze as parse};
 
 fn lines(code: usize, comment: usize) -> LineCounts {
     LineCounts {
