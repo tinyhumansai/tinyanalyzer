@@ -12,9 +12,7 @@ if (-not [Environment]::Is64BitOperatingSystem) {
 
 $Version = $env:TINYANALYZER_VERSION
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Release = Invoke-RestMethod \
-        -Uri "https://api.github.com/repos/$Repository/releases/latest" \
-        -Headers @{ "User-Agent" = "tinyanalyzer-installer" }
+    $Release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repository/releases/latest" -Headers @{ "User-Agent" = "tinyanalyzer-installer" }
     $Version = $Release.tag_name
 }
 if (-not $Version.StartsWith("v")) {

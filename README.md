@@ -15,6 +15,31 @@ tinyanalyzer --output json      # print the whole report as JSON
 One binary. No runtime, no browser, no bundled web assets, nothing fetched at
 startup: the dashboard *is* the program.
 
+## Installation
+
+On Linux or macOS:
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://raw.githubusercontent.com/tinyhumansai/tinyanalyzer/main/install.sh | sh
+```
+
+On Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/tinyhumansai/tinyanalyzer/main/install.ps1 | iex
+```
+
+The installers detect the platform, download the matching archive from the
+latest GitHub release, verify it against the release's `SHA256SUMS`, and install
+the binary for the current user. Set `TINYANALYZER_VERSION` to install a specific
+release (for example `v0.2.1`) or `TINYANALYZER_INSTALL_DIR` to choose the
+destination. Linux and macOS default to `~/.local/bin`; Windows defaults to
+`%LOCALAPPDATA%\Programs\tinyanalyzer\bin` and adds it to the user `PATH`.
+
+If you prefer to inspect an installer before running it, download the script,
+read it, and execute the local copy instead of piping it into the shell.
+
 ## What it tells you
 
 **Where the weight is.** Every file with its lines of code, comments, items,
