@@ -6,15 +6,20 @@
 //! which draws into an in-memory buffer, so "does every view draw without
 //! panicking, at a realistic size and at an absurdly small one" is an assertion
 //! rather than something discovered in front of a user.
+//!
+//! The event loop is tested too, by handing it a scripted list of key presses
+//! instead of a terminal to read from. Without that it would be the one part of
+//! this program nothing ever checked.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::action_for;
 use super::render;
 use super::state::{Action, Dashboard, View};
+use crate::error::{Error, Result};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use std::path::Path;
 use tempfile::TempDir;
 use tinyanalyzer_core::{Config, DependencyConfig, Report, StartView, analyze_with};
