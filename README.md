@@ -77,7 +77,8 @@ items, split along the seams already in it" is.
 
 The `t` filter is the one worth knowing about: it removes test code from every
 row *and* every total at once, which is usually the honest answer to "how big is
-this project".
+this project". For Rust, that includes `#[test]` functions and `#[cfg(test)]`
+modules inside otherwise-production files, not only files under `tests/`.
 
 Filters are case-insensitive regular expressions, so `^crates/.*/src/.*\.rs$`
 can isolate Rust source below workspace crates. While a pattern is incomplete,
