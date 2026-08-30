@@ -22,7 +22,7 @@ fn an_analysis_failure_renders_as_the_engine_wrote_it() {
 #[test]
 fn a_terminal_failure_says_so_and_keeps_its_source() {
     let error = Error::Terminal {
-        source: IoError::new(ErrorKind::Other, "not a tty"),
+        source: IoError::other("not a tty"),
     };
 
     assert_eq!(error.to_string(), "cannot control the terminal: not a tty");

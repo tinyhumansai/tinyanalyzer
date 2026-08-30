@@ -53,14 +53,13 @@ fn run(cli: &Cli) -> Result<()> {
 ///
 /// Returns [`Error::Write`] if the named file cannot be written.
 fn emit(cli: &Cli, rendered: String) -> Result<()> {
-    match &cli.write {
-        Some(path) => std::fs::write(path, rendered).map_err(|source| Error::Write {
-            path: path.clone(),
-            source,
-        }),
-        None => {
-            println!("{rendered}");
-            Ok(())
-        }
-    }
+    let Some(path) = &cli.write else {
+        println!("{rendered}");
+        return Ok(());
+    };
+
+    std::fs::write(path, rendered).map_err(|source| Error::Write {
+        path: path.clone(),
+        source,
+    })
 }

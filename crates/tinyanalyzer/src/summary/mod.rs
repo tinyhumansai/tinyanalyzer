@@ -47,6 +47,9 @@ fn section(out: &mut String, title: &str) {
 pub fn human_bytes(bytes: u64) -> String {
     const UNITS: [&str; 4] = ["B", "KiB", "MiB", "GiB"];
 
+    // The loss is the point: this renders a size for a human to read, and the
+    // scaled value is printed to one decimal place either way.
+    #[allow(clippy::cast_precision_loss)]
     let mut value = bytes as f64;
     let mut unit = 0;
 
