@@ -10,6 +10,8 @@
 //! stay in range when a filter shrinks the list under it — is a question about
 //! this struct, answerable without drawing anything.
 
+use regex::{Regex, RegexBuilder};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use tinyanalyzer_core::{
     DeadCodeCandidate, DirectoryMetrics, FileMetrics, Finding, LineCounts, PackageNode, Report,
     StartView, Totals,
@@ -122,6 +124,12 @@ pub enum Action {
     ScrollDetailDown,
     /// Scroll the active detail pane up.
     ScrollDetailUp,
+    /// Cycle to the next sort for the active view.
+    NextSort,
+    /// Remove the selected dependency from the simulated graph.
+    SimulateRemoveDependency,
+    /// Restore every dependency removed from the simulation.
+    RestoreDependencies,
     /// Show or hide test code.
     ToggleTests,
     /// Start typing a filter.
@@ -147,10 +155,14 @@ pub struct Dashboard {
     hide_tests: bool,
     cursors: [usize; View::ALL.len()],
     detail_scrolls: [u16; View::ALL.len()],
+    sorts: [usize; View::ALL.len()],
     filter: String,
+    filter_regex: Option<Regex>,
+    filter_regex_valid: bool,
     editing_filter: bool,
     directory_path: String,
     directory_cursors: Vec<usize>,
+    removed_dependencies: BTreeSet<String>,
     quit: bool,
 }
 
@@ -164,10 +176,14 @@ impl Dashboard {
             hide_tests,
             cursors: [0; View::ALL.len()],
             detail_scrolls: [0; View::ALL.len()],
+            sorts: [0; View::ALL.len()],
             filter: String::new(),
+            filter_regex: None,
+            filter_regex_valid: true,
             editing_filter: false,
             directory_path: ".".to_owned(),
             directory_cursors: Vec::new(),
+            removed_dependencies: BTreeSet::new(),
             quit: false,
         }
     }
@@ -194,6 +210,37 @@ impl Dashboard {
     #[must_use]
     pub fn filter(&self) -> &str {
         &self.filter
+    }
+
+    /// Whether the current filter is a valid regular expression.
+    #[must_use]
+    pub const fn filter_regex_valid(&self) -> bool {
+        self.filter_regex_valid
+    }
+
+    /// Label of the active view's current sort order.
+    #[must_use]
+    pub fn sort_label(&self) -> &'static str {
+        match (self.view, self.sorts[self.view.index()]) {
+            (View::Overview | View::Findings, 0) => "severity",
+            (View::Overview | View::Findings, 1) => "title",
+            (View::Overview | View::Findings, _) => "rule",
+            (View::Files, 0) => "weight",
+            (View::Files, 1) => "path",
+            (View::Files, 2) => "lines",
+            (View::Files, 3) => "size",
+            (View::Files, _) => "complexity",
+            (View::Directories, 0) => "size",
+            (View::Directories, 1) => "path",
+            (View::Directories, 2) => "files",
+            (View::Directories, _) => "lines",
+            (View::Dependencies, 0) => "exclusive",
+            (View::Dependencies, 1) => "name",
+            (View::Dependencies, _) => "reachable",
+            (View::DeadCode, 0) => "confidence",
+            (View::DeadCode, 1) => "name",
+            (View::DeadCode, _) => "file",
+        }
     }
 
     /// Whether the operator is typing a filter.
@@ -233,12 +280,24 @@ impl Dashboard {
     /// Files matching the current filters, in report order.
     #[must_use]
     pub fn files(&self) -> Vec<&FileMetrics> {
-        self.report
+        let mut files: Vec<_> = self.report
             .files
             .iter()
             .filter(|file| !(self.hide_tests && file.is_test))
             .filter(|file| self.matches(&file.path))
-            .collect()
+            .collect();
+        match self.sorts[View::Files.index()] {
+            0 => files.sort_by(|left, right| right.weight.total_cmp(&left.weight)),
+            1 => files.sort_by(|left, right| left.path.cmp(&right.path)),
+            2 => files.sort_by(|left, right| right.lines.code.cmp(&left.lines.code)),
+            3 => files.sort_by(|left, right| right.bytes.cmp(&left.bytes)),
+            _ => files.sort_by(|left, right| {
+                file_complexity(right)
+                    .cmp(&file_complexity(left))
+                    .then_with(|| left.path.cmp(&right.path))
+            }),
+        }
+        files
     }
 
     /// Immediate child directories at the current browser level.
@@ -248,7 +307,7 @@ impl Dashboard {
     /// stored directly inside it.
     #[must_use]
     pub fn directories(&self) -> Vec<DirectoryMetrics> {
-        let mut children = std::collections::BTreeMap::<String, DirectoryMetrics>::new();
+        let mut children = BTreeMap::<String, DirectoryMetrics>::new();
 
         for file in self.files() {
             let Some(child_path) = immediate_child(&self.directory_path, &file.directory) else {
@@ -271,12 +330,12 @@ impl Dashboard {
         }
 
         let mut rows: Vec<_> = children.into_values().collect();
-        rows.sort_by(|left, right| {
-            right
-                .bytes
-                .cmp(&left.bytes)
-                .then_with(|| left.path.cmp(&right.path))
-        });
+        match self.sorts[View::Directories.index()] {
+            0 => rows.sort_by(|left, right| right.bytes.cmp(&left.bytes)),
+            1 => rows.sort_by(|left, right| left.path.cmp(&right.path)),
+            2 => rows.sort_by(|left, right| right.files.cmp(&left.files)),
+            _ => rows.sort_by(|left, right| right.lines.code.cmp(&left.lines.code)),
+        }
         rows
     }
 
@@ -289,33 +348,73 @@ impl Dashboard {
     /// Direct dependencies matching the current filter, heaviest first.
     #[must_use]
     pub fn packages(&self) -> Vec<&PackageNode> {
-        self.report
+        let mut packages: Vec<_> = self.report
             .dependencies
             .heaviest_direct()
             .into_iter()
+            .filter(|package| !self.removed_dependencies.contains(&package.id))
             .filter(|package| self.matches(&package.name))
-            .collect()
+            .collect();
+        match self.sorts[View::Dependencies.index()] {
+            0 => packages.sort_by(|left, right| right.exclusive_count.cmp(&left.exclusive_count)),
+            1 => packages.sort_by(|left, right| left.name.cmp(&right.name)),
+            _ => packages.sort_by(|left, right| right.transitive_count.cmp(&left.transitive_count)),
+        }
+        packages
     }
 
     /// Unreferenced items matching the current filters.
     #[must_use]
     pub fn dead_code(&self) -> Vec<&DeadCodeCandidate> {
-        self.report
+        let mut entries: Vec<_> = self.report
             .dead_code
             .iter()
             .filter(|candidate| !(self.hide_tests && candidate.is_test))
             .filter(|candidate| self.matches(&candidate.name) || self.matches(&candidate.file))
-            .collect()
+            .collect();
+        match self.sorts[View::DeadCode.index()] {
+            0 => {}
+            1 => entries.sort_by(|left, right| left.name.cmp(&right.name)),
+            _ => entries.sort_by(|left, right| left.file.cmp(&right.file)),
+        }
+        entries
     }
 
     /// Findings matching the current filter.
     #[must_use]
     pub fn findings(&self) -> Vec<&Finding> {
-        self.report
+        let mut findings: Vec<_> = self.report
             .findings
             .iter()
             .filter(|finding| self.matches(&finding.title) || self.matches(finding.rule.id()))
-            .collect()
+            .collect();
+        match self.sorts[self.view.index()] {
+            0 => {}
+            1 => findings.sort_by(|left, right| left.title.cmp(&right.title)),
+            _ => findings.sort_by(|left, right| left.rule.id().cmp(right.rule.id())),
+        }
+        findings
+    }
+
+    /// Direct dependencies currently removed by the simulator.
+    #[must_use]
+    pub fn removed_dependency_count(&self) -> usize {
+        self.removed_dependencies.len()
+    }
+
+    /// External packages that become unreachable in the simulated graph.
+    #[must_use]
+    pub fn simulated_reclaimed_packages(&self) -> usize {
+        if self.removed_dependencies.is_empty() {
+            return 0;
+        }
+        let reachable = self.simulated_reachable();
+        self.report
+            .dependencies
+            .packages
+            .iter()
+            .filter(|package| !package.is_workspace_member && !reachable.contains(&package.id))
+            .count()
     }
 
     /// How many rows the current view has.
@@ -412,7 +511,9 @@ impl Dashboard {
             return true;
         }
 
-        text.to_lowercase().contains(&self.filter.to_lowercase())
+        self.filter_regex
+            .as_ref()
+            .is_none_or(|filter| filter.is_match(text))
     }
 
     /// Applies one action.
@@ -454,6 +555,16 @@ impl Dashboard {
                 let scroll = &mut self.detail_scrolls[self.view.index()];
                 *scroll = scroll.saturating_sub(3);
             }
+            Action::NextSort => {
+                let view = self.view.index();
+                self.sorts[view] = (self.sorts[view] + 1) % sort_count(self.view);
+                self.set_cursor(0);
+            }
+            Action::SimulateRemoveDependency => self.simulate_remove_dependency(),
+            Action::RestoreDependencies => {
+                self.removed_dependencies.clear();
+                self.clamp_cursor();
+            }
             Action::ToggleTests => {
                 self.hide_tests = !self.hide_tests;
                 self.clamp_cursor();
@@ -463,14 +574,17 @@ impl Dashboard {
             Action::CancelFilter => {
                 self.editing_filter = false;
                 self.filter.clear();
+                self.compile_filter();
                 self.clamp_cursor();
             }
             Action::FilterPush(character) => {
                 self.filter.push(character);
+                self.compile_filter();
                 self.clamp_cursor();
             }
             Action::FilterPop => {
                 self.filter.pop();
+                self.compile_filter();
                 self.clamp_cursor();
             }
         }
@@ -544,6 +658,90 @@ impl Dashboard {
             .map_or_else(|| ".".to_owned(), |(parent, _)| parent.to_owned());
         let cursor = self.directory_cursors.pop().unwrap_or_default();
         self.set_cursor(cursor);
+    }
+
+    /// Compiles the filter, falling back to a literal while a regex is incomplete.
+    fn compile_filter(&mut self) {
+        if self.filter.is_empty() {
+            self.filter_regex = None;
+            self.filter_regex_valid = true;
+            return;
+        }
+        match RegexBuilder::new(&self.filter).case_insensitive(true).build() {
+            Ok(regex) => {
+                self.filter_regex = Some(regex);
+                self.filter_regex_valid = true;
+            }
+            Err(_) => {
+                self.filter_regex = RegexBuilder::new(&regex::escape(&self.filter))
+                    .case_insensitive(true)
+                    .build()
+                    .ok();
+                self.filter_regex_valid = false;
+            }
+        }
+    }
+
+    /// Removes the selected direct dependency from the simulated workspace edges.
+    fn simulate_remove_dependency(&mut self) {
+        if self.view != View::Dependencies {
+            return;
+        }
+        let Some(id) = self.selected_package().map(|package| package.id.clone()) else {
+            return;
+        };
+        self.removed_dependencies.insert(id);
+        self.clamp_cursor();
+    }
+
+    /// IDs reachable from workspace members after simulated direct edges are removed.
+    fn simulated_reachable(&self) -> BTreeSet<String> {
+        let mut seen = BTreeSet::new();
+        let mut queue: VecDeque<String> = self
+            .report
+            .dependencies
+            .packages
+            .iter()
+            .filter(|package| package.is_workspace_member)
+            .map(|package| package.id.clone())
+            .collect();
+        while let Some(id) = queue.pop_front() {
+            for edge in self
+                .report
+                .dependencies
+                .edges
+                .iter()
+                .filter(|edge| edge.from == id)
+            {
+                if self.removed_dependencies.contains(&edge.to)
+                    && self
+                        .report
+                        .dependencies
+                        .package(&id)
+                        .is_some_and(|package| package.is_workspace_member)
+                {
+                    continue;
+                }
+                if seen.insert(edge.to.clone()) {
+                    queue.push_back(edge.to.clone());
+                }
+            }
+        }
+        seen
+    }
+}
+
+fn file_complexity(file: &FileMetrics) -> u32 {
+    file.rust.as_ref().map_or(0, |rust| {
+        rust.functions.iter().map(|function| function.complexity).sum()
+    })
+}
+
+const fn sort_count(view: View) -> usize {
+    match view {
+        View::Overview | View::Findings | View::Dependencies | View::DeadCode => 3,
+        View::Directories => 4,
+        View::Files => 5,
     }
 }
 
