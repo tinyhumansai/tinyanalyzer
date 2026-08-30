@@ -858,20 +858,41 @@ fn the_rendered_dashboard_shows_the_project_and_the_tab_bar() {
 #[test]
 fn the_wordmark_sits_immediately_above_the_overview_totals() {
     let (_root, dashboard) = dashboard();
-    let rows = rendered_rows(&dashboard, 180, 50);
+    let rows = rendered_rows(&dashboard, 320, 50);
     let body_start = 2;
 
-    for (offset, art) in render::WORDMARK.iter().enumerate() {
-        assert!(
-            rows[body_start + offset].starts_with(art),
-            "row {offset} is {:?}, wanted the wordmark",
-            rows[body_start + offset]
-        );
-    }
+    assert!(rows[body_start].contains("▒▒▒▒▒▒"));
     assert!(
-        rows[body_start + render::WORDMARK.len()].starts_with("┌ Totals"),
+        rows[body_start + usize::from(render::WORDMARK_HEIGHT)].starts_with("┌ Totals"),
         "the totals panel should begin on the row immediately after the wordmark"
     );
+    assert!(
+        rows[body_start].contains("┌ Languages by lines of code"),
+        "the languages panel should remain at the top of the overview"
+    );
+    assert!(
+        rows.iter().all(|row| !row.contains("[0;")),
+        "ANSI control sequences must be converted to TUI styles"
+    );
+}
+
+#[test]
+fn the_wordmark_preserves_its_embedded_colors() {
+    let (_root, dashboard) = dashboard();
+    let backend = TestBackend::new(320, 50);
+    let mut terminal = Terminal::new(backend).expect("an in-memory terminal");
+    terminal
+        .draw(|frame| render::draw(frame, &dashboard))
+        .expect("the overview draws");
+
+    let first_block = terminal
+        .backend()
+        .buffer()
+        .cell((1, 2))
+        .expect("the first wordmark block is visible");
+    assert_eq!(first_block.symbol(), "▒");
+    assert_eq!(first_block.fg, ratatui::style::Color::LightRed);
+    assert_eq!(first_block.bg, ratatui::style::Color::Red);
 }
 
 #[test]
@@ -880,7 +901,8 @@ fn a_narrow_overview_keeps_the_totals_and_drops_the_wordmark() {
     let rows = rendered_rows(&dashboard, 60, 50);
 
     assert!(rows[2].starts_with("┌ Totals"));
-    assert!(!rows.iter().any(|row| row.contains("▀██▀▀")));
+    assert!(rows[2].contains("┌ Languages by lines of code"));
+    assert!(!rows.iter().any(|row| row.contains("▒▒▒▒▒▒")));
 }
 
 #[test]
