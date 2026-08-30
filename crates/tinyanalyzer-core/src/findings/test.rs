@@ -33,6 +33,7 @@ fn file(path: &str, counts: LineCounts, source: Option<&str>) -> FileMetrics {
         language: Language::Rust,
         bytes: 0,
         lines: counts,
+        test_lines: LineCounts::default(),
         is_test: false,
         crate_name: None,
         weight: weight(counts, rust.as_ref()),

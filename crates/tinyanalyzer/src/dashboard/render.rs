@@ -759,7 +759,10 @@ fn simulation_lines(dashboard: &Dashboard) -> Vec<Line<'static>> {
         )));
     }
     if unreachable.len() > 12 {
-        lines.push(Line::from(format!("  … and {} more", unreachable.len() - 12)));
+        lines.push(Line::from(format!(
+            "  … and {} more",
+            unreachable.len() - 12
+        )));
     }
     lines
 }

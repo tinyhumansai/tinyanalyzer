@@ -72,7 +72,11 @@ impl Report {
             totals.absorb(file);
             totals.lines = totals.lines.without(file.test_lines);
             if let Some(rust) = &file.rust {
-                let test_functions = rust.functions.iter().filter(|function| function.is_test).count();
+                let test_functions = rust
+                    .functions
+                    .iter()
+                    .filter(|function| function.is_test)
+                    .count();
                 totals.functions = totals.functions.saturating_sub(test_functions);
                 totals.items.functions = totals.items.functions.saturating_sub(test_functions);
             }

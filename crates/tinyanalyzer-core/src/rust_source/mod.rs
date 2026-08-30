@@ -251,9 +251,10 @@ impl FileVisitor {
         let attribute_test = is_test_attribute(attrs);
         if !self.in_test && attribute_test {
             self.file.test_ranges.push(SourceRange {
-                start_line: attrs
-                    .first()
-                    .map_or_else(|| signature.span().start().line, |attr| attr.span().start().line),
+                start_line: attrs.first().map_or_else(
+                    || signature.span().start().line,
+                    |attr| attr.span().start().line,
+                ),
                 end_line: block.span().end().line,
             });
         }
