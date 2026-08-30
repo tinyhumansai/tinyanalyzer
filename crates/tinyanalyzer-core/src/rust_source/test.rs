@@ -234,6 +234,19 @@ fn a_test_function_is_marked_as_one() {
 }
 
 #[test]
+fn test_functions_and_cfg_test_modules_record_their_source_ranges() {
+    let file = parsed(
+        "pub fn live() {}\n#[test]\nfn test_only() {\n    assert!(true);\n}\n#[cfg(test)]\nmod tests {\n    fn helper() {}\n}\n",
+    );
+
+    assert_eq!(file.test_ranges.len(), 2);
+    assert_eq!(file.test_ranges[0].start_line, 2);
+    assert_eq!(file.test_ranges[0].end_line, 5);
+    assert_eq!(file.test_ranges[1].start_line, 6);
+    assert_eq!(file.test_ranges[1].end_line, 9);
+}
+
+#[test]
 fn everything_inside_a_cfg_test_module_is_test_code() {
     let file = parsed("#[cfg(test)] mod test { fn helper() {} struct Fixture; }");
 

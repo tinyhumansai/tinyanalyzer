@@ -70,6 +70,28 @@ fn an_empty_directory_produces_an_empty_report() {
 }
 
 #[test]
+fn production_totals_remove_test_blocks_inside_mixed_rust_files() {
+    let root = TempDir::new().expect("a temporary directory");
+    write(
+        root.path(),
+        "src/lib.rs",
+        "pub fn live() {\n    let _ = 1;\n}\n\n#[test]\nfn test_only() {\n    assert_eq!(2 + 2, 4);\n}\n",
+    );
+
+    let report = analyze_with(root.path(), &config_without_cargo()).expect("a walkable tree");
+    let file = &report.files[0];
+    let production = report.production_totals();
+
+    assert!(!file.is_test, "the file also contains production code");
+    assert!(file.test_lines.code > 0);
+    assert_eq!(
+        production.lines.code,
+        file.lines.code.saturating_sub(file.test_lines.code)
+    );
+    assert_eq!(production.functions, 1);
+}
+
+#[test]
 fn the_report_names_the_project_and_its_root() {
     let root = plain_fixture();
 
