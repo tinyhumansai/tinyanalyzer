@@ -144,6 +144,10 @@ fn action_for_event(event: &Event, area: Rect, dashboard: &Dashboard) -> Option<
             match key.code {
                 KeyCode::Char('d') => Some(Action::SimulateRemoveDependency),
                 KeyCode::Char('r') => Some(Action::RestoreDependencies),
+                KeyCode::Char('f') => Some(Action::ToggleFeature),
+                KeyCode::Char('[') => Some(Action::PreviousFeature),
+                KeyCode::Char(']') => Some(Action::NextFeature),
+                KeyCode::Char('w') => Some(Action::ToggleFeatureTarget),
                 _ => action_for(*key, false),
             }
         }

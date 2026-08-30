@@ -500,14 +500,17 @@ impl Dashboard {
         let Some(package) = self.feature_target_package() else {
             return Vec::new();
         };
-        let enabled = self
-            .feature_overrides
-            .get(&package.id)
-            .map_or(package.features.as_slice(), |features| features.as_slice());
+        let override_features = self.feature_overrides.get(&package.id);
         package
             .available_features
             .iter()
-            .map(|feature| (feature.as_str(), enabled.iter().any(|entry| entry == feature)))
+            .map(|feature| {
+                let enabled = override_features.map_or_else(
+                    || package.features.iter().any(|entry| entry == feature),
+                    |features| features.contains(feature),
+                );
+                (feature.as_str(), enabled)
+            })
             .collect()
     }
 
