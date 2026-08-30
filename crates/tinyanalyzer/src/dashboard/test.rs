@@ -525,6 +525,35 @@ fn keys_map_onto_the_actions_they_describe() {
 }
 
 #[test]
+fn every_documented_key_is_mapped() {
+    // These are the bindings `README.md` promises. A binding that quietly stops
+    // working is invisible in every other test, because nothing else names it.
+    let expected = [
+        (KeyCode::PageDown, Action::PageDown),
+        (KeyCode::Char('d'), Action::PageDown),
+        (KeyCode::PageUp, Action::PageUp),
+        (KeyCode::Char('u'), Action::PageUp),
+        (KeyCode::Home, Action::First),
+        (KeyCode::Char('g'), Action::First),
+        (KeyCode::End, Action::Last),
+        (KeyCode::Char('G'), Action::Last),
+        (KeyCode::Right, Action::NextView),
+        (KeyCode::Char('l'), Action::NextView),
+        (KeyCode::Left, Action::PreviousView),
+        (KeyCode::Char('h'), Action::PreviousView),
+        (KeyCode::Up, Action::MoveUp),
+        (KeyCode::Char('k'), Action::MoveUp),
+        (KeyCode::Char('j'), Action::MoveDown),
+        (KeyCode::Char('1'), Action::SelectView(0)),
+        (KeyCode::Char('6'), Action::SelectView(5)),
+    ];
+
+    for (code, action) in expected {
+        assert_eq!(action_for(key(code), false), Some(action), "{code:?}");
+    }
+}
+
+#[test]
 fn control_c_quits_from_either_mode() {
     let interrupt = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
 
