@@ -213,6 +213,51 @@ fn a_file_reports_its_directory_and_name() {
 }
 
 #[test]
+fn a_file_that_is_not_text_is_counted_but_not_read() {
+    let root = TempDir::new().expect("a temporary directory");
+    std::fs::write(root.path().join("blob.rs"), [0xff_u8, 0xfe, 0x00, 0x01])
+        .expect("the fixture is writable");
+
+    let files = discover(root.path(), &ScanConfig::default()).expect("a walkable tree");
+
+    assert_eq!(files.len(), 1);
+    assert!(files[0].text.is_none(), "invalid UTF-8 is not source");
+    assert_eq!(files[0].bytes, 4);
+}
+
+#[test]
+fn symbolic_links_are_not_followed_by_default() {
+    let root = TempDir::new().expect("a temporary directory");
+    write(root.path(), "real/lib.rs", "pub fn a() {}\n");
+    std::os::unix::fs::symlink(root.path().join("real"), root.path().join("link"))
+        .expect("the fixture supports symbolic links");
+
+    let files = discover(root.path(), &ScanConfig::default()).expect("a walkable tree");
+
+    assert_eq!(
+        paths(&files),
+        ["real/lib.rs"],
+        "a link pointing back up the tree would turn the walk into a loop"
+    );
+}
+
+#[test]
+fn symbolic_links_can_be_followed_when_asked_for() {
+    let root = TempDir::new().expect("a temporary directory");
+    write(root.path(), "real/lib.rs", "pub fn a() {}\n");
+    std::os::unix::fs::symlink(root.path().join("real"), root.path().join("link"))
+        .expect("the fixture supports symbolic links");
+
+    let scan = ScanConfig {
+        follow_symlinks: true,
+        ..ScanConfig::default()
+    };
+    let files = discover(root.path(), &scan).expect("a walkable tree");
+
+    assert_eq!(paths(&files), ["link/lib.rs", "real/lib.rs"]);
+}
+
+#[test]
 fn an_invalid_glob_is_reported_before_the_walk() {
     let root = fixture();
     let scan = ScanConfig {

@@ -65,6 +65,66 @@ fn dashboard() -> (TempDir, Dashboard) {
     (root, dashboard)
 }
 
+/// A fixture with a resolved dependency graph and an operator note, so the
+/// dependency views and the note rendering have something to show.
+fn graph_dashboard() -> (TempDir, Dashboard) {
+    let root = TempDir::new().expect("a temporary directory for the fixture");
+
+    write(
+        root.path(),
+        "Cargo.toml",
+        "[workspace]\nresolver = \"3\"\nmembers = [\"crates/*\"]\n",
+    );
+    write(
+        root.path(),
+        "crates/engine/Cargo.toml",
+        "[package]\nname = \"engine\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(
+        root.path(),
+        "crates/engine/src/lib.rs",
+        "//! Engine.\n\n/// Adds.\npub fn add(a: u8, b: u8) -> u8 { a.saturating_add(b) }\n\nfn orphan() {}\n",
+    );
+    write(
+        root.path(),
+        "crates/app/Cargo.toml",
+        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\nengine = { path = \"../engine\" }\n",
+    );
+    write(
+        root.path(),
+        "crates/app/src/lib.rs",
+        "//! App.\n\n/// Runs.\npub fn run() -> u8 { engine::add(1, 2) }\n",
+    );
+
+    let mut config = Config::default();
+    config.notes = vec![tinyanalyzer_core::Note {
+        path: "crates/engine/src/lib.rs".to_owned(),
+        note: "the hot path lives here".to_owned(),
+        level: tinyanalyzer_core::NoteLevel::Warning,
+    }];
+
+    let report = analyze_with(root.path(), &config).expect("a resolvable workspace");
+
+    (root, Dashboard::new(report, StartView::Overview, false))
+}
+
+fn rendered(dashboard: &Dashboard) -> String {
+    let backend = TestBackend::new(180, 50);
+    let mut terminal = Terminal::new(backend).expect("an in-memory terminal");
+
+    terminal
+        .draw(|frame| render::draw(frame, dashboard))
+        .expect("the view draws");
+
+    terminal
+        .backend()
+        .buffer()
+        .content()
+        .iter()
+        .map(ratatui::buffer::Cell::symbol)
+        .collect()
+}
+
 fn key(code: KeyCode) -> KeyEvent {
     KeyEvent::new(code, KeyModifiers::NONE)
 }
@@ -646,4 +706,179 @@ fn a_filter_typed_through_the_loop_narrows_the_rows() {
     assert_eq!(dashboard.filter(), "sm");
     assert!(!dashboard.editing_filter());
     assert!(dashboard.row_count() < dashboard.report().files.len());
+}
+
+
+#[test]
+fn the_dependency_view_ranks_direct_dependencies_and_shows_the_subtree() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Dependencies.index()));
+
+    assert!(dashboard.row_count() > 0, "the fixture has direct dependencies");
+
+    let selected = dashboard
+        .selected_package()
+        .expect("the cursor is on a package");
+    assert!(!selected.name.is_empty());
+
+    let text = rendered(&dashboard);
+    assert!(text.contains("Direct dependencies"));
+    assert!(text.contains("engine"));
+    assert!(text.contains("exclusive"));
+}
+
+#[test]
+fn a_subtree_walks_the_resolved_graph() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Dependencies.index()));
+
+    let members: Vec<&str> = dashboard
+        .report()
+        .dependencies
+        .packages
+        .iter()
+        .filter(|package| package.is_workspace_member)
+        .map(|package| package.id.as_str())
+        .collect();
+    assert!(!members.is_empty());
+
+    let reached: usize = members
+        .iter()
+        .map(|id| dashboard.subtree(id, 3).len())
+        .sum();
+
+    assert!(reached > 0, "`app` reaches `engine`");
+}
+
+#[test]
+fn a_subtree_depth_limit_is_honored() {
+    let (_root, dashboard) = graph_dashboard();
+    let root_id = dashboard
+        .report()
+        .dependencies
+        .packages
+        .iter()
+        .find(|package| package.name == "app")
+        .map(|package| package.id.clone())
+        .expect("the fixture has an app crate");
+
+    let deep = dashboard.subtree(&root_id, 3);
+    let shallow = dashboard.subtree(&root_id, 0);
+
+    assert!(shallow.len() <= deep.len());
+    assert!(shallow.iter().all(|(depth, _)| *depth == 0));
+}
+
+#[test]
+fn the_dependency_view_can_be_filtered_to_nothing_and_still_draws() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Dependencies.index()));
+    dashboard.apply(Action::StartFilter);
+    for character in "zzznothing".chars() {
+        dashboard.apply(Action::FilterPush(character));
+    }
+
+    assert_eq!(dashboard.row_count(), 0);
+    assert!(dashboard.selected_package().is_none());
+    assert!(rendered(&dashboard).contains("No dependency selected."));
+}
+
+#[test]
+fn the_dead_code_view_lists_candidates_with_their_confidence() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::DeadCode.index()));
+
+    assert!(dashboard.row_count() > 0, "the fixture has an orphan");
+
+    let text = rendered(&dashboard);
+    assert!(text.contains("Unreferenced items"));
+    assert!(text.contains("orphan"));
+}
+
+#[test]
+fn an_operator_note_is_shown_on_the_file_it_is_about() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Files.index()));
+
+    let position = dashboard
+        .files()
+        .iter()
+        .position(|file| file.path == "crates/engine/src/lib.rs")
+        .expect("the fixture writes it");
+    for _ in 0..position {
+        dashboard.apply(Action::MoveDown);
+    }
+
+    let text = rendered(&dashboard);
+    assert!(text.contains("the hot path lives here"));
+    assert!(text.contains("warning"));
+}
+
+#[test]
+fn the_file_detail_names_the_owning_crate_and_the_heaviest_functions() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Files.index()));
+
+    let text = rendered(&dashboard);
+
+    assert!(text.contains("Heaviest functions"));
+    assert!(text.contains("Rust"));
+}
+
+#[test]
+fn the_directories_view_lists_directories_with_their_sizes() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Directories.index()));
+
+    assert!(dashboard.row_count() > 0);
+    assert!(rendered(&dashboard).contains("Directories"));
+}
+
+#[test]
+fn the_findings_view_spells_out_the_selected_finding() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Findings.index()));
+
+    let finding = dashboard
+        .selected_finding()
+        .expect("the fixture provokes findings");
+    let text = rendered(&dashboard);
+
+    assert!(text.contains("What to do"));
+    assert!(text.contains(finding.rule.id()));
+}
+
+#[test]
+fn a_filter_that_empties_the_findings_view_still_draws() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Findings.index()));
+    dashboard.apply(Action::StartFilter);
+    for character in "zzznothing".chars() {
+        dashboard.apply(Action::FilterPush(character));
+    }
+
+    assert!(dashboard.selected_finding().is_none());
+    assert!(rendered(&dashboard).contains("Nothing to report."));
+}
+
+#[test]
+fn hiding_tests_removes_a_test_only_directory_from_the_list() {
+    let (_root, mut dashboard) = dashboard();
+    dashboard.apply(Action::SelectView(View::Directories.index()));
+    let shown = dashboard.row_count();
+
+    dashboard.apply(Action::ToggleTests);
+
+    assert!(dashboard.directories().iter().all(|entry| !entry.is_test_only));
+    assert!(dashboard.row_count() <= shown);
+}
+
+#[test]
+fn every_view_of_a_report_with_a_graph_draws() {
+    let (_root, mut dashboard) = graph_dashboard();
+
+    for index in 0..View::ALL.len() {
+        dashboard.apply(Action::SelectView(index));
+        assert!(!rendered(&dashboard).is_empty());
+    }
 }
