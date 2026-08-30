@@ -189,7 +189,16 @@ fn action_for_event(event: &Event, area: Rect, dashboard: &Dashboard) -> Option<
             if dashboard.view() == View::Dependencies && !dashboard.editing_filter() =>
         {
             match key.code {
-                KeyCode::Char('d') => Some(Action::SimulateRemoveDependency),
+                KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
+                    Some(Action::EnterDependency)
+                }
+                KeyCode::Esc if !dashboard.dependency_at_root() => Some(Action::LeaveDependency),
+                KeyCode::Backspace | KeyCode::Left | KeyCode::Char('h') => {
+                    Some(Action::LeaveDependency)
+                }
+                KeyCode::Char('d') if dashboard.dependency_at_root() => {
+                    Some(Action::SimulateRemoveDependency)
+                }
                 KeyCode::Char('r') => Some(Action::RestoreDependencies),
                 KeyCode::Char('f') => Some(Action::ToggleFeature),
                 KeyCode::Char('[') => Some(Action::PreviousFeature),
