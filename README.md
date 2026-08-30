@@ -70,6 +70,7 @@ items, split along the seams already in it" is.
 | `t` | Show or hide test code, everywhere |
 | `/` | Filter rows with a case-insensitive regex; `Enter` keeps it, `Esc` clears it |
 | `s` | Cycle the current pane's sort order |
+| `i` | Toggle whether discovery follows `.gitignore` and rebuild the report |
 | `d`, `r` in Dependencies | Mock-remove the selected direct dependency; restore all removals |
 | `[`, `]`, `f`, `w` in Dependencies | Select/toggle a Cargo feature; switch dependency/root target |
 | `Enter`, `→`, `l` / `Backspace`, `←`, `h` | Enter / leave a directory |

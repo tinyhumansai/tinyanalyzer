@@ -202,6 +202,12 @@ fn status(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
             Span::raw(" filter · "),
             Span::styled("s", Style::default().fg(ACCENT)),
             Span::raw(format!(" sort:{} · ", dashboard.sort_label())),
+            Span::styled("i", Style::default().fg(ACCENT)),
+            Span::raw(if dashboard.respect_gitignore() {
+                " gitignore:on · "
+            } else {
+                " gitignore:off · "
+            }),
             tests,
         ];
 
@@ -554,7 +560,11 @@ fn directories(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                 .map_or(DIRECTORY, severity_color);
             Row::new(vec![
                 Cell::from(Span::styled(
-                    format!("{}/", directory.path.rsplit('/').next().unwrap_or(".")),
+                    if directory.path == ".." {
+                        "../".to_owned()
+                    } else {
+                        format!("{}/", directory.path.rsplit('/').next().unwrap_or("."))
+                    },
                     Style::default()
                         .fg(if directory.is_test_only {
                             MUTED
