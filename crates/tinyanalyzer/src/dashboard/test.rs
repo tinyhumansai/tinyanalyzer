@@ -1178,6 +1178,10 @@ fn cargo_features_can_be_toggled_for_a_dependency_and_the_workspace_root() {
     dashboard.apply(Action::NextFeature);
     dashboard.apply(Action::ToggleFeature);
     assert_eq!(dashboard.simulated_features()[1], ("serde", true));
+    dashboard.apply(Action::ToggleFeature);
+    assert_eq!(dashboard.simulated_features()[1], ("serde", false));
+    dashboard.apply(Action::PreviousFeature);
+    assert_eq!(dashboard.feature_cursor(), 0);
 
     dashboard.apply(Action::ToggleFeatureTarget);
     assert!(dashboard.feature_root_target());
@@ -1186,6 +1190,21 @@ fn cargo_features_can_be_toggled_for_a_dependency_and_the_workspace_root() {
         vec![("default", true), ("cli", false)]
     );
     assert!(rendered(&dashboard).contains("root package"));
+
+    dashboard.apply(Action::ToggleFeatureTarget);
+    assert!(!dashboard.feature_root_target());
+}
+
+#[test]
+fn feature_controls_are_inert_without_a_dependency_graph() {
+    let (_root, mut dashboard) = dashboard();
+    dashboard.apply(Action::SelectView(View::Dependencies.index()));
+
+    dashboard.apply(Action::NextFeature);
+    dashboard.apply(Action::ToggleFeature);
+
+    assert!(dashboard.simulated_features().is_empty());
+    assert_eq!(dashboard.feature_cursor(), 0);
 }
 
 #[test]
