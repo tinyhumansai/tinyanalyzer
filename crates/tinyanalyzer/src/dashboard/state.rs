@@ -676,6 +676,29 @@ impl Dashboard {
             .unwrap_or_default()
     }
 
+    /// Immediate reachable children of one package in the simulated graph.
+    fn dependency_children(&self, id: &str) -> Vec<&PackageNode> {
+        self.ensure_dependency_simulation();
+        let child_ids = self
+            .dependency_simulation
+            .borrow()
+            .as_ref()
+            .and_then(|simulation| {
+                simulation.adjacency.get(id).map(|children| {
+                    children
+                        .iter()
+                        .filter(|child| simulation.reachable.contains(*child))
+                        .cloned()
+                        .collect::<Vec<_>>()
+                })
+            })
+            .unwrap_or_default();
+        child_ids
+            .iter()
+            .filter_map(|child| self.report.dependencies.package(child))
+            .collect()
+    }
+
     /// Whether a direct dependency is disabled in the current simulation.
     #[must_use]
     pub fn dependency_is_removed(&self, id: &str) -> bool {
@@ -1212,7 +1235,7 @@ impl Dashboard {
 
     /// Toggles the selected direct dependency in the simulated workspace edges.
     fn simulate_remove_dependency(&mut self) {
-        if self.view != View::Dependencies {
+        if self.view != View::Dependencies || !self.dependency_path.is_empty() {
             return;
         }
         let Some(id) = self.selected_package().map(|package| package.id.clone()) else {
@@ -1248,33 +1271,12 @@ impl Dashboard {
 
         let adjacency = self.dependency_adjacency();
         let reachable = self.reachable_dependencies(&adjacency, None);
-        let mut counts = BTreeMap::new();
-
-        for package in self.report.dependencies.heaviest_direct() {
-            if self.removed_dependencies.contains(&package.id) || !reachable.contains(&package.id) {
-                counts.insert(package.id.clone(), (0, 0));
-                continue;
-            }
-
-            let descendants = dependency_descendants(&package.id, &adjacency, &reachable);
-            let without = self.reachable_dependencies(&adjacency, Some(&package.id));
-            let exclusive = reachable
-                .difference(&without)
-                .filter(|package_id| {
-                    self.report
-                        .dependencies
-                        .package(package_id)
-                        .is_some_and(|candidate| !candidate.is_workspace_member)
-                })
-                .count();
-            counts.insert(package.id.clone(), (exclusive, descendants));
-        }
 
         self.dependency_simulation_builds
             .set(self.dependency_simulation_builds.get().saturating_add(1));
         *self.dependency_simulation.borrow_mut() = Some(DependencySimulation {
             reachable,
-            counts,
+            counts: BTreeMap::new(),
             adjacency,
         });
     }
