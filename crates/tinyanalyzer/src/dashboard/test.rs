@@ -1359,7 +1359,7 @@ fn dependency_keys_are_contextual() {
     );
     assert_eq!(
         action_for_event(&Event::Key(key(KeyCode::Char('d'))), area, &dashboard),
-        Some(Action::PageDown),
+        None,
         "mock removal remains scoped to the direct-dependency list"
     );
 }
