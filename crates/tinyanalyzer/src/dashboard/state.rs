@@ -165,9 +165,9 @@ pub struct Dashboard {
     cursors: [usize; View::ALL.len()],
     detail_scrolls: [u16; View::ALL.len()],
     sorts: [usize; View::ALL.len()],
-    filter: String,
-    filter_regex: Option<Regex>,
-    filter_syntax: FilterSyntax,
+    filters: [String; View::ALL.len()],
+    filter_regexes: [Option<Regex>; View::ALL.len()],
+    filter_syntaxes: [FilterSyntax; View::ALL.len()],
     editing_filter: bool,
     directory_path: String,
     directory_cursors: Vec<usize>,
@@ -175,6 +175,8 @@ pub struct Dashboard {
     feature_overrides: BTreeMap<String, BTreeSet<String>>,
     feature_cursor: usize,
     feature_target: FeatureTarget,
+    respect_gitignore: bool,
+    reload_requested: bool,
     quit: bool,
 }
 
@@ -189,9 +191,9 @@ impl Dashboard {
             cursors: [0; View::ALL.len()],
             detail_scrolls: [0; View::ALL.len()],
             sorts: [0; View::ALL.len()],
-            filter: String::new(),
-            filter_regex: None,
-            filter_syntax: FilterSyntax::Regex,
+            filters: std::array::from_fn(|_| String::new()),
+            filter_regexes: std::array::from_fn(|_| None),
+            filter_syntaxes: [FilterSyntax::Regex; View::ALL.len()],
             editing_filter: false,
             directory_path: ".".to_owned(),
             directory_cursors: Vec::new(),
@@ -199,6 +201,8 @@ impl Dashboard {
             feature_overrides: BTreeMap::new(),
             feature_cursor: 0,
             feature_target: FeatureTarget::Dependency,
+            respect_gitignore: true,
+            reload_requested: false,
             quit: false,
         }
     }
@@ -224,13 +228,13 @@ impl Dashboard {
     /// The current filter text.
     #[must_use]
     pub fn filter(&self) -> &str {
-        &self.filter
+        &self.filters[self.view.index()]
     }
 
     /// Whether the current filter is a valid regular expression.
     #[must_use]
     pub fn filter_regex_valid(&self) -> bool {
-        self.filter_syntax == FilterSyntax::Regex
+        self.filter_syntaxes[self.view.index()] == FilterSyntax::Regex
     }
 
     /// Label of the active view's current sort order.
@@ -265,6 +269,38 @@ impl Dashboard {
     #[must_use]
     pub const fn should_quit(&self) -> bool {
         self.quit
+    }
+
+    /// Whether filesystem discovery currently respects ignore files.
+    #[must_use]
+    pub const fn respect_gitignore(&self) -> bool {
+        self.respect_gitignore
+    }
+
+    /// Whether the report must be rebuilt for a changed ignore policy.
+    #[must_use]
+    pub const fn reload_requested(&self) -> bool {
+        self.reload_requested
+    }
+
+    /// Consumes a pending reload request and returns the new ignore policy.
+    pub fn take_reload_request(&mut self) -> Option<bool> {
+        if !self.reload_requested {
+            return None;
+        }
+        self.reload_requested = false;
+        Some(self.respect_gitignore)
+    }
+
+    /// Replaces analysis results after the ignore policy changes.
+    pub fn replace_report(&mut self, report: Report) {
+        self.report = report;
+        self.clamp_cursor();
+    }
+
+    /// Sets the initial ignore policy used by the interactive reload loop.
+    pub fn set_respect_gitignore(&mut self, respect: bool) {
+        self.respect_gitignore = respect;
     }
 
     /// The cursor position in the current view.
@@ -622,11 +658,11 @@ impl Dashboard {
     /// a syntax that can be half-written is a syntax that spends most of its
     /// life invalid.
     fn matches(&self, text: &str) -> bool {
-        if self.filter.is_empty() {
+        if self.filter().is_empty() {
             return true;
         }
 
-        self.filter_regex
+        self.filter_regexes[self.view.index()]
             .as_ref()
             .is_none_or(|filter| filter.is_match(text))
     }
@@ -681,6 +717,10 @@ impl Dashboard {
                 self.removed_dependencies.clear();
                 self.clamp_cursor();
             }
+            Action::ToggleGitignore => {
+                self.respect_gitignore = !self.respect_gitignore;
+                self.reload_requested = true;
+            }
             Action::NextFeature => self.move_feature(1),
             Action::PreviousFeature => self.move_feature(-1),
             Action::ToggleFeature => self.toggle_feature(),
@@ -699,17 +739,17 @@ impl Dashboard {
             Action::CommitFilter => self.editing_filter = false,
             Action::CancelFilter => {
                 self.editing_filter = false;
-                self.filter.clear();
+                self.filters[self.view.index()].clear();
                 self.compile_filter();
                 self.clamp_cursor();
             }
             Action::FilterPush(character) => {
-                self.filter.push(character);
+                self.filters[self.view.index()].push(character);
                 self.compile_filter();
                 self.clamp_cursor();
             }
             Action::FilterPop => {
-                self.filter.pop();
+                self.filters[self.view.index()].pop();
                 self.compile_filter();
                 self.clamp_cursor();
             }
@@ -788,23 +828,24 @@ impl Dashboard {
 
     /// Compiles the filter, falling back to a literal while a regex is incomplete.
     fn compile_filter(&mut self) {
-        if self.filter.is_empty() {
-            self.filter_regex = None;
-            self.filter_syntax = FilterSyntax::Regex;
+        let view = self.view.index();
+        if self.filters[view].is_empty() {
+            self.filter_regexes[view] = None;
+            self.filter_syntaxes[view] = FilterSyntax::Regex;
             return;
         }
-        if let Ok(regex) = RegexBuilder::new(&self.filter)
+        if let Ok(regex) = RegexBuilder::new(&self.filters[view])
             .case_insensitive(true)
             .build()
         {
-            self.filter_regex = Some(regex);
-            self.filter_syntax = FilterSyntax::Regex;
+            self.filter_regexes[view] = Some(regex);
+            self.filter_syntaxes[view] = FilterSyntax::Regex;
         } else {
-            self.filter_regex = RegexBuilder::new(&regex::escape(&self.filter))
+            self.filter_regexes[view] = RegexBuilder::new(&regex::escape(&self.filters[view]))
                 .case_insensitive(true)
                 .build()
                 .ok();
-            self.filter_syntax = FilterSyntax::Literal;
+            self.filter_syntaxes[view] = FilterSyntax::Literal;
         }
     }
 
