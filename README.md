@@ -74,6 +74,7 @@ items, split along the seams already in it" is.
 | `d`, `r` in Dependencies | Mock-remove the selected direct dependency; restore all removals |
 | `[`, `]`, `f`, `w` in Dependencies | Select/toggle a Cargo feature; switch dependency/root target |
 | `Enter`, `→`, `l` / `Backspace`, `←`, `h` | Enter / leave a directory |
+| `o` in Directories | Toggle between directories and directories + files |
 | Mouse | Click tabs and rows, wheel to move, right-click to leave a directory |
 
 The `t` filter is the one worth knowing about: it removes test code from every
@@ -87,9 +88,11 @@ the dashboard treats it literally and labels it `invalid regex` instead of
 blanking the pane unexpectedly.
 
 In Dependencies, `d` runs a reversible removal simulation. The selected direct
-dependency disappears, workspace reachability is recomputed, and the graph
-lists every crate that would become unreachable. Press `d` repeatedly to model
-several removals and `r` to restore the original graph.
+dependency stays in the list marked as mock-removed, workspace reachability is
+recomputed, and the graph lists every crate that would become unreachable. The
+headline shows direct and total dependency counts plus the exact number of
+external crates the simulated build graph retains. Press `d` repeatedly to
+model several removals and `r` to restore the original graph.
 
 The dependency detail also exposes Cargo features. `[` and `]` select a feature,
 `f` toggles it in the simulation, and `w` switches between the selected direct
