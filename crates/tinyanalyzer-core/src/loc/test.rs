@@ -180,7 +180,10 @@ fn a_multi_byte_character_before_a_block_comment_does_not_shift_the_scanner() {
 
 #[test]
 fn a_line_of_box_drawing_characters_is_scanned_without_panicking() {
-    let counts = counted(Language::Markdown, "\u{251c}\u{2500}\u{2500} crates/\n<!-- note -->\n");
+    let counts = counted(
+        Language::Markdown,
+        "\u{251c}\u{2500}\u{2500} crates/\n<!-- note -->\n",
+    );
 
     assert_eq!(counts.total, 2);
     assert_eq!(counts.code, 1);

@@ -267,8 +267,7 @@ fn a_configuration_file_changes_what_the_analysis_reports() {
         report
             .findings
             .iter()
-            .any(|finding| finding.rule == Rule::LargeFile
-                || finding.rule == Rule::HugeFile)
+            .any(|finding| finding.rule == Rule::LargeFile || finding.rule == Rule::HugeFile)
     );
 
     let library = report

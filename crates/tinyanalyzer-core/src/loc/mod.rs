@@ -153,10 +153,7 @@ fn classify(language: Language, trimmed: &str, open_block: &mut Option<&'static 
 /// on the byte offset splits a multi-byte character in half, which is a panic
 /// rather than a wrong answer — and prose, box-drawing diagrams, and any
 /// language that is not ASCII are full of them.
-fn first_block_open(
-    language: Language,
-    line: &str,
-) -> Option<(usize, &'static str, &'static str)> {
+fn first_block_open(language: Language, line: &str) -> Option<(usize, &'static str, &'static str)> {
     let delimiters = language.block_comments();
     if delimiters.is_empty() {
         return None;

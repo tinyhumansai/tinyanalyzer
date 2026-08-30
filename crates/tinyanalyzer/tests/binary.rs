@@ -51,7 +51,9 @@ fn run(root: &Path, args: &[&str]) -> Output {
     command.arg(root);
     command.args(args);
 
-    command.output().expect("the binary was built for this test")
+    command
+        .output()
+        .expect("the binary was built for this test")
 }
 
 fn stdout(output: &Output) -> String {
@@ -65,7 +67,11 @@ fn it_prints_a_summary_and_exits_successfully() {
     let output = run(root.path(), &["--output", "summary"]);
     let text = stdout(&output);
 
-    assert!(output.status.success(), "stderr: {:?}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(text.contains("Fixture"));
     assert!(text.contains("Totals"));
     assert!(text.contains("Findings"));
@@ -145,7 +151,12 @@ fn an_explicit_configuration_file_is_honored() {
 
     let text = stdout(&run(
         root.path(),
-        &["--output", "summary", "--config", &elsewhere.display().to_string()],
+        &[
+            "--output",
+            "summary",
+            "--config",
+            &elsewhere.display().to_string(),
+        ],
     ));
 
     assert!(text.contains("Strict"));
