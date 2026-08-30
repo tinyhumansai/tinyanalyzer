@@ -297,14 +297,29 @@ fn a_public_item_nothing_calls_is_reported_with_lower_confidence() {
     let root = workspace();
 
     let report = analyze_with(root.path(), &no_cargo()).expect("a walkable tree");
+
     let assist = report
         .dead_code
         .iter()
-        .find(|candidate| candidate.name == "assist");
+        .find(|candidate| candidate.name == "assist")
+        .expect("`helper::assist` has no caller anywhere in the fixture");
+    let orphan = report
+        .dead_code
+        .iter()
+        .find(|candidate| candidate.name == "never_called")
+        .expect("the private orphan is reported");
 
+    assert!(assist.is_public);
+    assert_eq!(
+        assist.confidence,
+        tinyanalyzer_core::Confidence::Medium,
+        "a public item may have callers outside this workspace"
+    );
+    assert_eq!(orphan.confidence, tinyanalyzer_core::Confidence::High);
     assert!(
-        assist.is_none() || assist.is_some_and(|item| item.is_public),
-        "a public item is never reported as certainly dead"
+        report.dead_code.first().is_some_and(|first| first.confidence
+            == tinyanalyzer_core::Confidence::High),
+        "the most certain candidates come first"
     );
 }
 
