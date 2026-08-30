@@ -1362,6 +1362,15 @@ fn directory_browser_combines_files_and_directories_and_can_hide_files() {
             .iter()
             .all(super::state::BrowserEntry::is_directory)
     );
+
+    dashboard.apply(Action::ToggleDirectoriesOnly);
+    assert!(!dashboard.directories_only());
+    assert!(
+        dashboard
+            .browser_entries()
+            .iter()
+            .any(|entry| !entry.is_directory())
+    );
 }
 
 #[test]
