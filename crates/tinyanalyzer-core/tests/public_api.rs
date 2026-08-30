@@ -38,13 +38,23 @@ fn workspace() -> TempDir {
     write(
         root.path(),
         "Cargo.toml",
-        "[workspace]\nresolver = \"3\"\nmembers = [\"crates/*\"]\nexclude = [\"support/dev-tool\", \"support/build-tool\"]\n",
+        "[workspace]\nresolver = \"3\"\nmembers = [\"crates/*\"]\nexclude = [\"support/dev-tool\", \"support/dev-leaf\", \"support/feature-leaf\", \"support/build-tool\"]\n",
     );
 
     write(
         root.path(),
         "crates/engine/Cargo.toml",
-        "[package]\nname = \"engine\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        r#"[package]
+name = "engine"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+dev-extra = ["dep:feature-leaf"]
+
+[dependencies]
+feature-leaf = { path = "../../support/feature-leaf", optional = true }
+"#,
     );
     write(
         root.path(),
@@ -89,12 +99,39 @@ pub fn hot(values: &[String]) -> Vec<String> {
     write(
         root.path(),
         "support/dev-tool/Cargo.toml",
-        "[package]\nname = \"dev-tool\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        r#"[package]
+name = "dev-tool"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dev-leaf = { path = "../dev-leaf" }
+"#,
     );
     write(
         root.path(),
         "support/dev-tool/src/lib.rs",
         "//! Used only while developing the fixture.\n\n/// Sets up a test.\npub fn setup() {}\n",
+    );
+    write(
+        root.path(),
+        "support/dev-leaf/Cargo.toml",
+        "[package]\nname = \"dev-leaf\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(
+        root.path(),
+        "support/dev-leaf/src/lib.rs",
+        "//! Reached transitively only through a development dependency.\n",
+    );
+    write(
+        root.path(),
+        "support/feature-leaf/Cargo.toml",
+        "[package]\nname = \"feature-leaf\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(
+        root.path(),
+        "support/feature-leaf/src/lib.rs",
+        "//! Enabled only by a feature on the development declaration.\n",
     );
     write(
         root.path(),
@@ -124,6 +161,7 @@ build-tool = { path = "../../support/build-tool" }
 
 [dev-dependencies]
 dev-tool = { path = "../../support/dev-tool" }
+engine = { path = "../engine", features = ["dev-extra"] }
 "#,
     );
     write(
@@ -148,6 +186,15 @@ fn no_cargo() -> Config {
         },
         ..Config::default()
     }
+}
+
+fn development_edges(report: &Report) -> usize {
+    report
+        .dependencies
+        .edges
+        .iter()
+        .filter(|edge| edge.kind == tinyanalyzer_core::DependencyKind::Development)
+        .count()
 }
 
 #[test]
@@ -218,36 +265,38 @@ fn it_resolves_the_dependency_graph_of_a_real_workspace() {
 }
 
 #[test]
-fn development_dependencies_are_excluded_by_default_and_can_be_included() {
+fn development_dependencies_are_excluded_from_the_default_production_graph() {
     let root = workspace();
     let without_dev = analyze(root.path()).expect("a resolvable workspace");
 
-    let config = Config {
-        dependencies: tinyanalyzer_core::DependencyConfig {
-            include_dev: true,
-            ..tinyanalyzer_core::DependencyConfig::default()
-        },
-        ..Config::default()
-    };
-    let with_dev = analyze_with(root.path(), &config).expect("a resolvable workspace");
-
-    let development = |report: &Report| {
-        report
-            .dependencies
-            .edges
-            .iter()
-            .filter(|edge| edge.kind == tinyanalyzer_core::DependencyKind::Development)
-            .count()
-    };
-
-    assert_eq!(development(&without_dev), 0);
+    assert_eq!(development_edges(&without_dev), 0);
     assert!(
         without_dev
             .dependencies
             .packages
             .iter()
-            .all(|package| package.name != "dev-tool"),
-        "a dev-only package must not affect production package metrics"
+            .all(|package| !matches!(package.name.as_str(), "dev-tool" | "dev-leaf")),
+        "a dev-only subtree must not affect production package metrics"
+    );
+    assert!(
+        without_dev
+            .dependencies
+            .packages
+            .iter()
+            .all(|package| package.name != "feature-leaf"),
+        "a feature enabled only by the dev declaration is not production cost"
+    );
+    let production_engine = without_dev
+        .dependencies
+        .packages
+        .iter()
+        .find(|package| package.name == "engine")
+        .expect("the normal engine dependency remains");
+    assert!(
+        !production_engine
+            .features
+            .iter()
+            .any(|feature| feature == "dev-extra")
     );
     assert!(
         without_dev
@@ -273,9 +322,37 @@ fn development_dependencies_are_excluded_by_default_and_can_be_included() {
             .any(|edge| edge.kind == tinyanalyzer_core::DependencyKind::Build),
         "build edges remain in the production graph"
     );
+    let package_ids: std::collections::BTreeSet<&str> = without_dev
+        .dependencies
+        .packages
+        .iter()
+        .map(|package| package.id.as_str())
+        .collect();
+    assert!(
+        without_dev
+            .dependencies
+            .edges
+            .iter()
+            .all(|edge| package_ids.contains(edge.from.as_str())
+                && package_ids.contains(edge.to.as_str())),
+        "every returned edge must connect two returned packages"
+    );
+}
+
+#[test]
+fn development_dependencies_can_be_included_explicitly() {
+    let root = workspace();
+    let config = Config {
+        dependencies: tinyanalyzer_core::DependencyConfig {
+            include_dev: true,
+            ..tinyanalyzer_core::DependencyConfig::default()
+        },
+        ..Config::default()
+    };
+    let with_dev = analyze_with(root.path(), &config).expect("a resolvable workspace");
 
     assert!(
-        development(&with_dev) > 0,
+        development_edges(&with_dev) > 0,
         "the fixture has a dev-dependency"
     );
     assert!(
@@ -283,8 +360,28 @@ fn development_dependencies_are_excluded_by_default_and_can_be_included() {
             .dependencies
             .packages
             .iter()
-            .any(|package| package.name == "dev-tool"),
-        "opting in restores the dev-only package"
+            .any(|package| package.name == "dev-leaf"),
+        "opting in restores the transitive dev-only package"
+    );
+    assert!(
+        with_dev
+            .dependencies
+            .packages
+            .iter()
+            .any(|package| package.name == "feature-leaf"),
+        "opting in restores dependencies activated by development features"
+    );
+    let development_engine = with_dev
+        .dependencies
+        .packages
+        .iter()
+        .find(|package| package.name == "engine")
+        .expect("the engine remains present");
+    assert!(
+        development_engine
+            .features
+            .iter()
+            .any(|feature| feature == "dev-extra")
     );
     assert!(
         with_dev

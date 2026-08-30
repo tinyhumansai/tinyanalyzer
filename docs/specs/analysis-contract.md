@@ -30,8 +30,8 @@ somebody acts on it.
 - **Item counts, function lengths, parameter counts, nesting depth.** From a
   real parse, not a regular expression. A `fn` inside a doc comment is not a
   function.
-- **The dependency graph.** From `cargo metadata` — cargo's own resolution,
-  including features, optional dependencies, platform-specific edges, and
+- **The dependency graph.** From Cargo metadata and its production dependency
+  tree — Cargo's own resolution, including features, optional dependencies, platform-specific edges, and
   version unification. Development-only edges and packages are excluded by
   default so this graph describes production cost; `dependencies.include_dev =
   true` opts into them. Build dependencies remain because production targets
