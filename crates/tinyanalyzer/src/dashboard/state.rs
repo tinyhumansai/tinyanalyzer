@@ -11,7 +11,8 @@
 //! this struct, answerable without drawing anything.
 
 use tinyanalyzer_core::{
-    DeadCodeCandidate, DirectoryMetrics, FileMetrics, Finding, PackageNode, Report, StartView, Totals,
+    DeadCodeCandidate, DirectoryMetrics, FileMetrics, Finding, PackageNode, Report, StartView,
+    Totals,
 };
 
 /// A pane of the dashboard.

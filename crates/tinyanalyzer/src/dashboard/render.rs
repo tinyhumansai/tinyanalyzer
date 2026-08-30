@@ -51,11 +51,8 @@ pub(super) fn row_at(area: Rect, view: View, column: u16, row: u16) -> Option<us
 
     let (list, header) = match view {
         View::Overview => {
-            let lower = Layout::vertical([
-                Constraint::Percentage(50),
-                Constraint::Percentage(50),
-            ])
-            .split(body)[1];
+            let lower = Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .split(body)[1];
             (lower, false)
         }
         View::Files => (
@@ -471,7 +468,10 @@ fn directories(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         .iter()
         .map(|directory| {
             Row::new(vec![
-                Cell::from(format!("{}/", directory.path.rsplit('/').next().unwrap_or("."))),
+                Cell::from(format!(
+                    "{}/",
+                    directory.path.rsplit('/').next().unwrap_or(".")
+                )),
                 Cell::from(directory.files.to_string()),
                 Cell::from(directory.lines.code.to_string()),
                 Cell::from(directory.lines.comment.to_string()),

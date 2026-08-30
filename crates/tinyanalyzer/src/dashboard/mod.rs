@@ -118,7 +118,9 @@ fn action_for_event(event: Event, area: Rect, dashboard: &Dashboard) -> Option<A
             }
         }
         Event::Key(key) => action_for(key, dashboard.editing_filter()),
-        Event::Mouse(mouse) if !dashboard.editing_filter() => action_for_mouse(mouse, area, dashboard),
+        Event::Mouse(mouse) if !dashboard.editing_filter() => {
+            action_for_mouse(mouse, area, dashboard)
+        }
         _ => None,
     }
 }
