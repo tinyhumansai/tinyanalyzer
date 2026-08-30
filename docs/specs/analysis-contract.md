@@ -34,6 +34,10 @@ somebody acts on it.
   including features, optional dependencies, platform-specific edges, and
   version unification. A tool that re-implemented any of those would disagree
   with the build it is describing.
+- **Dependency source size.** The bytes in each resolved external package's
+  checked-out source directory, excluding `.git` and `target`. This measures the
+  source Cargo consumes; it does not predict target-, profile-, feature-, or
+  LTO-dependent linked binary size.
 - **Exclusive dependency weight.** How many packages become unreachable from the
   workspace if one direct dependency is removed. Computed by cutting every edge
   into that package and re-walking, which is exact for the graph cargo returned.

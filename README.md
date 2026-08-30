@@ -91,8 +91,10 @@ In Dependencies, `d` runs a reversible removal simulation. The selected direct
 dependency stays in the list marked as mock-removed, workspace reachability is
 recomputed, and the graph lists every crate that would become unreachable. The
 headline shows direct and total dependency counts plus the exact number of
-external crates the simulated build graph retains. Press `d` repeatedly to
-model several removals and `r` to restore the original graph.
+external crates and checked-out dependency source bytes the simulated build
+graph retains. This is source size, not a target-specific prediction of linked
+binary size. Press `d` repeatedly to model several removals and `r` to restore
+the original graph.
 
 The dependency detail also exposes Cargo features. `[` and `]` select a feature,
 `f` toggles it in the simulation, and `w` switches between the selected direct
