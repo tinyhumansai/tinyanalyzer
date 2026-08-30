@@ -393,6 +393,67 @@ fn a_filter_narrows_the_rows_and_is_case_insensitive() {
 }
 
 #[test]
+fn filters_accept_case_insensitive_regular_expressions() {
+    let (_root, mut dashboard) = dashboard();
+    dashboard.apply(Action::SelectView(View::Files.index()));
+    dashboard.apply(Action::StartFilter);
+    for character in "^SRC/.*\\.RS$".chars() {
+        dashboard.apply(Action::FilterPush(character));
+    }
+
+    assert!(dashboard.filter_regex_valid());
+    assert_eq!(
+        dashboard
+            .files()
+            .iter()
+            .map(|file| file.path.as_str())
+            .collect::<Vec<_>>(),
+        vec!["src/lib.rs", "src/small.rs"]
+    );
+}
+
+#[test]
+fn an_incomplete_regex_is_treated_as_literal_until_it_becomes_valid() {
+    let (_root, mut dashboard) = dashboard();
+    dashboard.apply(Action::SelectView(View::Files.index()));
+    dashboard.apply(Action::StartFilter);
+    dashboard.apply(Action::FilterPush('['));
+
+    assert!(!dashboard.filter_regex_valid());
+    assert!(dashboard.files().is_empty());
+
+    dashboard.apply(Action::FilterPush('s'));
+    dashboard.apply(Action::FilterPush(']'));
+    assert!(dashboard.filter_regex_valid());
+}
+
+#[test]
+fn each_view_cycles_through_sort_orders() {
+    let (_root, mut dashboard) = dashboard();
+    dashboard.apply(Action::SelectView(View::Files.index()));
+    assert_eq!(dashboard.sort_label(), "weight");
+
+    dashboard.apply(Action::NextSort);
+    assert_eq!(dashboard.sort_label(), "path");
+    assert!(
+        dashboard
+            .files()
+            .windows(2)
+            .all(|pair| pair[0].path <= pair[1].path)
+    );
+
+    dashboard.apply(Action::SelectView(View::Directories.index()));
+    dashboard.apply(Action::NextSort);
+    assert_eq!(dashboard.sort_label(), "path");
+    assert!(
+        dashboard
+            .directories()
+            .windows(2)
+            .all(|pair| pair[0].path <= pair[1].path)
+    );
+}
+
+#[test]
 fn backspace_widens_the_filter_again() {
     let (_root, mut dashboard) = dashboard();
     dashboard.apply(Action::SelectView(View::Files.index()));
@@ -900,6 +961,46 @@ fn the_dependency_view_ranks_direct_dependencies_and_shows_the_subtree() {
     assert!(text.contains("exclusive"));
     assert!(text.contains("features: default"));
     assert!(text.contains("deep"), "the subtree is drawn beneath it");
+}
+
+#[test]
+fn dependency_removal_simulation_recomputes_the_visible_graph() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Dependencies.index()));
+    let before = dashboard.packages().len();
+    let removed = dashboard
+        .selected_package()
+        .expect("the graph has a selected direct dependency")
+        .id
+        .clone();
+
+    dashboard.apply(Action::SimulateRemoveDependency);
+
+    assert_eq!(dashboard.removed_dependency_count(), 1);
+    assert_eq!(dashboard.packages().len(), before - 1);
+    assert!(dashboard.simulated_reclaimed_packages() > 0);
+    assert!(dashboard.packages().iter().all(|package| package.id != removed));
+    assert!(rendered(&dashboard).contains("crates reclaimed"));
+
+    dashboard.apply(Action::RestoreDependencies);
+    assert_eq!(dashboard.removed_dependency_count(), 0);
+    assert_eq!(dashboard.packages().len(), before);
+}
+
+#[test]
+fn dependency_keys_are_contextual() {
+    let (_root, mut dashboard) = graph_dashboard();
+    let area = Rect::new(0, 0, 160, 48);
+    dashboard.apply(Action::SelectView(View::Dependencies.index()));
+
+    assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Char('d'))), area, &dashboard),
+        Some(Action::SimulateRemoveDependency)
+    );
+    assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Char('r'))), area, &dashboard),
+        Some(Action::RestoreDependencies)
+    );
 }
 
 #[test]
