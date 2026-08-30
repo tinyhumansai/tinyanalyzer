@@ -20,8 +20,16 @@ use ratatui::widgets::{
 };
 use tinyanalyzer_core::{Finding, Severity};
 
-/// The accent used for headings and the selected tab.
-const ACCENT: Color = Color::Cyan;
+/// Shared palette. Standard ANSI colors remain legible without assuming a
+/// particular terminal background, while the bright variants provide enough
+/// contrast for structure and warnings.
+const ACCENT: Color = Color::LightCyan;
+const DIRECTORY: Color = Color::LightBlue;
+const METRIC: Color = Color::Cyan;
+const DOCUMENTATION: Color = Color::Green;
+const SIZE: Color = Color::LightMagenta;
+const MUTED: Color = Color::DarkGray;
+const WARNING: Color = Color::Yellow;
 
 /// Draws the whole dashboard.
 pub(super) fn draw(frame: &mut Frame<'_>, dashboard: &Dashboard) {
@@ -114,14 +122,18 @@ fn title(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
             format!(" {} ", project.name),
             Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
         ),
-        Span::raw(format!(
-            "{} files · {} loc · {} functions · {} crates · {}",
-            totals.files,
-            totals.lines.code,
-            totals.functions,
-            totals.external_packages,
-            human_bytes(totals.bytes)
-        )),
+        Span::styled(totals.files.to_string(), Style::default().fg(METRIC)),
+        Span::raw(" files · "),
+        Span::styled(totals.lines.code.to_string(), Style::default().fg(METRIC)),
+        Span::raw(" loc · "),
+        Span::styled(totals.functions.to_string(), Style::default().fg(METRIC)),
+        Span::raw(" functions · "),
+        Span::styled(
+            totals.external_packages.to_string(),
+            Style::default().fg(METRIC),
+        ),
+        Span::raw(" crates · "),
+        Span::styled(human_bytes(totals.bytes), Style::default().fg(SIZE)),
     ]);
 
     frame.render_widget(Paragraph::new(line), area);
@@ -143,7 +155,7 @@ fn tabs(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                 .bg(ACCENT)
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::Gray)
+            Style::default().fg(MUTED)
         };
 
         spans.push(Span::styled(
@@ -170,14 +182,14 @@ fn status(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
             ),
             Span::styled(
                 "  enter to keep · esc to clear",
-                Style::default().fg(Color::DarkGray),
+                Style::default().fg(MUTED),
             ),
         ])
     } else {
         let tests = if dashboard.hide_tests() {
             Span::styled("tests hidden", Style::default().fg(Color::Yellow))
         } else {
-            Span::styled("tests shown", Style::default().fg(Color::DarkGray))
+            Span::styled("tests shown", Style::default().fg(MUTED))
         };
 
         let mut spans = vec![
@@ -221,19 +233,22 @@ fn body(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
 
 /// A bordered block with a title.
 fn panel(title: &str) -> Block<'_> {
-    Block::default().borders(Borders::ALL).title(Span::styled(
-        format!(" {title} "),
-        Style::default().fg(ACCENT),
-    ))
+    Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(MUTED))
+        .title(Span::styled(
+            format!(" {title} "),
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        ))
 }
 
 /// The color a severity is drawn in.
 const fn severity_color(severity: Severity) -> Color {
     match severity {
-        Severity::Critical => Color::Red,
-        Severity::High => Color::LightRed,
-        Severity::Medium => Color::Yellow,
-        Severity::Low => Color::DarkGray,
+        Severity::Critical => Color::LightRed,
+        Severity::High => Color::Red,
+        Severity::Medium => WARNING,
+        Severity::Low => Color::Blue,
     }
 }
 
@@ -244,7 +259,7 @@ fn table(frame: &mut Frame<'_>, area: Rect, table: Table<'_>, selected: usize) {
     frame.render_stateful_widget(
         table.row_highlight_style(
             Style::default()
-                .bg(Color::DarkGray)
+                .bg(Color::Blue)
                 .add_modifier(Modifier::BOLD),
         ),
         area,
@@ -271,8 +286,11 @@ fn totals_panel(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
 
     let pair = |label: &str, value: String| {
         Line::from(vec![
-            Span::styled(format!("{label:<22}"), Style::default().fg(Color::Gray)),
-            Span::styled(value, Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(format!("{label:<22}"), Style::default().fg(MUTED)),
+            Span::styled(
+                value,
+                Style::default().fg(METRIC).add_modifier(Modifier::BOLD),
+            ),
         ])
     };
 
@@ -309,11 +327,20 @@ fn languages_panel(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         .languages
         .iter()
         .take(8)
-        .map(|language| {
+        .enumerate()
+        .map(|(index, language)| {
+            const LANGUAGE_COLORS: [Color; 6] = [
+                Color::LightBlue,
+                Color::LightGreen,
+                Color::LightMagenta,
+                Color::LightCyan,
+                Color::Yellow,
+                Color::LightRed,
+            ];
             Bar::default()
                 .label(Line::from(language.language.label()))
                 .value(language.lines.code as u64)
-                .style(Style::default().fg(ACCENT))
+                .style(Style::default().fg(LANGUAGE_COLORS[index % LANGUAGE_COLORS.len()]))
         })
         .collect();
 
@@ -356,21 +383,30 @@ fn files(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                 .unwrap_or_default();
             let functions = file.rust.as_ref().map_or(0, |rust| rust.functions.len());
 
+            let name_style = if file.is_test {
+                Style::default().fg(MUTED)
+            } else if let Some(severity) = severity_for_path(dashboard, &file.path, false) {
+                Style::default()
+                    .fg(severity_color(severity))
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::LightGreen)
+            };
             let name = if file.is_test {
                 Span::styled(
                     truncate_path(&file.path, 48),
-                    Style::default().fg(Color::DarkGray),
+                    name_style,
                 )
             } else {
-                Span::raw(truncate_path(&file.path, 48))
+                Span::styled(truncate_path(&file.path, 48), name_style)
             };
 
             Row::new(vec![
                 Cell::from(name),
-                Cell::from(file.lines.code.to_string()),
-                Cell::from(file.lines.comment.to_string()),
-                Cell::from(functions.to_string()),
-                Cell::from(complexity.to_string()),
+                metric_cell(file.lines.code, METRIC),
+                metric_cell(file.lines.comment, DOCUMENTATION),
+                metric_cell(functions, Color::LightMagenta),
+                metric_cell(complexity, if complexity >= 15 { WARNING } else { METRIC }),
             ])
         })
         .collect();
@@ -408,7 +444,12 @@ fn file_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     let mut lines = vec![
         Line::from(Span::styled(
             file.path.clone(),
-            Style::default().add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(
+                    severity_for_path(dashboard, &file.path, false)
+                        .map_or(Color::LightGreen, severity_color),
+                )
+                .add_modifier(Modifier::BOLD),
         )),
         Line::from(Span::styled(
             format!(
@@ -418,7 +459,7 @@ fn file_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                 file.crate_name.as_deref().unwrap_or("no crate"),
                 if file.is_test { " · test" } else { "" }
             ),
-            Style::default().fg(Color::Gray),
+            Style::default().fg(MUTED),
         )),
         Line::from(""),
         Line::from(format!(
@@ -472,7 +513,7 @@ fn file_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             format!("note ({}): {}", note.level.label(), note.note),
-            Style::default().fg(Color::Yellow),
+            Style::default().fg(WARNING),
         )));
     }
 
@@ -491,16 +532,26 @@ fn directories(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         .directories()
         .iter()
         .map(|directory| {
+            let directory_color = severity_for_path(dashboard, &directory.path, true)
+                .map_or(DIRECTORY, severity_color);
             Row::new(vec![
-                Cell::from(format!(
-                    "{}/",
-                    directory.path.rsplit('/').next().unwrap_or(".")
+                Cell::from(Span::styled(
+                    format!("{}/", directory.path.rsplit('/').next().unwrap_or(".")),
+                    Style::default()
+                        .fg(if directory.is_test_only { MUTED } else { directory_color })
+                        .add_modifier(Modifier::BOLD),
                 )),
-                Cell::from(directory.files.to_string()),
-                Cell::from(directory.lines.code.to_string()),
-                Cell::from(directory.lines.comment.to_string()),
-                Cell::from(human_bytes(directory.bytes)),
-                Cell::from(if directory.is_test_only { "tests" } else { "" }),
+                metric_cell(directory.files, Color::LightMagenta),
+                metric_cell(directory.lines.code, METRIC),
+                metric_cell(directory.lines.comment, DOCUMENTATION),
+                Cell::from(Span::styled(
+                    human_bytes(directory.bytes),
+                    Style::default().fg(SIZE),
+                )),
+                Cell::from(Span::styled(
+                    if directory.is_test_only { "tests" } else { "" },
+                    Style::default().fg(MUTED),
+                )),
             ])
         })
         .collect();
@@ -557,17 +608,23 @@ fn dependencies(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         .iter()
         .map(|package| {
             Row::new(vec![
-                Cell::from(truncate_path(&package.name, 32)),
-                Cell::from(package.version.clone()),
+                Cell::from(Span::styled(
+                    truncate_path(&package.name, 32),
+                    Style::default().fg(DIRECTORY).add_modifier(Modifier::BOLD),
+                )),
+                Cell::from(Span::styled(
+                    package.version.clone(),
+                    Style::default().fg(MUTED),
+                )),
                 Cell::from(Span::styled(
                     package.exclusive_count.to_string(),
                     Style::default().fg(if package.exclusive_count >= 20 {
                         Color::LightRed
                     } else {
-                        Color::Reset
+                        METRIC
                     }),
                 )),
-                Cell::from(package.transitive_count.to_string()),
+                metric_cell(package.transitive_count, Color::LightMagenta),
             ])
         })
         .collect();
@@ -614,14 +671,14 @@ fn dependency_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                 "{} crates leave the build with it · {} reachable · depth {}",
                 package.exclusive_count, package.transitive_count, package.depth
             ),
-            Style::default().fg(Color::Gray),
+            Style::default().fg(MUTED),
         )),
     ];
 
     if !package.features.is_empty() {
         lines.push(Line::from(Span::styled(
             format!("features: {}", package.features.join(", ")),
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(MUTED),
         )));
     }
 
@@ -676,12 +733,21 @@ fn dead_code(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
 
             Row::new(vec![
                 Cell::from(confidence),
-                Cell::from(candidate.kind.label()),
-                Cell::from(candidate.name.clone()),
-                Cell::from(format!(
-                    "{}:{}",
-                    truncate_path(&candidate.file, 40),
-                    candidate.line
+                Cell::from(Span::styled(
+                    candidate.kind.label(),
+                    Style::default().fg(Color::LightMagenta),
+                )),
+                Cell::from(Span::styled(
+                    candidate.name.clone(),
+                    Style::default().fg(Color::LightGreen),
+                )),
+                Cell::from(Span::styled(
+                    format!(
+                        "{}:{}",
+                        truncate_path(&candidate.file, 40),
+                        candidate.line
+                    ),
+                    Style::default().fg(DIRECTORY),
                 )),
             ])
         })
@@ -736,7 +802,7 @@ fn findings_list(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard, title
                     format!("{:<9}", finding.severity.label()),
                     Style::default().fg(severity_color(finding.severity)),
                 ),
-                Span::raw(finding.title.clone()),
+                Span::styled(finding.title.clone(), Style::default().fg(Color::Reset)),
             ]))
         })
         .collect();
@@ -749,7 +815,7 @@ fn findings_list(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard, title
     frame.render_stateful_widget(
         List::new(items)
             .block(panel(&format!("{title} ({})", entries.len())))
-            .highlight_style(Style::default().bg(Color::DarkGray).bold()),
+            .highlight_style(Style::default().bg(Color::Blue).bold()),
         area,
         &mut state,
     );
@@ -793,7 +859,7 @@ fn detail_lines(finding: &Finding) -> Vec<Line<'_>> {
                 Some(line) => format!("{}:{line}", location.file),
                 None => location.file.clone(),
             },
-            Style::default().fg(Color::Gray),
+            Style::default().fg(DIRECTORY),
         )));
     }
 
@@ -813,7 +879,36 @@ fn detail_lines(finding: &Finding) -> Vec<Line<'_>> {
 fn header_row<'a>(labels: &[&'a str]) -> Row<'a> {
     Row::new(labels.iter().map(|label| Cell::from(*label))).style(
         Style::default()
-            .fg(Color::Gray)
+            .fg(Color::Black)
+            .bg(ACCENT)
             .add_modifier(Modifier::BOLD),
     )
+}
+
+/// A consistently colored numeric table cell.
+fn metric_cell(value: impl ToString, color: Color) -> Cell<'static> {
+    Cell::from(Span::styled(value.to_string(), Style::default().fg(color)))
+}
+
+/// Most severe finding attached to a file or anywhere below a directory.
+fn severity_for_path(dashboard: &Dashboard, path: &str, directory: bool) -> Option<Severity> {
+    dashboard
+        .report()
+        .findings
+        .iter()
+        .filter_map(|finding| {
+            let file = finding.location.as_ref()?.file.as_str();
+            let matches = file == path
+                || (directory
+                    && file
+                        .strip_prefix(path)
+                        .is_some_and(|rest| rest.starts_with('/')));
+            matches.then_some(finding.severity)
+        })
+        .min_by_key(|severity| match severity {
+            Severity::Critical => 0,
+            Severity::High => 1,
+            Severity::Medium => 2,
+            Severity::Low => 3,
+        })
 }
