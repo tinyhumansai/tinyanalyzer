@@ -122,6 +122,9 @@ binary size. Press `d` again on a marked dependency to restore it, use `d` on
 other rows to model several removals, or press `r` to restore the whole graph.
 Each direct dependency row shows its own source size, and `s` can sort the pane
 by that column after cycling through exclusive, name, and reachable-crate order.
+The `exclusive` and `reaches` counts are recalculated after every toggle, so
+shared transitive crates move to whichever remaining direct dependency now owns
+their cost; removed rows show zero until restored.
 
 The dependency detail also exposes Cargo features. `[` and `]` select a feature,
 `f` toggles it in the simulation, and `w` switches between the selected direct
