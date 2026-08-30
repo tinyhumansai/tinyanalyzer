@@ -36,20 +36,52 @@ pub fn run(report: Report, start: StartView, hide_tests: bool) -> Result<()> {
     let mut dashboard = Dashboard::new(report, start, hide_tests);
     let mut terminal = ratatui::try_init().map_err(|source| Error::Terminal { source })?;
 
-    if let Err(source) = ratatui::crossterm::execute!(std::io::stdout(), EnableMouseCapture) {
+    let mouse = MouseCapture::enable().inspect_err(|_| {
         let _ = ratatui::try_restore();
-        return Err(Error::Terminal { source });
-    }
+    })?;
 
     let outcome = drive(&mut terminal, &mut dashboard, &mut read_event);
 
     // Restored before the outcome is inspected: a failure inside the loop must
     // not leave the terminal in raw mode on the way out.
-    let mouse_restored = ratatui::crossterm::execute!(std::io::stdout(), DisableMouseCapture)
-        .map_err(|source| Error::Terminal { source });
+    let mouse_restored = mouse.disable();
     let restored = ratatui::try_restore().map_err(|source| Error::Terminal { source });
 
     outcome.and(mouse_restored).and(restored)
+}
+
+/// Enables mouse reporting and disables it again on every exit path.
+///
+/// The explicit [`Self::disable`] call reports restoration failures. The drop
+/// fallback exists for unwinding, when returning an error is no longer
+/// possible but leaving the user's terminal in mouse-reporting mode would be
+/// worse than losing the error.
+struct MouseCapture {
+    active: bool,
+}
+
+impl MouseCapture {
+    /// Asks crossterm to begin reporting mouse events.
+    fn enable() -> Result<Self> {
+        ratatui::crossterm::execute!(std::io::stdout(), EnableMouseCapture)
+            .map_err(|source| Error::Terminal { source })?;
+        Ok(Self { active: true })
+    }
+
+    /// Stops mouse reporting, exposing a terminal failure to the caller.
+    fn disable(mut self) -> Result<()> {
+        self.active = false;
+        ratatui::crossterm::execute!(std::io::stdout(), DisableMouseCapture)
+            .map_err(|source| Error::Terminal { source })
+    }
+}
+
+impl Drop for MouseCapture {
+    fn drop(&mut self) {
+        if self.active {
+            let _ = ratatui::crossterm::execute!(std::io::stdout(), DisableMouseCapture);
+        }
+    }
 }
 
 /// Blocks until the terminal reports an event.
