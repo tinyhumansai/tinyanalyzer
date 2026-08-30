@@ -206,6 +206,7 @@ fn action_for_event(event: &Event, area: Rect, dashboard: &Dashboard) -> Option<
                 KeyCode::Backspace | KeyCode::Left | KeyCode::Char('h') => {
                     Some(Action::LeaveDirectory)
                 }
+                KeyCode::Char('o') => Some(Action::ToggleDirectoriesOnly),
                 _ => action_for(*key, false),
             }
         }
