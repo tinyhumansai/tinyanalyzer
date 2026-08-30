@@ -7,9 +7,11 @@
 //! a file, and that a bad path fails loudly instead of reporting an empty
 //! repository.
 //!
-//! The dashboard is deliberately not exercised here. It needs a terminal, and
-//! everything it does that is not drawing is unit-tested against its state
-//! machine and its renderer.
+//! The dashboard is exercised here too, under a pseudo-terminal. Its state machine
+//! and its renderer are unit-tested directly, but the raw-mode lifecycle — enter
+//! the alternate screen, draw, read a key, restore — cannot be reached without a
+//! terminal, and it is the one part of this program whose failure outlives the
+//! process. So one test gives it a real one.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -198,4 +200,97 @@ fn it_reports_a_version_and_a_help_page() {
         assert!(output.status.success(), "{flag} must succeed");
         assert!(!output.stdout.is_empty(), "{flag} must print something");
     }
+}
+
+
+/// Runs the binary under a pseudo-terminal, feeding it `keys`.
+///
+/// `script` is the shortest way to get a real terminal without a dependency on
+/// a pty crate. It is part of util-linux and present on every Linux runner; a
+/// machine without it skips the test rather than failing it, because its
+/// absence says nothing about this program.
+#[cfg(target_os = "linux")]
+fn under_a_terminal(root: &Path, keys: &str) -> Option<Output> {
+    use std::io::Write as _;
+    use std::process::Stdio;
+
+    let mut child = Command::new("script")
+        .arg("-qec")
+        .arg(format!("{BINARY} {}", root.display()))
+        .arg("/dev/null")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .ok()?;
+
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin was piped")
+        .write_all(keys.as_bytes())
+        .expect("the child accepts input");
+
+    Some(child.wait_with_output().expect("the child terminates"))
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn the_dashboard_opens_in_a_real_terminal_and_leaves_it_as_it_found_it() {
+    let root = fixture();
+
+    let Some(output) = under_a_terminal(root.path(), "q") else {
+        // No `script` on this machine; the lifecycle is unexercised rather than
+        // broken.
+        return;
+    };
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let rendered = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        rendered.contains("\u{1b}[?1049h"),
+        "the dashboard enters the alternate screen"
+    );
+    assert!(
+        rendered.contains("\u{1b}[?1049l"),
+        "and leaves it again, however it exits"
+    );
+    assert!(rendered.contains("Fixture"), "it drew the project name");
+    assert!(rendered.contains("Overview"), "and its tab bar");
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn the_dashboard_navigates_before_it_closes() {
+    let root = fixture();
+
+    let Some(output) = under_a_terminal(root.path(), "2jt/li\rq") else {
+        return;
+    };
+
+    assert!(output.status.success());
+    let rendered = String::from_utf8_lossy(&output.stdout);
+
+    assert!(rendered.contains("Files"), "it reached the files view");
+    assert!(rendered.contains("filter:"), "and opened the filter prompt");
+}
+
+#[test]
+fn a_write_target_that_cannot_be_written_fails_loudly() {
+    let root = fixture();
+
+    // A directory is never a writable file, on any platform, without needing a
+    // permission bit this test would have to set and restore.
+    let output = run(
+        root.path(),
+        &["--output", "json", "--write", &root.path().display().to_string()],
+    );
+
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("cannot write"));
 }
