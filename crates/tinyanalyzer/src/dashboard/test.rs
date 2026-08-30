@@ -999,6 +999,16 @@ fn a_dashboard_that_is_already_quitting_draws_nothing() {
 }
 
 #[test]
+fn opening_the_dashboard_without_a_terminal_reports_the_terminal_error() {
+    let (_root, dashboard) = dashboard();
+
+    let error = super::run(dashboard.report().clone(), StartView::Overview, false)
+        .expect_err("the test harness has no interactive terminal");
+
+    assert!(matches!(error, Error::Terminal { .. }));
+}
+
+#[test]
 fn a_filter_typed_through_the_loop_narrows_the_rows() {
     let (_root, mut dashboard) = dashboard();
 
