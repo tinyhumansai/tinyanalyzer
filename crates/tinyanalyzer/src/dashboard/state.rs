@@ -130,6 +130,14 @@ pub enum Action {
     SimulateRemoveDependency,
     /// Restore every dependency removed from the simulation.
     RestoreDependencies,
+    /// Select the next Cargo feature in the dependency detail pane.
+    NextFeature,
+    /// Select the previous Cargo feature in the dependency detail pane.
+    PreviousFeature,
+    /// Toggle the selected Cargo feature in the simulation.
+    ToggleFeature,
+    /// Switch feature simulation between the selected dependency and workspace root.
+    ToggleFeatureTarget,
     /// Show or hide test code.
     ToggleTests,
     /// Start typing a filter.
@@ -163,6 +171,9 @@ pub struct Dashboard {
     directory_path: String,
     directory_cursors: Vec<usize>,
     removed_dependencies: BTreeSet<String>,
+    feature_overrides: BTreeMap<String, BTreeSet<String>>,
+    feature_cursor: usize,
+    feature_root_target: bool,
     quit: bool,
 }
 
@@ -184,6 +195,9 @@ impl Dashboard {
             directory_path: ".".to_owned(),
             directory_cursors: Vec::new(),
             removed_dependencies: BTreeSet::new(),
+            feature_overrides: BTreeMap::new(),
+            feature_cursor: 0,
+            feature_root_target: false,
             quit: false,
         }
     }
@@ -465,6 +479,50 @@ impl Dashboard {
         packages
     }
 
+    /// Package whose Cargo features are currently being simulated.
+    #[must_use]
+    pub fn feature_target_package(&self) -> Option<&PackageNode> {
+        if self.feature_root_target {
+            self.report
+                .dependencies
+                .packages
+                .iter()
+                .filter(|package| package.is_workspace_member)
+                .min_by(|left, right| left.name.cmp(&right.name))
+        } else {
+            self.selected_package()
+        }
+    }
+
+    /// Available features and their simulated enabled state for the target.
+    #[must_use]
+    pub fn simulated_features(&self) -> Vec<(&str, bool)> {
+        let Some(package) = self.feature_target_package() else {
+            return Vec::new();
+        };
+        let enabled = self
+            .feature_overrides
+            .get(&package.id)
+            .map_or(package.features.as_slice(), |features| features.as_slice());
+        package
+            .available_features
+            .iter()
+            .map(|feature| (feature.as_str(), enabled.iter().any(|entry| entry == feature)))
+            .collect()
+    }
+
+    /// Cursor within the target package's feature list.
+    #[must_use]
+    pub const fn feature_cursor(&self) -> usize {
+        self.feature_cursor
+    }
+
+    /// Whether feature controls currently target the workspace root package.
+    #[must_use]
+    pub const fn feature_root_target(&self) -> bool {
+        self.feature_root_target
+    }
+
     /// How many rows the current view has.
     #[must_use]
     pub fn row_count(&self) -> usize {
@@ -613,6 +671,13 @@ impl Dashboard {
             Action::RestoreDependencies => {
                 self.removed_dependencies.clear();
                 self.clamp_cursor();
+            }
+            Action::NextFeature => self.move_feature(1),
+            Action::PreviousFeature => self.move_feature(-1),
+            Action::ToggleFeature => self.toggle_feature(),
+            Action::ToggleFeatureTarget => {
+                self.feature_root_target = !self.feature_root_target;
+                self.feature_cursor = 0;
             }
             Action::ToggleTests => {
                 self.hide_tests = !self.hide_tests;
@@ -780,6 +845,34 @@ impl Dashboard {
             }
         }
         seen
+    }
+
+    fn move_feature(&mut self, delta: i64) {
+        let count = self.simulated_features().len();
+        if count == 0 {
+            self.feature_cursor = 0;
+            return;
+        }
+        let current = i64::try_from(self.feature_cursor).unwrap_or_default();
+        let last = i64::try_from(count.saturating_sub(1)).unwrap_or(i64::MAX);
+        self.feature_cursor = usize::try_from(current.saturating_add(delta).clamp(0, last))
+            .unwrap_or_default();
+    }
+
+    fn toggle_feature(&mut self) {
+        let Some(package) = self.feature_target_package() else {
+            return;
+        };
+        let Some(feature) = package.available_features.get(self.feature_cursor) else {
+            return;
+        };
+        let id = package.id.clone();
+        let feature = feature.clone();
+        let original = package.features.iter().cloned().collect();
+        let enabled = self.feature_overrides.entry(id).or_insert(original);
+        if !enabled.remove(&feature) {
+            enabled.insert(feature);
+        }
     }
 
     fn file_complexity(&self, file: &FileMetrics) -> u32 {
