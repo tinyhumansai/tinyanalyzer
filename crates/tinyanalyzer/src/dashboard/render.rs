@@ -911,10 +911,18 @@ fn dependency_tree_line<'a>(
         child.version
     );
     let identity_width = width.saturating_sub(METRICS_WIDTH.saturating_add(1));
-    let identity = truncate_label(&identity, identity_width);
-    let padding = width
-        .saturating_sub(identity.chars().count().saturating_add(METRICS_WIDTH))
-        .max(1);
+    let identity = if identity_width > 1 {
+        truncate_label(&identity, identity_width)
+    } else {
+        String::new()
+    };
+    let padding = if identity.is_empty() {
+        width.saturating_sub(METRICS_WIDTH)
+    } else {
+        width
+            .saturating_sub(identity.chars().count().saturating_add(METRICS_WIDTH))
+            .max(1)
+    };
 
     Line::from(vec![
         Span::styled(identity, Style::default().fg(DIRECTORY)),
