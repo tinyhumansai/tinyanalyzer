@@ -120,6 +120,8 @@ external crates and checked-out dependency source bytes the simulated build
 graph retains. This is source size, not a target-specific prediction of linked
 binary size. Press `d` again on a marked dependency to restore it, use `d` on
 other rows to model several removals, or press `r` to restore the whole graph.
+Each direct dependency row shows its own source size, and `s` can sort the pane
+by that column after cycling through exclusive, name, and reachable-crate order.
 
 The dependency detail also exposes Cargo features. `[` and `]` select a feature,
 `f` toggles it in the simulation, and `w` switches between the selected direct
