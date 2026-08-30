@@ -979,7 +979,12 @@ fn dependency_removal_simulation_recomputes_the_visible_graph() {
     assert_eq!(dashboard.removed_dependency_count(), 1);
     assert_eq!(dashboard.packages().len(), before - 1);
     assert!(dashboard.simulated_reclaimed_packages() > 0);
-    assert!(dashboard.packages().iter().all(|package| package.id != removed));
+    assert!(
+        dashboard
+            .packages()
+            .iter()
+            .all(|package| package.id != removed)
+    );
     assert!(rendered(&dashboard).contains("crates reclaimed"));
 
     dashboard.apply(Action::RestoreDependencies);
