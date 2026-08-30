@@ -954,12 +954,7 @@ fn findings_list(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard, title
     frame.render_stateful_widget(
         List::new(items)
             .block(panel(&format!("{title} ({})", entries.len())))
-            .highlight_style(
-                Style::default()
-                    .fg(Color::White)
-                    .bg(Color::Blue)
-                    .bold(),
-            ),
+            .highlight_style(Style::default().fg(Color::White).bg(Color::Blue).bold()),
         area,
         &mut state,
     );

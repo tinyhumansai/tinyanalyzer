@@ -52,13 +52,7 @@ pub fn run_with_reload(
     respect_gitignore: bool,
     reload: &mut dyn FnMut(bool) -> Result<Report>,
 ) -> Result<()> {
-    run_inner(
-        report,
-        start,
-        hide_tests,
-        respect_gitignore,
-        Some(reload),
-    )
+    run_inner(report, start, hide_tests, respect_gitignore, Some(reload))
 }
 
 fn run_inner(
