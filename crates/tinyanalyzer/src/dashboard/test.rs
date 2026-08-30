@@ -1083,6 +1083,37 @@ fn mouse_clicks_select_tabs_and_rows_and_the_wheel_moves_the_cursor() {
 }
 
 #[test]
+fn the_mouse_wheel_scrolls_the_pane_under_the_pointer() {
+    let (_root, mut dashboard) = dashboard();
+    let area = Rect::new(0, 0, 160, 48);
+    dashboard.apply(Action::SelectView(View::Files.index()));
+
+    let detail_scroll = action_for_event(
+        &mouse(MouseEventKind::ScrollDown, 120, 10),
+        area,
+        &dashboard,
+    );
+    assert_eq!(detail_scroll, Some(Action::ScrollDetailDown));
+    dashboard.apply(detail_scroll.expect("the detail pane handles its wheel event"));
+    assert_eq!(dashboard.detail_scroll(), 3);
+    assert_eq!(dashboard.cursor(), 0, "the file list stays selected");
+
+    let list_scroll = action_for_event(
+        &mouse(MouseEventKind::ScrollDown, 10, 10),
+        area,
+        &dashboard,
+    );
+    assert_eq!(list_scroll, Some(Action::MoveDown));
+    dashboard.apply(list_scroll.expect("the list pane handles its wheel event"));
+    assert_eq!(dashboard.cursor(), 1);
+    assert_eq!(
+        dashboard.detail_scroll(),
+        0,
+        "selecting a new row starts its detail at the top"
+    );
+}
+
+#[test]
 fn mouse_clicks_enter_directories_and_right_click_leaves_them() {
     let (_root, mut dashboard) = graph_dashboard();
     let area = Rect::new(0, 0, 160, 48);
