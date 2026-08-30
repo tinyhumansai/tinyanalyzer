@@ -87,6 +87,41 @@ fn the_report_names_the_project_and_its_root() {
 }
 
 #[test]
+fn a_relative_root_still_reports_the_directory_it_names() {
+    let root = plain_fixture();
+    let previous = std::env::current_dir().expect("a working directory");
+    std::env::set_current_dir(root.path()).expect("the fixture is enterable");
+
+    let report = analyze_with(".", &config_without_cargo());
+
+    std::env::set_current_dir(previous).expect("the previous directory still exists");
+    let report = report.expect("a walkable tree");
+
+    assert_ne!(
+        report.project.name, "unnamed project",
+        "`.` must resolve to the directory's real name"
+    );
+    assert_ne!(report.project.root, ".");
+}
+
+#[test]
+fn lockfiles_and_licenses_are_excluded_by_default() {
+    let root = TempDir::new().expect("a temporary directory");
+    write(root.path(), "src/lib.rs", "pub fn a() {}\n");
+    write(root.path(), "Cargo.lock", &"# generated\n".repeat(500));
+    write(root.path(), "LICENSE", &"legal text\n".repeat(500));
+
+    let report = analyze_with(root.path(), &config_without_cargo()).expect("a walkable tree");
+    let paths: Vec<&str> = report.files.iter().map(|file| file.path.as_str()).collect();
+
+    assert_eq!(
+        paths,
+        ["src/lib.rs"],
+        "neither file is written nor refactored by hand, and both would top every ranking"
+    );
+}
+
+#[test]
 fn a_configured_name_and_description_are_carried_through() {
     let root = plain_fixture();
     let mut config = config_without_cargo();
