@@ -396,10 +396,7 @@ fn files(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                 metric_cell(&file.lines.code, METRIC),
                 metric_cell(&file.lines.comment, DOCUMENTATION),
                 metric_cell(&functions, Color::LightMagenta),
-                metric_cell(
-                    &complexity,
-                    if complexity >= 15 { WARNING } else { METRIC },
-                ),
+                metric_cell(&complexity, if complexity >= 15 { WARNING } else { METRIC }),
             ])
         })
         .collect();
