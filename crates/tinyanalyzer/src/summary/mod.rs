@@ -65,6 +65,22 @@ pub fn human_bytes(bytes: u64) -> String {
     }
 }
 
+/// Shortens a label to fit a column, keeping the front.
+///
+/// The opposite of [`truncate_path`], and the right choice for anything whose
+/// meaning is at the start — a version, say, where `0.9.12+spec-1.1.0` matters
+/// as `0.9.12` and the build metadata is what can go.
+#[must_use]
+pub fn truncate_label(label: &str, width: usize) -> String {
+    if label.chars().count() <= width || width <= 1 {
+        return label.to_owned();
+    }
+
+    let kept: String = label.chars().take(width.saturating_sub(1)).collect();
+
+    format!("{kept}\u{2026}")
+}
+
 /// Shortens a path to fit a column, keeping the end.
 ///
 /// The end of a path is the part that identifies the file; truncating from the
@@ -203,7 +219,7 @@ fn dependencies(out: &mut String, report: &Report) {
             out,
             "  {:<34}{:<12}{:>4} exclusive{:>6} reached",
             truncate_path(&package.name, 34),
-            truncate_path(&package.version, 11),
+            truncate_label(&package.version, 11),
             package.exclusive_count,
             package.transitive_count
         );

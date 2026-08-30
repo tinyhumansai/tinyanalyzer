@@ -7,7 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::{human_bytes, render, truncate_path};
+use super::{human_bytes, render, truncate_label, truncate_path};
 use std::path::Path;
 use tempfile::TempDir;
 use tinyanalyzer_core::{Config, DependencyConfig, Report, analyze_with};
@@ -160,6 +160,21 @@ fn truncation_does_not_split_a_multi_byte_character() {
     let truncated = truncate_path("crates/ünïcödé/päth/file.rs", 12);
 
     assert_eq!(truncated.chars().count(), 12);
+}
+
+#[test]
+fn a_label_is_truncated_from_the_end_so_its_front_survives() {
+    let truncated = truncate_label("0.9.12+spec-1.1.0", 11);
+
+    assert_eq!(truncated.chars().count(), 11);
+    assert!(truncated.starts_with("0.9.12"));
+    assert!(truncated.ends_with('\u{2026}'));
+}
+
+#[test]
+fn a_short_label_is_left_alone() {
+    assert_eq!(truncate_label("1.0.4", 11), "1.0.4");
+    assert_eq!(truncate_label("0.9.12+spec-1.1.0", 1), "0.9.12+spec-1.1.0");
 }
 
 #[test]
