@@ -37,7 +37,9 @@
 
 mod types;
 
-pub use types::{Definition, DefinitionKind, Function, ItemCounts, PerformanceSignals, RustFile};
+pub use types::{
+    Definition, DefinitionKind, Function, ItemCounts, PerformanceSignals, RustFile, SourceRange,
+};
 
 use proc_macro2::TokenTree;
 use std::collections::BTreeMap;
@@ -246,7 +248,16 @@ impl FileVisitor {
             None => name.clone(),
         };
 
-        let is_test = self.in_test || is_test_attribute(attrs);
+        let attribute_test = is_test_attribute(attrs);
+        if !self.in_test && attribute_test {
+            self.file.test_ranges.push(SourceRange {
+                start_line: attrs
+                    .first()
+                    .map_or_else(|| signature.span().start().line, |attr| attr.span().start().line),
+                end_line: block.span().end().line,
+            });
+        }
+        let is_test = self.in_test || attribute_test;
         let is_generic = !signature.generics.params.is_empty();
         let span = signature.span();
 
@@ -412,6 +423,15 @@ impl<'ast> Visit<'ast> for FileVisitor {
 
         let owner = type_name(&node.self_ty).unwrap_or_else(|| "impl".to_owned());
         let is_test = is_test_attribute(&node.attrs);
+        if !self.in_test && is_test {
+            self.file.test_ranges.push(SourceRange {
+                start_line: node
+                    .attrs
+                    .first()
+                    .map_or_else(|| node.span().start().line, |attr| attr.span().start().line),
+                end_line: node.span().end().line,
+            });
+        }
 
         self.type_stack.push(owner);
         self.with_test_scope(is_test, |visitor| visit::visit_item_impl(visitor, node));
@@ -421,6 +441,15 @@ impl<'ast> Visit<'ast> for FileVisitor {
     fn visit_item_mod(&mut self, node: &'ast syn::ItemMod) {
         self.file.items.modules = self.file.items.modules.saturating_add(1);
         let is_test = is_test_attribute(&node.attrs);
+        if !self.in_test && is_test {
+            self.file.test_ranges.push(SourceRange {
+                start_line: node
+                    .attrs
+                    .first()
+                    .map_or_else(|| node.span().start().line, |attr| attr.span().start().line),
+                end_line: node.span().end().line,
+            });
+        }
 
         self.with_test_scope(is_test, |visitor| {
             visitor.define(

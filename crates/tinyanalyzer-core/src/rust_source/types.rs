@@ -44,6 +44,18 @@ pub struct RustFile {
     pub todo_markers: usize,
     /// The deepest block nesting reached anywhere in the file.
     pub max_nesting: usize,
+    /// Top-level source ranges that exist only for tests.
+    #[serde(default)]
+    pub test_ranges: Vec<SourceRange>,
+}
+
+/// Inclusive one-based line range occupied by test-only Rust syntax.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceRange {
+    /// First line, including test attributes.
+    pub start_line: usize,
+    /// Last line of the test-only item.
+    pub end_line: usize,
 }
 
 /// How many of each kind of item a file defines.

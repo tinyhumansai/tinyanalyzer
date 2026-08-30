@@ -70,6 +70,12 @@ impl Report {
 
         for file in self.production_files() {
             totals.absorb(file);
+            totals.lines = totals.lines.without(file.test_lines);
+            if let Some(rust) = &file.rust {
+                let test_functions = rust.functions.iter().filter(|function| function.is_test).count();
+                totals.functions = totals.functions.saturating_sub(test_functions);
+                totals.items.functions = totals.items.functions.saturating_sub(test_functions);
+            }
         }
 
         totals.packages = self.totals.packages;
@@ -79,6 +85,8 @@ impl Report {
             .iter()
             .filter(|directory| !directory.is_test_only)
             .count();
+        totals.test_files = 0;
+        totals.test_lines = LineCounts::default();
 
         totals
     }
@@ -136,9 +144,9 @@ impl Totals {
         self.bytes = self.bytes.saturating_add(file.bytes);
         self.lines.add(file.lines);
 
+        self.test_lines.add(file.test_lines);
         if file.is_test {
             self.test_files = self.test_files.saturating_add(1);
-            self.test_lines.add(file.lines);
         }
 
         if let Some(rust) = &file.rust {
@@ -162,6 +170,9 @@ pub struct FileMetrics {
     pub bytes: u64,
     /// Lines, split by kind.
     pub lines: LineCounts,
+    /// Lines belonging to `#[test]` items or `#[cfg(test)]` scopes.
+    #[serde(default)]
+    pub test_lines: LineCounts,
     /// Whether the file is test code, by path or by contents.
     pub is_test: bool,
     /// The workspace member that owns the file, if any.

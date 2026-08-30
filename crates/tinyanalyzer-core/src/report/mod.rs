@@ -170,6 +170,7 @@ fn now_unix() -> u64 {
 struct ParsedFile<'a> {
     source: &'a SourceFile,
     lines: LineCounts,
+    test_lines: LineCounts,
     rust: Option<RustFile>,
     failure: Option<ParseFailureReport>,
     crate_name: Option<String>,
@@ -198,11 +199,19 @@ fn parse_one<'a>(source: &'a SourceFile, manifests: &BTreeMap<String, String>) -
     };
 
     let is_test = source.is_test_path || rust.as_ref().is_some_and(|file| file.is_test_module);
+    let test_lines = if is_test {
+        lines
+    } else {
+        rust.as_ref().map_or_else(LineCounts::default, |rust| {
+            counts_for_ranges(text, &rust.test_ranges)
+        })
+    };
 
     ParsedFile {
         crate_name: owning_crate(&source.relative_path, manifests),
         source,
         lines,
+        test_lines,
         rust,
         failure,
         is_test,
@@ -217,6 +226,7 @@ fn measurements(file: &ParsedFile<'_>, config: &Config) -> FileMetrics {
         language: file.source.language,
         bytes: file.source.bytes,
         lines: file.lines,
+        test_lines: file.test_lines,
         is_test: file.is_test,
         crate_name: file.crate_name.clone(),
         weight: weight(file.lines, file.rust.as_ref()),
@@ -228,6 +238,25 @@ fn measurements(file: &ParsedFile<'_>, config: &Config) -> FileMetrics {
             .collect(),
         rust: file.rust.clone(),
     }
+}
+
+/// Counts only source lines covered by the supplied inclusive ranges.
+fn counts_for_ranges(text: &str, ranges: &[rust_source::SourceRange]) -> LineCounts {
+    if ranges.is_empty() {
+        return LineCounts::default();
+    }
+    let mut selected = String::new();
+    for (index, line) in text.lines().enumerate() {
+        let number = index.saturating_add(1);
+        if ranges
+            .iter()
+            .any(|range| number >= range.start_line && number <= range.end_line)
+        {
+            selected.push_str(line);
+            selected.push('\n');
+        }
+    }
+    count_lines(Language::Rust, &selected)
 }
 
 /// How heavy one file is, as a single comparable number.

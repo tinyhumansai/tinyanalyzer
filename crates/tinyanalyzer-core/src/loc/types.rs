@@ -188,4 +188,14 @@ impl LineCounts {
         self.comment = self.comment.saturating_add(other.comment);
         self.blank = self.blank.saturating_add(other.blank);
     }
+
+    /// Subtracts another set of counts without allowing underflow.
+    #[must_use]
+    pub fn without(mut self, other: Self) -> Self {
+        self.total = self.total.saturating_sub(other.total);
+        self.code = self.code.saturating_sub(other.code);
+        self.comment = self.comment.saturating_sub(other.comment);
+        self.blank = self.blank.saturating_sub(other.blank);
+        self
+    }
 }
