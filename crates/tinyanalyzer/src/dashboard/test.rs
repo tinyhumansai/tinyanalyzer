@@ -448,6 +448,26 @@ fn filters_accept_case_insensitive_regular_expressions() {
 }
 
 #[test]
+fn filters_are_scoped_to_the_tab_where_they_were_entered() {
+    let (_root, mut dashboard) = dashboard();
+    dashboard.apply(Action::SelectView(View::Files.index()));
+    dashboard.apply(Action::StartFilter);
+    for character in "small".chars() {
+        dashboard.apply(Action::FilterPush(character));
+    }
+    dashboard.apply(Action::CommitFilter);
+    assert_eq!(dashboard.filter(), "small");
+    assert_eq!(dashboard.files().len(), 1);
+
+    dashboard.apply(Action::SelectView(View::Findings.index()));
+    assert_eq!(dashboard.filter(), "");
+    assert!(!dashboard.findings().is_empty());
+
+    dashboard.apply(Action::SelectView(View::Files.index()));
+    assert_eq!(dashboard.filter(), "small", "the Files filter is preserved");
+}
+
+#[test]
 fn an_incomplete_regex_is_treated_as_literal_until_it_becomes_valid() {
     let (_root, mut dashboard) = dashboard();
     dashboard.apply(Action::SelectView(View::Files.index()));
@@ -654,6 +674,8 @@ fn every_documented_key_is_mapped() {
         (KeyCode::Up, Action::MoveUp),
         (KeyCode::Char('k'), Action::MoveUp),
         (KeyCode::Char('j'), Action::MoveDown),
+        (KeyCode::Char('s'), Action::NextSort),
+        (KeyCode::Char('i'), Action::ToggleGitignore),
         (KeyCode::Char('1'), Action::SelectView(0)),
         (KeyCode::Char('6'), Action::SelectView(5)),
     ];
@@ -825,26 +847,16 @@ fn tables_and_file_kinds_use_the_dashboard_palette() {
         "test files are visually subdued"
     );
 
-    let warning_row = dashboard
-        .files()
-        .iter()
-        .position(|file| file.path == "src/lib.rs")
-        .expect("the fixture contains the warning-heavy source file");
-    assert!(
-        matches!(
-            buffer
-                .cell((
-                    1,
-                    4 + u16::try_from(warning_row).expect("the fixture is small")
-                ))
-                .expect("the warning file is visible")
-                .fg,
-            ratatui::style::Color::LightRed
-                | ratatui::style::Color::Red
-                | ratatui::style::Color::Yellow
-                | ratatui::style::Color::Blue
-        ),
-        "files with findings use their highest severity color"
+    assert_eq!(
+        buffer
+            .cell((
+                1,
+                4 + u16::try_from(dashboard.cursor()).expect("the fixture is small")
+            ))
+            .expect("the selected row is visible")
+            .fg,
+        ratatui::style::Color::White,
+        "all text on a selected row uses one contrasting foreground"
     );
 }
 
@@ -873,9 +885,8 @@ fn the_filter_prompt_appears_while_typing() {
 
 /// Drives the loop with a scripted list of key presses.
 ///
-/// The last event must quit, or the loop would never return. A script that ran
-/// out is a test that would hang, so it is turned into a terminal error rather
-/// than being allowed to block the suite.
+/// The last event must quit or request a reload. A script that simply runs out
+/// would hang, so it is turned into a terminal error.
 fn drive_with(dashboard: &mut Dashboard, keys: &[KeyEvent]) -> Result<()> {
     let backend = TestBackend::new(120, 40);
     let mut terminal = Terminal::new(backend).expect("an in-memory terminal");
@@ -938,6 +949,18 @@ fn the_loop_ignores_an_event_that_means_nothing_here() {
     .expect("an unmapped key is not an error");
 
     assert_eq!(dashboard.view(), View::Overview);
+}
+
+#[test]
+fn the_ignore_toggle_requests_a_report_reload() {
+    let (_root, mut dashboard) = dashboard();
+
+    drive_with(&mut dashboard, &[key(KeyCode::Char('i'))])
+        .expect("the loop returns so the report can be rebuilt");
+
+    assert!(!dashboard.respect_gitignore());
+    assert_eq!(dashboard.take_reload_request(), Some(false));
+    assert!(!dashboard.reload_requested());
 }
 
 #[test]
@@ -1230,10 +1253,12 @@ fn directories_are_grouped_by_level_and_navigation_restores_the_parent_cursor() 
 
     dashboard.apply(Action::EnterDirectory);
     assert_eq!(dashboard.directory_path(), "crates");
+    assert_eq!(dashboard.directories()[0].path, "..");
     assert!(
         dashboard
             .directories()
             .iter()
+            .filter(|directory| directory.path != "..")
             .all(|directory| directory.path.matches('/').count() == 1),
         "the next level contains app and engine, not their src descendants"
     );
@@ -1252,6 +1277,18 @@ fn directories_are_grouped_by_level_and_navigation_restores_the_parent_cursor() 
     assert_eq!(dashboard.cursor(), engine);
 
     dashboard.apply(Action::LeaveDirectory);
+    assert_eq!(dashboard.directory_path(), ".");
+}
+
+#[test]
+fn activating_the_parent_row_leaves_the_current_directory() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Directories.index()));
+    dashboard.apply(Action::EnterDirectory);
+    assert_eq!(dashboard.directories()[0].path, "..");
+
+    dashboard.apply(Action::EnterDirectoryAt(0));
+
     assert_eq!(dashboard.directory_path(), ".");
 }
 
