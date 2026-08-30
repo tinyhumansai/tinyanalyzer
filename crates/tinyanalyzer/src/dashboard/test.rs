@@ -1129,13 +1129,10 @@ fn the_dependency_view_ranks_direct_dependencies_and_shows_the_subtree() {
 fn dependency_tree_rows_show_source_size_and_immediate_child_count() {
     let (_root, original) = graph_dashboard();
     let mut report = original.report().clone();
-    report
-        .dependencies
-        .edges
-        .extend([
-            edge("heavy@1.2.3", "leaf@0.1.0"),
-            edge("deep@2.0.0", "leaf@0.1.0"),
-        ]);
+    report.dependencies.edges.extend([
+        edge("heavy@1.2.3", "leaf@0.1.0"),
+        edge("deep@2.0.0", "leaf@0.1.0"),
+    ]);
     report
         .dependencies
         .packages
@@ -1188,7 +1185,8 @@ fn dependency_tree_rows_show_source_size_and_immediate_child_count() {
     dashboard.apply(Action::NextSort);
     dashboard.apply(Action::NextSort);
     assert_eq!(
-        dashboard.dependency_detail_packages()[0].name, "leaf",
+        dashboard.dependency_detail_packages()[0].name,
+        "leaf",
         "the right sidebar uses the same source-size sort as the direct list"
     );
 
