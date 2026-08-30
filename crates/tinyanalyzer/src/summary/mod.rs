@@ -203,7 +203,7 @@ fn dependencies(out: &mut String, report: &Report) {
             out,
             "  {:<34}{:<12}{:>4} exclusive{:>6} reached",
             truncate_path(&package.name, 34),
-            package.version,
+            truncate_path(&package.version, 11),
             package.exclusive_count,
             package.transitive_count
         );

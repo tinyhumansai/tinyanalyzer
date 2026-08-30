@@ -619,6 +619,20 @@ fn use_tree_root(tree: &syn::UseTree) -> Option<String> {
     Some(root)
 }
 
+/// Whether a match arm maps its pattern straight onto a constant.
+///
+/// A literal, a path, a unit struct, or a small call over those: the arm makes
+/// no decision of its own, it names an answer.
+fn is_lookup_arm(body: &syn::Expr) -> bool {
+    match body {
+        syn::Expr::Lit(_) | syn::Expr::Path(_) => true,
+        syn::Expr::Reference(reference) => is_lookup_arm(&reference.expr),
+        syn::Expr::Call(call) => call.args.iter().all(is_lookup_arm),
+        syn::Expr::Tuple(tuple) => tuple.elems.iter().all(is_lookup_arm),
+        _ => false,
+    }
+}
+
 /// Scores one function body's cyclomatic complexity and nesting.
 ///
 /// Kept separate from [`FileVisitor`] because it is run per function on the
@@ -655,7 +669,15 @@ impl<'ast> Visit<'ast> for ComplexityVisitor {
     }
 
     fn visit_arm(&mut self, node: &'ast syn::Arm) {
-        self.branch();
+        // An arm that maps a pattern straight onto a constant is a lookup
+        // table, not a decision. Counting those makes every exhaustive `match`
+        // over an enum — the shape this codebase is *supposed* to use — read as
+        // the most tangled function in the repository, which trains a reader to
+        // ignore the metric entirely.
+        if !is_lookup_arm(&node.body) || node.guard.is_some() {
+            self.branch();
+        }
+
         visit::visit_arm(self, node);
     }
 

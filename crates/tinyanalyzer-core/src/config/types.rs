@@ -91,12 +91,21 @@ impl Default for ScanConfig {
         Self {
             include: Vec::new(),
             exclude: vec![
+                // Build output and vendored trees: nobody wrote them and
+                // nobody will refactor them.
                 "target/**".to_owned(),
                 "**/target/**".to_owned(),
                 "vendor/**".to_owned(),
                 "worktrees/**".to_owned(),
                 "node_modules/**".to_owned(),
                 ".git/**".to_owned(),
+                // Lockfiles and license texts are enormous, generated or
+                // legally fixed, and would otherwise top every ranking in the
+                // report while being the two files in the repository nobody is
+                // allowed to shorten.
+                "**/*.lock".to_owned(),
+                "LICENSE*".to_owned(),
+                "**/LICENSE*".to_owned(),
             ],
             test_patterns: vec![
                 "**/tests/**".to_owned(),

@@ -73,6 +73,13 @@ pub fn analyze_with(root: impl AsRef<Path>, config: &Config) -> Result<Report> {
         });
     }
 
+    // Resolved before anything reads it, so that analyzing `.` reports the
+    // directory's real name rather than a project called "unnamed project".
+    // A root that cannot be canonicalized is still analyzable, so the failure
+    // falls back rather than propagating.
+    let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let root = canonical.as_path();
+
     let discovered = walk::discover(root, &config.scan)?;
     let manifests = manifest_map(&discovered);
 
