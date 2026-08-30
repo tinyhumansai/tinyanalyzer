@@ -1132,7 +1132,17 @@ fn dependency_tree_rows_show_source_size_and_immediate_child_count() {
     report
         .dependencies
         .edges
-        .push(edge("deep@2.0.0", "leaf@0.1.0"));
+        .extend([
+            edge("heavy@1.2.3", "leaf@0.1.0"),
+            edge("deep@2.0.0", "leaf@0.1.0"),
+        ]);
+    report
+        .dependencies
+        .packages
+        .iter_mut()
+        .find(|package| package.id == "leaf@0.1.0")
+        .expect("leaf remains in the fixture")
+        .source_bytes = 500;
     let mut dashboard = Dashboard::new(report, StartView::Dependencies, false);
     dashboard.apply(Action::SelectView(View::Dependencies.index()));
 
@@ -1149,10 +1159,41 @@ fn dependency_tree_rows_show_source_size_and_immediate_child_count() {
         .find(|row| row.contains("leaf v0.1.0"))
         .expect("the leaf dependency is drawn");
 
-    assert_eq!(deep.find("300 B"), leaf.find("100 B"));
+    assert_eq!(deep.find("300 B"), leaf.find("500 B"));
     assert_eq!(deep.find("  1 dep"), leaf.find("  0 deps"));
     assert!(deep.contains("300 B ·   1 dep"));
-    assert!(leaf.contains("100 B ·   0 deps"));
+    assert!(leaf.contains("500 B ·   0 deps"));
+
+    dashboard.apply(Action::EnterDependency);
+    assert!(dashboard.dependency_detail_focused());
+    assert_eq!(
+        dashboard
+            .dependency_detail_parent()
+            .map(|package| package.name.as_str()),
+        Some("heavy")
+    );
+    dashboard.apply(Action::EnterDependency);
+    assert_eq!(
+        dashboard
+            .dependency_detail_parent()
+            .map(|package| package.name.as_str()),
+        Some("deep")
+    );
+    assert_eq!(dashboard.dependency_detail_packages()[0].name, "leaf");
+
+    dashboard.apply(Action::LeaveDependency);
+    assert!(dashboard.dependency_detail_focused());
+    dashboard.apply(Action::NextSort);
+    assert_eq!(dashboard.dependency_detail_packages()[0].name, "deep");
+    dashboard.apply(Action::NextSort);
+    dashboard.apply(Action::NextSort);
+    assert_eq!(
+        dashboard.dependency_detail_packages()[0].name, "leaf",
+        "the right sidebar uses the same source-size sort as the direct list"
+    );
+
+    dashboard.apply(Action::LeaveDependency);
+    assert!(!dashboard.dependency_detail_focused());
 }
 
 #[test]
