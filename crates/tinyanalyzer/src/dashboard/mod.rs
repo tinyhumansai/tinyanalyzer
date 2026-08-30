@@ -209,6 +209,7 @@ fn action_for_event(event: &Event, area: Rect, dashboard: &Dashboard) -> Option<
                 KeyCode::Char('d') if !dashboard.dependency_detail_focused() => {
                     Some(Action::SimulateRemoveDependency)
                 }
+                KeyCode::Char('d') => None,
                 KeyCode::Char('r') => Some(Action::RestoreDependencies),
                 KeyCode::Char('f') => Some(Action::ToggleFeature),
                 KeyCode::Char('[') => Some(Action::PreviousFeature),
