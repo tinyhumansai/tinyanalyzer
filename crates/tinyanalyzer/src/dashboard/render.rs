@@ -117,26 +117,48 @@ fn title(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     let totals = dashboard.totals();
     let project = &dashboard.report().project;
 
-    let line = Line::from(vec![
+    let mut spans = vec![
         Span::styled(
             format!(" {} ", project.name),
             Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
         ),
-        Span::styled(totals.files.to_string(), Style::default().fg(METRIC)),
-        Span::raw(" files · "),
-        Span::styled(totals.lines.code.to_string(), Style::default().fg(METRIC)),
-        Span::raw(" loc · "),
-        Span::styled(totals.functions.to_string(), Style::default().fg(METRIC)),
-        Span::raw(" functions · "),
-        Span::styled(
-            totals.external_packages.to_string(),
-            Style::default().fg(METRIC),
-        ),
-        Span::raw(" crates · "),
-        Span::styled(human_bytes(totals.bytes), Style::default().fg(SIZE)),
-    ]);
+    ];
+    if dashboard.view() == View::Dependencies {
+        spans.extend([
+            Span::styled(
+                dashboard.direct_dependency_count().to_string(),
+                Style::default().fg(METRIC),
+            ),
+            Span::raw(" direct deps · "),
+            Span::styled(
+                dashboard.report().dependencies.external_packages.to_string(),
+                Style::default().fg(METRIC),
+            ),
+            Span::raw(" total · "),
+            Span::styled(
+                dashboard.simulated_build_dependency_count().to_string(),
+                Style::default().fg(SIZE),
+            ),
+            Span::raw(" crates if built"),
+        ]);
+    } else {
+        spans.extend([
+            Span::styled(totals.files.to_string(), Style::default().fg(METRIC)),
+            Span::raw(" files · "),
+            Span::styled(totals.lines.code.to_string(), Style::default().fg(METRIC)),
+            Span::raw(" loc · "),
+            Span::styled(totals.functions.to_string(), Style::default().fg(METRIC)),
+            Span::raw(" functions · "),
+            Span::styled(
+                totals.external_packages.to_string(),
+                Style::default().fg(METRIC),
+            ),
+            Span::raw(" crates · "),
+            Span::styled(human_bytes(totals.bytes), Style::default().fg(SIZE)),
+        ]);
+    }
 
-    frame.render_widget(Paragraph::new(line), area);
+    frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
 /// The tab bar.
@@ -639,14 +661,25 @@ fn dependencies(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         .packages()
         .iter()
         .map(|package| {
+            let removed = dashboard.dependency_is_removed(&package.id);
             Row::new(vec![
                 Cell::from(Span::styled(
-                    truncate_path(&package.name, 32),
-                    Style::default().fg(DIRECTORY).add_modifier(Modifier::BOLD),
+                    if removed {
+                        format!("✕ {}", truncate_path(&package.name, 30))
+                    } else {
+                        truncate_path(&package.name, 32)
+                    },
+                    Style::default()
+                        .fg(if removed { Color::LightRed } else { DIRECTORY })
+                        .add_modifier(Modifier::BOLD),
                 )),
                 Cell::from(Span::styled(
-                    package.version.clone(),
-                    Style::default().fg(MUTED),
+                    if removed {
+                        "mock removed".to_owned()
+                    } else {
+                        package.version.clone()
+                    },
+                    Style::default().fg(if removed { Color::LightRed } else { MUTED }),
                 )),
                 Cell::from(Span::styled(
                     package.exclusive_count.to_string(),
