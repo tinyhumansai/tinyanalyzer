@@ -272,12 +272,14 @@ fn status(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         if dashboard.view() == View::Dependencies {
             spans.push(Span::styled(" · enter", Style::default().fg(ACCENT)));
             spans.push(Span::raw(" open · "));
-            if dashboard.dependency_at_root() {
+            if dashboard.dependency_detail_focused() {
+                spans.push(Span::styled("↑↓", Style::default().fg(ACCENT)));
+                spans.push(Span::raw(" detail · "));
+                spans.push(Span::styled("esc", Style::default().fg(ACCENT)));
+                spans.push(Span::raw(" back · "));
+            } else {
                 spans.push(Span::styled("d", Style::default().fg(Color::LightRed)));
                 spans.push(Span::raw(" toggle mock remove · "));
-            } else {
-                spans.push(Span::styled("esc", Style::default().fg(ACCENT)));
-                spans.push(Span::raw(" parent · "));
             }
             spans.push(Span::styled("r", Style::default().fg(Color::LightGreen)));
             spans.push(Span::raw(" restore · "));
