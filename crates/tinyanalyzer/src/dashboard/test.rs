@@ -1368,6 +1368,10 @@ fn dependency_keys_are_contextual() {
         Some(Action::MoveDependencyDown)
     );
     assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Up)), area, &dashboard),
+        Some(Action::MoveDependencyUp)
+    );
+    assert_eq!(
         action_for_event(&Event::Key(key(KeyCode::Esc)), area, &dashboard),
         Some(Action::LeaveDependency)
     );
