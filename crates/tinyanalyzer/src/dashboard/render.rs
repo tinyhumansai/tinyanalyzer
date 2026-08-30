@@ -12,7 +12,7 @@ use super::state::{Dashboard, View};
 use crate::summary::{human_bytes, truncate_path};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Color, Modifier, Style, Stylize};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Bar, BarChart, BarGroup, Block, Borders, Cell, List, ListItem, Paragraph, Row, Table,
@@ -24,7 +24,7 @@ use tinyanalyzer_core::{Finding, Severity};
 const ACCENT: Color = Color::Cyan;
 
 /// Draws the whole dashboard.
-pub fn draw(frame: &mut Frame<'_>, dashboard: &Dashboard) {
+pub(super) fn draw(frame: &mut Frame<'_>, dashboard: &Dashboard) {
     let areas = Layout::vertical([
         Constraint::Length(1),
         Constraint::Length(1),
