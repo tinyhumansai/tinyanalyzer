@@ -492,7 +492,7 @@ impl Dashboard {
             return;
         };
         let selected_path = selected.path.clone();
-        let has_children = self.report.files.iter().any(|file| {
+        let has_children = self.files().iter().any(|file| {
             file.directory
                 .strip_prefix(&selected_path)
                 .is_some_and(|rest| rest.starts_with('/'))

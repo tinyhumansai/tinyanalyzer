@@ -13,13 +13,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::action_for;
+use super::{action_for, action_for_event};
 use super::render;
 use super::state::{Action, Dashboard, View};
 use crate::error::{Error, Result};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
-use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui::crossterm::event::{
+    Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
+use ratatui::layout::Rect;
 use std::path::Path;
 use tempfile::TempDir;
 use tinyanalyzer_core::{Config, DependencyConfig, Report, StartView, analyze_with};
@@ -191,6 +194,15 @@ fn rendered(dashboard: &Dashboard) -> String {
 
 fn key(code: KeyCode) -> KeyEvent {
     KeyEvent::new(code, KeyModifiers::NONE)
+}
+
+fn mouse(kind: MouseEventKind, column: u16, row: u16) -> Event {
+    Event::Mouse(MouseEvent {
+        kind,
+        column,
+        row,
+        modifiers: KeyModifiers::NONE,
+    })
 }
 
 #[test]
@@ -976,6 +988,120 @@ fn the_directories_view_lists_directories_with_their_sizes() {
 
     assert!(dashboard.row_count() > 0);
     assert!(rendered(&dashboard).contains("Directories"));
+}
+
+#[test]
+fn directories_are_grouped_by_level_and_navigation_restores_the_parent_cursor() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Directories.index()));
+
+    assert_eq!(dashboard.directory_path(), ".");
+    assert_eq!(
+        dashboard
+            .directories()
+            .iter()
+            .map(|directory| directory.path.as_str())
+            .collect::<Vec<_>>(),
+        vec!["crates"],
+        "only immediate children belong at the root level"
+    );
+
+    dashboard.apply(Action::EnterDirectory);
+    assert_eq!(dashboard.directory_path(), "crates");
+    assert!(
+        dashboard
+            .directories()
+            .iter()
+            .all(|directory| directory.path.matches('/').count() == 1),
+        "the next level contains app and engine, not their src descendants"
+    );
+
+    let engine = dashboard
+        .directories()
+        .iter()
+        .position(|directory| directory.path == "crates/engine")
+        .expect("the engine directory is visible at this level");
+    dashboard.apply(Action::SelectRow(engine));
+    dashboard.apply(Action::EnterDirectory);
+    assert_eq!(dashboard.directory_path(), "crates/engine");
+
+    dashboard.apply(Action::LeaveDirectory);
+    assert_eq!(dashboard.directory_path(), "crates");
+    assert_eq!(dashboard.cursor(), engine);
+
+    dashboard.apply(Action::LeaveDirectory);
+    assert_eq!(dashboard.directory_path(), ".");
+}
+
+#[test]
+fn directory_rows_contain_cumulative_subtree_metrics() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Directories.index()));
+
+    let crates = dashboard
+        .directories()
+        .into_iter()
+        .find(|directory| directory.path == "crates")
+        .expect("the workspace crates are grouped together");
+    let files_below_crates = dashboard
+        .files()
+        .iter()
+        .filter(|file| file.path.starts_with("crates/"))
+        .count();
+
+    assert_eq!(crates.files, files_below_crates);
+    assert!(crates.bytes > 0);
+}
+
+#[test]
+fn mouse_clicks_select_tabs_and_rows_and_the_wheel_moves_the_cursor() {
+    let (_root, mut dashboard) = dashboard();
+    let area = Rect::new(0, 0, 160, 48);
+
+    let files_tab = action_for_event(mouse(MouseEventKind::Down(MouseButton::Left), 14, 1), area, &dashboard);
+    assert_eq!(files_tab, Some(Action::SelectView(View::Files.index())));
+    dashboard.apply(files_tab.expect("the files tab is clickable"));
+
+    let second_row = action_for_event(
+        mouse(MouseEventKind::Down(MouseButton::Left), 2, 5),
+        area,
+        &dashboard,
+    );
+    assert_eq!(second_row, Some(Action::SelectRow(1)));
+    dashboard.apply(second_row.expect("the second file row is clickable"));
+    assert_eq!(dashboard.cursor(), 1);
+
+    dashboard.apply(
+        action_for_event(mouse(MouseEventKind::ScrollUp, 2, 5), area, &dashboard)
+            .expect("the wheel is handled"),
+    );
+    assert_eq!(dashboard.cursor(), 0);
+}
+
+#[test]
+fn mouse_clicks_enter_directories_and_right_click_leaves_them() {
+    let (_root, mut dashboard) = graph_dashboard();
+    let area = Rect::new(0, 0, 160, 48);
+    dashboard.apply(Action::SelectView(View::Directories.index()));
+
+    let first_row = action_for_event(
+        mouse(MouseEventKind::Down(MouseButton::Left), 2, 4),
+        area,
+        &dashboard,
+    );
+    assert_eq!(first_row, Some(Action::EnterDirectoryAt(0)));
+    dashboard.apply(first_row.expect("the directory row is clickable"));
+    assert_eq!(dashboard.directory_path(), "crates");
+
+    dashboard.apply(
+        action_for_event(
+            mouse(MouseEventKind::Down(MouseButton::Right), 2, 4),
+            area,
+            &dashboard,
+        )
+        .expect("right-click leaves a directory"),
+    );
+    assert_eq!(dashboard.directory_path(), ".");
 }
 
 #[test]
