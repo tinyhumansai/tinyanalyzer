@@ -18,7 +18,7 @@ use ratatui::widgets::{
     Bar, BarChart, BarGroup, Block, Borders, Cell, List, ListItem, Paragraph, Row, Table,
     TableState, Wrap,
 };
-use tinyanalyzer_core::{Finding, Severity};
+use tinyanalyzer_core::{Finding, PackageNode, Severity};
 
 /// Shared palette. Standard ANSI colors remain legible without assuming a
 /// particular terminal background, while the bright variants provide enough
