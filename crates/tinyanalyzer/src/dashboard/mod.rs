@@ -33,14 +33,67 @@ use tinyanalyzer_core::{Report, StartView};
 /// Returns [`Error::Terminal`] if the terminal cannot be put into raw mode,
 /// read from, or restored.
 pub fn run(report: Report, start: StartView, hide_tests: bool) -> Result<()> {
+    run_inner(report, start, hide_tests, true, None)
+}
+
+/// Opens a dashboard that can rebuild its report when ignore handling changes.
+///
+/// `reload` receives the new `respect_gitignore` value whenever the operator
+/// presses `i`.
+///
+/// # Errors
+///
+/// Returns [`Error::Terminal`] for terminal failures, or forwards an analysis
+/// error returned by `reload`.
+pub fn run_with_reload(
+    report: Report,
+    start: StartView,
+    hide_tests: bool,
+    respect_gitignore: bool,
+    reload: &mut dyn FnMut(bool) -> Result<Report>,
+) -> Result<()> {
+    run_inner(
+        report,
+        start,
+        hide_tests,
+        respect_gitignore,
+        Some(reload),
+    )
+}
+
+fn run_inner(
+    report: Report,
+    start: StartView,
+    hide_tests: bool,
+    respect_gitignore: bool,
+    mut reload: Option<&mut dyn FnMut(bool) -> Result<Report>>,
+) -> Result<()> {
     let mut dashboard = Dashboard::new(report, start, hide_tests);
+    dashboard.set_respect_gitignore(respect_gitignore);
     let mut terminal = ratatui::try_init().map_err(|source| Error::Terminal { source })?;
 
     let mouse = MouseCapture::enable().inspect_err(|_| {
         let _ = ratatui::try_restore();
     })?;
 
-    let outcome = drive(&mut terminal, &mut dashboard, &mut read_event);
+    let outcome = loop {
+        if let Err(error) = drive(&mut terminal, &mut dashboard, &mut read_event) {
+            break Err(error);
+        }
+        if dashboard.should_quit() {
+            break Ok(());
+        }
+        let Some(respect) = dashboard.take_reload_request() else {
+            break Ok(());
+        };
+        let Some(callback) = reload.as_deref_mut() else {
+            break Ok(());
+        };
+        match callback(respect) {
+            Ok(report) => dashboard.replace_report(report),
+            Err(error) => break Err(error),
+        }
+    };
 
     // Restored before the outcome is inspected: a failure inside the loop must
     // not leave the terminal in raw mode on the way out.
@@ -117,7 +170,7 @@ where
     B::Error: std::error::Error + Send + Sync + 'static,
 {
     let mut area = Rect::default();
-    while !dashboard.should_quit() {
+    while !dashboard.should_quit() && !dashboard.reload_requested() {
         terminal
             .draw(|frame| {
                 area = frame.area();
@@ -262,6 +315,7 @@ pub fn action_for(key: KeyEvent, editing_filter: bool) -> Option<Action> {
         KeyCode::Home | KeyCode::Char('g') => Some(Action::First),
         KeyCode::End | KeyCode::Char('G') => Some(Action::Last),
         KeyCode::Char('t') => Some(Action::ToggleTests),
+        KeyCode::Char('i') => Some(Action::ToggleGitignore),
         KeyCode::Char('s') => Some(Action::NextSort),
         KeyCode::Char('/') => Some(Action::StartFilter),
         KeyCode::Char(digit @ '1'..='9') => {

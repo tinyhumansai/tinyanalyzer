@@ -39,7 +39,19 @@ fn run(cli: &Cli) -> Result<()> {
     let report = analyze_with(&cli.path, &config)?;
 
     match cli.output {
-        Output::Dashboard => dashboard::run(report, config.ui.start_view, config.ui.hide_tests),
+        Output::Dashboard => {
+            let mut reload_config = config.clone();
+            dashboard::run_with_reload(
+                report,
+                config.ui.start_view,
+                config.ui.hide_tests,
+                config.scan.respect_gitignore,
+                &mut |respect_gitignore| {
+                    reload_config.scan.respect_gitignore = respect_gitignore;
+                    analyze_with(&cli.path, &reload_config).map_err(Error::from)
+                },
+            )
+        }
         Output::Summary => emit(cli, summary::render(&report, config.ui.hide_tests)),
         Output::Json => emit(cli, report.to_json()?),
     }
