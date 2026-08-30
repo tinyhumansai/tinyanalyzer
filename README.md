@@ -71,13 +71,12 @@ items, split along the seams already in it" is.
 ```
  tinyanalyzer   58 files · 8339 loc · 508 functions · 216 crates · 382.0 KiB
  1·Overview  2·Files  3·Directories  4·Dependencies  5·Dead code  6·Findings
-                                        ▄▄
- ██   ▀▀                                ██
-▀██▀▀ ██  ████▄ ██ ██  ▀▀█▄ ████▄  ▀▀█▄ ██ ██ ██ ▀▀▀██ ▄█▀█▄ ████▄
- ██   ██  ██ ██ ██▄██ ▄█▀██ ██ ██ ▄█▀██ ██ ██▄██   ▄█▀ ██▄█▀ ██ ▀▀
- ██   ██▄ ██ ██  ▀██▀ ▀█▄██ ██ ██ ▀█▄██ ██  ▀██▀ ▄██▄▄ ▀█▄▄▄ ██
-                  ██                         ██
-                ▀▀▀                        ▀▀▀
+ ▒▒▒▒▒▒  ▒▒  ▒▒▄   ▒▒  ▒▒   ▒▒  ▄▒▒▒▒▄  ▒▒▄   ▒▒  ▄▒▒▒▒▄  ▒▒     ▒▒   ▒▒  ▒▒▀▀▒▄  ▄▒▒▒▒▒  ▒▒▀▒▒▄
+   ▓▓    ▓▓  ▓▓▀▓▄▓▓  ▓▓   ▓▓  ▓▓   ▓▓  ▓▓▀▓▄▓▓  ▓▓   ▓▓  ▓▓     ▓▓   ▓▓  ▀▀   ▓▓  ▓▓   ▓▓  ▓▓   ▓▓
+ ┘┘▀▀┘┘  ▀▀  ▀▀┘┘▀▀▀  ▀▀▀  ▀▀  ▀▀  ┘▀▀  ▀▀┘┘▀▀▀  ▀▀  ┘▀▀  ▀▀┘┘┘  ▀▀▀  ▀▀     ▀▀▀  ▀▀┘┘┘   ▀▀▀▀▀
+   ▓▓    ▓▓  ▓▓    ▓▓   ▀▀▀▓▓  ▓▓▀▀▓▓  ▓▓    ▓▓  ▓▓▀▀▓▓  ▓▓      ▀▀▀▓▓  ▄▓▀▀▀   ▓▓▀▀    ▓▓   ▓▓
+   ▒▒    ▒▒  ▒▒    ▒▒ ▄▄   ▒▒  ▒▒   ▒▒  ▒▒    ▒▒  ▒▒   ▒▒  ▒▒    ▄▄   ▒▒  ▒▒  ▄▄  ▒▒   ▒▒  ▒▒   ▒▒
+   ░░    ░░  ░░    ░░  ░░▄▄░▀  ░░   ░░  ░░    ░░  ░░   ░░  ░░░░░  ░░▄▄░▀  ▀░░▄░░  ▀░░░░░  ░░   ░░
 ┌ Totals ───────────────────────┐┌ Languages by lines of code ─────────────┐
 │ files                  58     ││ ██████████                              │
 │ lines of code        8339     ││ ██████████                              │
@@ -91,6 +90,10 @@ items, split along the seams already in it" is.
 └─────────────────────────────────────────────────────────────────────────┘
  q quit · tab/1-6 view · ↑↓ move · t tests · / filter · tests shown
 ```
+
+On wide terminals the colored wordmark occupies only the left column above
+Totals; Languages stays pinned to the top-right. The wordmark disappears when
+that column is too narrow or short, preserving space for both data panels.
 
 | Key | What it does |
 |---|---|
