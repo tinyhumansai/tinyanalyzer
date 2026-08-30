@@ -148,40 +148,44 @@ fn classify(language: Language, trimmed: &str, open_block: &mut Option<&'static 
 ///
 /// Skipping string literals is what keeps a line like `print("/* hi */")` from
 /// putting the scanner into a comment it never leaves.
-fn first_block_open(language: Language, line: &str) -> Option<(usize, &'static str, &'static str)> {
+///
+/// The scan walks characters rather than bytes. Walking bytes and then slicing
+/// on the byte offset splits a multi-byte character in half, which is a panic
+/// rather than a wrong answer — and prose, box-drawing diagrams, and any
+/// language that is not ASCII are full of them.
+fn first_block_open(
+    language: Language,
+    line: &str,
+) -> Option<(usize, &'static str, &'static str)> {
     let delimiters = language.block_comments();
     if delimiters.is_empty() {
         return None;
     }
 
-    let bytes = line.as_bytes();
-    let mut index = 0;
-    let mut in_string: Option<u8> = None;
+    // Python's block delimiters *are* string quotes, so a language whose
+    // comments are triple-quoted strings cannot also skip string literals.
+    let quotes_are_comments = delimiters
+        .iter()
+        .any(|(open, _)| open.starts_with('"') || open.starts_with('\''));
 
-    while index < bytes.len() {
-        let byte = bytes[index];
+    let mut characters = line.char_indices();
+    let mut in_string: Option<char> = None;
 
+    while let Some((index, character)) = characters.next() {
         if let Some(quote) = in_string {
-            if byte == b'\\' {
-                index = index.saturating_add(2);
+            if character == '\\' {
+                // Skip whatever the backslash escapes, including a quote.
+                characters.next();
                 continue;
             }
-            if byte == quote {
+            if character == quote {
                 in_string = None;
             }
-            index = index.saturating_add(1);
             continue;
         }
 
-        // Python's block delimiters *are* string quotes, so a language whose
-        // comments are triple-quoted strings cannot also skip string literals.
-        let quotes_are_comments = delimiters
-            .iter()
-            .any(|(open, _)| open.starts_with('"') || open.starts_with('\''));
-
-        if !quotes_are_comments && (byte == b'"' || byte == b'\'') {
-            in_string = Some(byte);
-            index = index.saturating_add(1);
+        if !quotes_are_comments && (character == '"' || character == '\'') {
+            in_string = Some(character);
             continue;
         }
 
@@ -190,8 +194,6 @@ fn first_block_open(language: Language, line: &str) -> Option<(usize, &'static s
                 return Some((index, open, close));
             }
         }
-
-        index = index.saturating_add(1);
     }
 
     None
