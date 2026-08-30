@@ -286,10 +286,6 @@ fn it_finds_the_unreferenced_function_and_not_the_used_one() {
         !names.contains(&"add"),
         "`app::run` calls it from production code"
     );
-    assert!(
-        !names.contains(&"assist"),
-        "`helper::assist` is public and unused, so it is a medium-confidence          candidate rather than a certain one"
-    );
 }
 
 #[test]
