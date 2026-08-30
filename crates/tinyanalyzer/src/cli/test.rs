@@ -8,8 +8,8 @@
 use super::{Cli, Output, View};
 use clap::Parser;
 use std::path::{Path, PathBuf};
-use tinyanalyzer_core::{CONFIG_FILE_NAME, StartView};
 use tempfile::TempDir;
+use tinyanalyzer_core::{CONFIG_FILE_NAME, StartView};
 
 fn parse(args: &[&str]) -> Cli {
     let mut command_line = vec!["tinyanalyzer"];

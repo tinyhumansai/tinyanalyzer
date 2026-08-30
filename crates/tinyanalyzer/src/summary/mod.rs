@@ -97,26 +97,27 @@ fn totals(out: &mut String, report: &Report, hide_tests: bool) {
         report.totals
     };
 
-    section(out, if hide_tests { "Totals (excluding tests)" } else { "Totals" });
+    section(
+        out,
+        if hide_tests {
+            "Totals (excluding tests)"
+        } else {
+            "Totals"
+        },
+    );
 
+    let _ = writeln!(out, "  {:<22}{:>10}", "files", totals.files);
+    let _ = writeln!(out, "  {:<22}{:>10}", "directories", totals.directories);
+    let _ = writeln!(out, "  {:<22}{:>10}", "lines of code", totals.lines.code);
     let _ = writeln!(
         out,
         "  {:<22}{:>10}",
-        "files",
-        totals.files
+        "lines of comment", totals.lines.comment
     );
-    let _ = writeln!(out, "  {:<22}{:>10}", "directories", totals.directories);
-    let _ = writeln!(out, "  {:<22}{:>10}", "lines of code", totals.lines.code);
-    let _ = writeln!(out, "  {:<22}{:>10}", "lines of comment", totals.lines.comment);
     let _ = writeln!(out, "  {:<22}{:>10}", "blank lines", totals.lines.blank);
     let _ = writeln!(out, "  {:<22}{:>10}", "functions", totals.functions);
     let _ = writeln!(out, "  {:<22}{:>10}", "items", totals.items.total());
-    let _ = writeln!(
-        out,
-        "  {:<22}{:>10}",
-        "on disk",
-        human_bytes(totals.bytes)
-    );
+    let _ = writeln!(out, "  {:<22}{:>10}", "on disk", human_bytes(totals.bytes));
 
     if !hide_tests {
         let _ = writeln!(out, "  {:<22}{:>10}", "test files", totals.test_files);
@@ -167,7 +168,12 @@ fn heaviest_files(out: &mut String, report: &Report, hide_tests: bool) {
         let complexity: u32 = file
             .rust
             .as_ref()
-            .map(|rust| rust.functions.iter().map(|function| function.complexity).sum())
+            .map(|rust| {
+                rust.functions
+                    .iter()
+                    .map(|function| function.complexity)
+                    .sum()
+            })
             .unwrap_or_default();
 
         let _ = writeln!(
@@ -253,12 +259,7 @@ fn findings(out: &mut String, report: &Report) {
     }
 
     for finding in report.findings.iter().take(SECTION_ROWS) {
-        let _ = writeln!(
-            out,
-            "  [{}] {}",
-            finding.severity.label(),
-            finding.title
-        );
+        let _ = writeln!(out, "  [{}] {}", finding.severity.label(), finding.title);
         let _ = writeln!(out, "      {}", finding.detail);
         let _ = writeln!(out, "      → {}", finding.suggestion);
     }

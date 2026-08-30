@@ -74,8 +74,14 @@ pub fn analyze(files: &[DeadCodeInput<'_>], config: &DeadCodeConfig) -> Vec<Dead
                 continue;
             }
 
-            let declared = declarations.get(definition.name.as_str()).copied().unwrap_or(0);
-            let seen = occurrences.get(definition.name.as_str()).copied().unwrap_or(0);
+            let declared = declarations
+                .get(definition.name.as_str())
+                .copied()
+                .unwrap_or(0);
+            let seen = occurrences
+                .get(definition.name.as_str())
+                .copied()
+                .unwrap_or(0);
 
             if seen > declared {
                 continue;

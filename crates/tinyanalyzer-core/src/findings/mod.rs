@@ -335,11 +335,7 @@ fn file_signals(file: &FileMetrics, rust: &RustFile, out: &mut Vec<Finding>) {
 }
 
 /// Flags directories holding more files than they can explain.
-fn directories(
-    directories: &[DirectoryMetrics],
-    thresholds: &Thresholds,
-    out: &mut Vec<Finding>,
-) {
+fn directories(directories: &[DirectoryMetrics], thresholds: &Thresholds, out: &mut Vec<Finding>) {
     for directory in directories {
         if directory.files < thresholds.large_directory_files {
             continue;
@@ -361,11 +357,7 @@ fn directories(
 }
 
 /// Flags heavy, duplicated, and apparently unused dependencies.
-fn dependencies(
-    report: &DependencyReport,
-    thresholds: &Thresholds,
-    out: &mut Vec<Finding>,
-) {
+fn dependencies(report: &DependencyReport, thresholds: &Thresholds, out: &mut Vec<Finding>) {
     for package in report.heaviest_direct() {
         if package.exclusive_count < thresholds.heavy_dependency_crates {
             continue;

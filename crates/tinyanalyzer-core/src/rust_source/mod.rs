@@ -37,9 +37,7 @@
 
 mod types;
 
-pub use types::{
-    Definition, DefinitionKind, Function, ItemCounts, PerformanceSignals, RustFile,
-};
+pub use types::{Definition, DefinitionKind, Function, ItemCounts, PerformanceSignals, RustFile};
 
 use proc_macro2::TokenTree;
 use std::collections::BTreeMap;
@@ -287,7 +285,13 @@ impl FileVisitor {
         // type; only free functions are candidates for being unreferenced.
         if define_as_item {
             let externally_reachable = is_externally_reachable(attrs) || is_test;
-            self.define(name, DefinitionKind::Function, span, public, externally_reachable);
+            self.define(
+                name,
+                DefinitionKind::Function,
+                span,
+                public,
+                externally_reachable,
+            );
         }
 
         let was_in_test = self.in_test;
@@ -554,8 +558,7 @@ impl<'ast> Visit<'ast> for FileVisitor {
     }
 
     fn visit_type_trait_object(&mut self, node: &'ast syn::TypeTraitObject) {
-        self.file.performance.dyn_dispatch =
-            self.file.performance.dyn_dispatch.saturating_add(1);
+        self.file.performance.dyn_dispatch = self.file.performance.dyn_dispatch.saturating_add(1);
         visit::visit_type_trait_object(self, node);
     }
 

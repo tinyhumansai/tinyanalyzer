@@ -82,8 +82,7 @@ pub fn analyze_with(root: impl AsRef<Path>, config: &Config) -> Result<Report> {
         .collect();
 
     let dependencies = if config.dependencies.enabled {
-        deps::analyze(root, &config.dependencies, &crate_references(&parsed))
-            .unwrap_or_default()
+        deps::analyze(root, &config.dependencies, &crate_references(&parsed)).unwrap_or_default()
     } else {
         DependencyReport::default()
     };
@@ -171,10 +170,7 @@ struct ParsedFile<'a> {
 }
 
 /// Counts and parses one file.
-fn parse_one<'a>(
-    source: &'a SourceFile,
-    manifests: &BTreeMap<String, String>,
-) -> ParsedFile<'a> {
+fn parse_one<'a>(source: &'a SourceFile, manifests: &BTreeMap<String, String>) -> ParsedFile<'a> {
     let text = source.text.as_deref().unwrap_or_default();
     let lines = count_lines(source.language, text);
 

@@ -218,10 +218,7 @@ fn a_method_is_not_a_dead_code_candidate() {
     let file = parsed("struct S; impl S { fn method(&self) {} }");
 
     assert!(
-        !file
-            .definitions
-            .iter()
-            .any(|item| item.name == "method"),
+        !file.definitions.iter().any(|item| item.name == "method"),
         "methods are reached through their type, not by name"
     );
 }

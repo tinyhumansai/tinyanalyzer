@@ -35,7 +35,10 @@ fn fixture() -> (TempDir, Report) {
     write(
         root.path(),
         "src/lib.rs",
-        &format!("//! docs\npub fn a() {{\n{}}}\n", "    let _ = 1;\n".repeat(80)),
+        &format!(
+            "//! docs\npub fn a() {{\n{}}}\n",
+            "    let _ = 1;\n".repeat(80)
+        ),
     );
     write(root.path(), "src/small.rs", "pub fn b() {}\n");
     write(root.path(), "tests/api.rs", "#[test]\nfn t() {}\n");

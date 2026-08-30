@@ -95,12 +95,18 @@ fn tabs(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
 fn status(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     let line = if dashboard.editing_filter() {
         Line::from(vec![
-            Span::styled(" filter: ", Style::default().fg(Color::Black).bg(Color::Yellow)),
+            Span::styled(
+                " filter: ",
+                Style::default().fg(Color::Black).bg(Color::Yellow),
+            ),
             Span::styled(
                 format!("{}█", dashboard.filter()),
                 Style::default().fg(Color::Yellow),
             ),
-            Span::styled("  enter to keep · esc to clear", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                "  enter to keep · esc to clear",
+                Style::default().fg(Color::DarkGray),
+            ),
         ])
     } else {
         let tests = if dashboard.hide_tests() {
@@ -150,12 +156,10 @@ fn body(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
 
 /// A bordered block with a title.
 fn panel(title: &str) -> Block<'_> {
-    Block::default()
-        .borders(Borders::ALL)
-        .title(Span::styled(
-            format!(" {title} "),
-            Style::default().fg(ACCENT),
-        ))
+    Block::default().borders(Borders::ALL).title(Span::styled(
+        format!(" {title} "),
+        Style::default().fg(ACCENT),
+    ))
 }
 
 /// The color a severity is drawn in.
@@ -185,9 +189,10 @@ fn table(frame: &mut Frame<'_>, area: Rect, table: Table<'_>, selected: usize) {
 
 /// Totals, the language mix, and the top findings.
 fn overview(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
-    let rows = Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
-    let top = Layout::horizontal([Constraint::Percentage(45), Constraint::Percentage(55)])
-        .split(rows[0]);
+    let rows =
+        Layout::vertical([Constraint::Percentage(50), Constraint::Percentage(50)]).split(area);
+    let top =
+        Layout::horizontal([Constraint::Percentage(45), Constraint::Percentage(55)]).split(rows[0]);
 
     totals_panel(frame, top[0], dashboard);
     languages_panel(frame, top[1], dashboard);
@@ -216,7 +221,10 @@ fn totals_panel(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         pair("on disk", human_bytes(totals.bytes)),
         pair("test files", report.totals.test_files.to_string()),
         pair("external crates", totals.external_packages.to_string()),
-        pair("duplicated crates", report.dependencies.duplicates.len().to_string()),
+        pair(
+            "duplicated crates",
+            report.dependencies.duplicates.len().to_string(),
+        ),
         pair("unreferenced items", report.dead_code.len().to_string()),
         pair("clones", totals.performance.clones.to_string()),
         pair(
@@ -264,8 +272,8 @@ fn languages_panel(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
 
 /// Files, ranked.
 fn files(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
-    let panes = Layout::horizontal([Constraint::Percentage(62), Constraint::Percentage(38)])
-        .split(area);
+    let panes =
+        Layout::horizontal([Constraint::Percentage(62), Constraint::Percentage(38)]).split(area);
 
     let rows: Vec<Row<'_>> = dashboard
         .files()
@@ -274,7 +282,12 @@ fn files(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
             let complexity: u32 = file
                 .rust
                 .as_ref()
-                .map(|rust| rust.functions.iter().map(|function| function.complexity).sum())
+                .map(|rust| {
+                    rust.functions
+                        .iter()
+                        .map(|function| function.complexity)
+                        .sum()
+                })
                 .unwrap_or_default();
             let functions = file.rust.as_ref().map_or(0, |rust| rust.functions.len());
 
@@ -436,7 +449,14 @@ fn directories(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         frame,
         area,
         Table::new(rows, widths)
-            .header(header_row(&["directory", "files", "code", "docs", "size", ""]))
+            .header(header_row(&[
+                "directory",
+                "files",
+                "code",
+                "docs",
+                "size",
+                "",
+            ]))
             .block(panel(&format!("Directories ({})", dashboard.row_count()))),
         dashboard.cursor(),
     );
@@ -456,8 +476,8 @@ fn dependencies(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         return;
     }
 
-    let panes = Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)])
-        .split(area);
+    let panes =
+        Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)]).split(area);
 
     let rows: Vec<Row<'_>> = dashboard
         .packages()
@@ -549,7 +569,9 @@ fn dependency_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     }
 
     frame.render_widget(
-        Paragraph::new(lines).block(panel("Graph")).wrap(Wrap { trim: false }),
+        Paragraph::new(lines)
+            .block(panel("Graph"))
+            .wrap(Wrap { trim: false }),
         area,
     );
 }
@@ -603,15 +625,18 @@ fn dead_code(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         area,
         Table::new(rows, widths)
             .header(header_row(&["sure", "kind", "name", "where"]))
-            .block(panel(&format!("Unreferenced items ({})", dashboard.row_count()))),
+            .block(panel(&format!(
+                "Unreferenced items ({})",
+                dashboard.row_count()
+            ))),
         dashboard.cursor(),
     );
 }
 
 /// Every finding, with the selected one spelled out.
 fn findings(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
-    let panes = Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)])
-        .split(area);
+    let panes =
+        Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)]).split(area);
 
     findings_list(frame, panes[0], dashboard, "Findings");
     finding_detail(frame, panes[1], dashboard);
@@ -711,6 +736,9 @@ fn detail_lines(finding: &Finding) -> Vec<Line<'_>> {
 
 /// A styled header row for a table.
 fn header_row<'a>(labels: &[&'a str]) -> Row<'a> {
-    Row::new(labels.iter().map(|label| Cell::from(*label)))
-        .style(Style::default().fg(Color::Gray).add_modifier(Modifier::BOLD))
+    Row::new(labels.iter().map(|label| Cell::from(*label))).style(
+        Style::default()
+            .fg(Color::Gray)
+            .add_modifier(Modifier::BOLD),
+    )
 }

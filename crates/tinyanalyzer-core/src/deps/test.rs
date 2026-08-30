@@ -46,7 +46,10 @@ fn package(name: &str, version: &str, direct: bool, exclusive: usize) -> Package
 
 #[test]
 fn hyphens_fold_to_underscores() {
-    assert_eq!(normalize_crate_name("tinyanalyzer-core"), "tinyanalyzer_core");
+    assert_eq!(
+        normalize_crate_name("tinyanalyzer-core"),
+        "tinyanalyzer_core"
+    );
     assert_eq!(normalize_crate_name("serde"), "serde");
 }
 
@@ -209,7 +212,9 @@ fn a_package_can_be_looked_up_by_identifier() {
     };
 
     assert_eq!(
-        report.package("serde@1.0.0").map(|found| found.name.as_str()),
+        report
+            .package("serde@1.0.0")
+            .map(|found| found.name.as_str()),
         Some("serde")
     );
     assert!(report.package("absent@0.0.0").is_none());

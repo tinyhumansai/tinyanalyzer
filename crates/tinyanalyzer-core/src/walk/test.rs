@@ -32,7 +32,10 @@ fn fixture() -> TempDir {
 }
 
 fn paths(files: &[SourceFile]) -> Vec<&str> {
-    files.iter().map(|file| file.relative_path.as_str()).collect()
+    files
+        .iter()
+        .map(|file| file.relative_path.as_str())
+        .collect()
 }
 
 #[test]
@@ -54,7 +57,12 @@ fn finds_files_and_excludes_the_target_directory_by_default() {
 
     assert_eq!(
         paths(&files),
-        ["Cargo.toml", "src/deep/inner.rs", "src/lib.rs", "tests/public_api.rs"]
+        [
+            "Cargo.toml",
+            "src/deep/inner.rs",
+            "src/lib.rs",
+            "tests/public_api.rs"
+        ]
     );
 }
 

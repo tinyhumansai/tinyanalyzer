@@ -39,9 +39,7 @@ fn run(cli: &Cli) -> Result<()> {
     let report = analyze_with(&cli.path, &config)?;
 
     match cli.output {
-        Output::Dashboard => {
-            dashboard::run(report, config.ui.start_view, config.ui.hide_tests)
-        }
+        Output::Dashboard => dashboard::run(report, config.ui.start_view, config.ui.hide_tests),
         Output::Summary => emit(cli, summary::render(&report, config.ui.hide_tests)),
         Output::Json => emit(cli, report.to_json()?),
     }

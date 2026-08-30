@@ -81,5 +81,7 @@ pub use report::{
     DirectoryMetrics, FileMetrics, LanguageMetrics, ParseFailureReport, ProjectSummary, Report,
     SCHEMA_VERSION, Totals, analyze, analyze_with,
 };
-pub use rust_source::{Definition, DefinitionKind, Function, ItemCounts, PerformanceSignals, RustFile};
+pub use rust_source::{
+    Definition, DefinitionKind, Function, ItemCounts, PerformanceSignals, RustFile,
+};
 pub use walk::SourceFile;

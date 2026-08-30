@@ -108,7 +108,11 @@ fn totals_agree_with_the_rows_they_sum() {
     assert_eq!(report.totals.files, report.files.len());
     assert_eq!(
         report.totals.lines.total,
-        report.files.iter().map(|file| file.lines.total).sum::<usize>()
+        report
+            .files
+            .iter()
+            .map(|file| file.lines.total)
+            .sum::<usize>()
     );
     assert_eq!(
         report.totals.bytes,
@@ -174,7 +178,10 @@ fn test_files_are_recognized_by_contents() {
 
     let report = analyze_with(root.path(), &config_without_cargo()).expect("a walkable tree");
 
-    assert!(report.files[0].is_test, "a file of only test items is test code");
+    assert!(
+        report.files[0].is_test,
+        "a file of only test items is test code"
+    );
 }
 
 #[test]
@@ -184,7 +191,10 @@ fn production_totals_exclude_test_code() {
     let report = analyze_with(root.path(), &config_without_cargo()).expect("a walkable tree");
     let production = report.production_totals();
 
-    assert_eq!(production.files, report.totals.files - report.totals.test_files);
+    assert_eq!(
+        production.files,
+        report.totals.files - report.totals.test_files
+    );
     assert_eq!(production.test_files, 0);
     assert!(production.lines.total < report.totals.lines.total);
     assert_eq!(
@@ -279,7 +289,11 @@ fn an_unparseable_file_is_reported_rather_than_dropped() {
 #[test]
 fn files_are_attributed_to_the_crate_that_owns_them() {
     let root = TempDir::new().expect("a temporary directory");
-    write(root.path(), "Cargo.toml", "[workspace]\nmembers = [\"crates/*\"]\n");
+    write(
+        root.path(),
+        "Cargo.toml",
+        "[workspace]\nmembers = [\"crates/*\"]\n",
+    );
     write(
         root.path(),
         "crates/inner/Cargo.toml",
@@ -451,8 +465,8 @@ fn weight_penalizes_allocation_inside_a_loop() {
         comment: 0,
         blank: 0,
     };
-    let hoisted = parse("fn a(s: &str) { let _ = s.to_string(); for _ in 0..3 { } }")
-        .expect("valid Rust");
+    let hoisted =
+        parse("fn a(s: &str) { let _ = s.to_string(); for _ in 0..3 { } }").expect("valid Rust");
     let inside =
         parse("fn a(s: &str) { for _ in 0..3 { let _ = s.to_string(); } }").expect("valid Rust");
 

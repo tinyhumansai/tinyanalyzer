@@ -66,7 +66,11 @@ fn nothing_measured_produces_nothing() {
 #[test]
 fn a_file_one_line_under_the_threshold_is_not_reported() {
     let thresholds = Thresholds::default();
-    let metrics = file("src/lib.rs", lines(thresholds.large_file_lines - 1, 400), None);
+    let metrics = file(
+        "src/lib.rs",
+        lines(thresholds.large_file_lines - 1, 400),
+        None,
+    );
 
     assert!(!rules(&run(&[metrics], &thresholds)).contains(&Rule::LargeFile));
 }
@@ -475,7 +479,11 @@ fn every_finding_names_a_measurement_and_a_remedy() {
 
     for finding in run(&[metrics], &Thresholds::default()) {
         assert!(!finding.title.is_empty(), "{:?} has no title", finding.rule);
-        assert!(!finding.detail.is_empty(), "{:?} has no detail", finding.rule);
+        assert!(
+            !finding.detail.is_empty(),
+            "{:?} has no detail",
+            finding.rule
+        );
         assert!(
             !finding.suggestion.is_empty(),
             "{:?} says what is wrong but not what to do",

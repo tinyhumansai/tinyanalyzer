@@ -81,11 +81,7 @@ enum LineKind {
 /// for, or `None` when it is not inside a block comment. It is threaded through
 /// rather than recomputed because a block comment is the one piece of state a
 /// line-at-a-time scanner cannot recover from the line alone.
-fn classify(
-    language: Language,
-    trimmed: &str,
-    open_block: &mut Option<&'static str>,
-) -> LineKind {
+fn classify(language: Language, trimmed: &str, open_block: &mut Option<&'static str>) -> LineKind {
     // Inside a block comment, the only question is whether it ends here and
     // whether anything follows the terminator on the same line. This is tested
     // before the blank check on purpose: an empty line between `/*` and `*/` is
@@ -152,10 +148,7 @@ fn classify(
 ///
 /// Skipping string literals is what keeps a line like `print("/* hi */")` from
 /// putting the scanner into a comment it never leaves.
-fn first_block_open(
-    language: Language,
-    line: &str,
-) -> Option<(usize, &'static str, &'static str)> {
+fn first_block_open(language: Language, line: &str) -> Option<(usize, &'static str, &'static str)> {
     let delimiters = language.block_comments();
     if delimiters.is_empty() {
         return None;

@@ -9,9 +9,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use super::action_for;
 use super::render;
 use super::state::{Action, Dashboard, View};
-use super::action_for;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -32,7 +32,10 @@ fn fixture() -> (TempDir, Report) {
     write(
         root.path(),
         "src/lib.rs",
-        &format!("//! docs\npub fn a() {{\n{}}}\n", "    let _ = 1;\n".repeat(80)),
+        &format!(
+            "//! docs\npub fn a() {{\n{}}}\n",
+            "    let _ = 1;\n".repeat(80)
+        ),
     );
     write(root.path(), "src/small.rs", "pub fn unreferenced() {}\n");
     write(root.path(), "tests/api.rs", "#[test]\nfn t() {}\n");
@@ -89,7 +92,10 @@ fn view_indexes_wrap_rather_than_panicking() {
 fn every_start_view_maps_onto_a_pane() {
     assert_eq!(View::from_start(StartView::Overview), View::Overview);
     assert_eq!(View::from_start(StartView::Files), View::Files);
-    assert_eq!(View::from_start(StartView::Dependencies), View::Dependencies);
+    assert_eq!(
+        View::from_start(StartView::Dependencies),
+        View::Dependencies
+    );
     assert_eq!(View::from_start(StartView::DeadCode), View::DeadCode);
     assert_eq!(View::from_start(StartView::Findings), View::Findings);
 }
@@ -321,7 +327,12 @@ fn dead_code_rows_match_on_the_name_or_the_file() {
         dashboard.apply(Action::FilterPush(character));
     }
 
-    assert!(dashboard.dead_code().iter().any(|item| item.name == "unreferenced"));
+    assert!(
+        dashboard
+            .dead_code()
+            .iter()
+            .any(|item| item.name == "unreferenced")
+    );
 }
 
 #[test]
@@ -352,15 +363,24 @@ fn a_subtree_of_an_empty_graph_is_empty() {
 
 #[test]
 fn keys_map_onto_the_actions_they_describe() {
-    assert_eq!(action_for(key(KeyCode::Char('q')), false), Some(Action::Quit));
+    assert_eq!(
+        action_for(key(KeyCode::Char('q')), false),
+        Some(Action::Quit)
+    );
     assert_eq!(action_for(key(KeyCode::Esc), false), Some(Action::Quit));
     assert_eq!(action_for(key(KeyCode::Tab), false), Some(Action::NextView));
     assert_eq!(
         action_for(key(KeyCode::BackTab), false),
         Some(Action::PreviousView)
     );
-    assert_eq!(action_for(key(KeyCode::Down), false), Some(Action::MoveDown));
-    assert_eq!(action_for(key(KeyCode::Char('j')), false), Some(Action::MoveDown));
+    assert_eq!(
+        action_for(key(KeyCode::Down), false),
+        Some(Action::MoveDown)
+    );
+    assert_eq!(
+        action_for(key(KeyCode::Char('j')), false),
+        Some(Action::MoveDown)
+    );
     assert_eq!(action_for(key(KeyCode::Up), false), Some(Action::MoveUp));
     assert_eq!(
         action_for(key(KeyCode::Char('t')), false),
@@ -396,7 +416,10 @@ fn while_filtering_ordinary_keys_are_characters_rather_than_commands() {
         action_for(key(KeyCode::Char('t')), true),
         Some(Action::FilterPush('t'))
     );
-    assert_eq!(action_for(key(KeyCode::Esc), true), Some(Action::CancelFilter));
+    assert_eq!(
+        action_for(key(KeyCode::Esc), true),
+        Some(Action::CancelFilter)
+    );
     assert_eq!(
         action_for(key(KeyCode::Enter), true),
         Some(Action::CommitFilter)
@@ -410,7 +433,11 @@ fn while_filtering_ordinary_keys_are_characters_rather_than_commands() {
 
 #[test]
 fn a_key_release_does_nothing() {
-    let release = KeyEvent::new_with_kind(KeyCode::Char('q'), KeyModifiers::NONE, KeyEventKind::Release);
+    let release = KeyEvent::new_with_kind(
+        KeyCode::Char('q'),
+        KeyModifiers::NONE,
+        KeyEventKind::Release,
+    );
 
     assert_eq!(
         action_for(release, false),

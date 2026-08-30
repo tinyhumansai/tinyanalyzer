@@ -159,7 +159,9 @@ impl Function {
         // `end_line` is produced by the parser from the same span as
         // `start_line`, so it is never the smaller of the two; saturating
         // subtraction states that rather than relying on it.
-        self.end_line.saturating_sub(self.start_line).saturating_add(1)
+        self.end_line
+            .saturating_sub(self.start_line)
+            .saturating_add(1)
     }
 }
 
