@@ -275,13 +275,13 @@ impl Dashboard {
 
     /// Whether filesystem discovery currently respects ignore files.
     #[must_use]
-    pub const fn respect_gitignore(&self) -> bool {
+    pub fn respect_gitignore(&self) -> bool {
         self.ignore_policy == IgnorePolicy::Respect
     }
 
     /// Whether the report must be rebuilt for a changed ignore policy.
     #[must_use]
-    pub const fn reload_requested(&self) -> bool {
+    pub fn reload_requested(&self) -> bool {
         self.reload_state == ReloadState::Requested
     }
 
