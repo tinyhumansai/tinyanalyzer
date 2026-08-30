@@ -146,7 +146,32 @@ fn it_finds_the_unreferenced_function_and_not_the_used_one() {
         .collect();
 
     assert!(names.contains(&"never_called"));
-    assert!(!names.contains(&"add"), "`add` is called by the test suite");
+    assert!(
+        names.contains(&"add"),
+        "by default a function only its own tests call is dead weight in the shipped binary"
+    );
+}
+
+#[test]
+fn counting_tests_as_uses_rescues_a_function_only_the_tests_call() {
+    let root = workspace();
+    let config = Config {
+        dead_code: tinyanalyzer_core::DeadCodeConfig {
+            tests_count_as_uses: true,
+            ..tinyanalyzer_core::DeadCodeConfig::default()
+        },
+        ..no_cargo()
+    };
+
+    let report = analyze_with(root.path(), &config).expect("a walkable tree");
+    let names: Vec<&str> = report
+        .dead_code
+        .iter()
+        .map(|candidate| candidate.name.as_str())
+        .collect();
+
+    assert!(names.contains(&"never_called"));
+    assert!(!names.contains(&"add"));
 }
 
 #[test]
