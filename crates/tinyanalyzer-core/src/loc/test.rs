@@ -159,6 +159,32 @@ fn python_triple_quoted_blocks_are_comments() {
 }
 
 #[test]
+fn a_line_containing_a_multi_byte_character_is_scanned_without_panicking() {
+    // The scanner walks the line looking for a block-comment opener. Doing that
+    // by byte index and then slicing on it splits a multi-byte character in
+    // half, which is a panic rather than a wrong answer.
+    let counts = counted(Language::Rust, "// docs \u{2014} with an em dash\nrun();\n");
+
+    assert_eq!(counts.comment, 1);
+    assert_eq!(counts.code, 1);
+}
+
+#[test]
+fn a_multi_byte_character_before_a_block_comment_does_not_shift_the_scanner() {
+    let counts = counted(Language::Rust, "let s = \"\u{2014}\"; /* note */\n");
+
+    assert_eq!(counts.code, 1);
+    assert_eq!(counts.comment, 0);
+}
+
+#[test]
+fn a_line_of_box_drawing_characters_is_scanned_without_panicking() {
+    let counts = counted(Language::Rust, "// \u{251c}\u{2500}\u{2500} tree\nrun();\n");
+
+    assert_eq!(counts.total, 2);
+}
+
+#[test]
 fn identifies_languages_from_extensions() {
     assert_eq!(Language::from_file_name("lib.rs"), Language::Rust);
     assert_eq!(Language::from_file_name("Cargo.toml"), Language::Toml);
