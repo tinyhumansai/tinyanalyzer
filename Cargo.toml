@@ -2,17 +2,13 @@
 resolver = "3"
 # Every crate in this repository lives under `crates/`, one directory per
 # package, each directory named for the package it holds. There is no root
-# package: the crate a host loads is `crates/template`, the same as any other
-# member. Keeping the root virtual is what makes that uniform — a root package
-# would make one crate structurally different from the rest for no reason other
-# than history, and it is the arrangement this template moved away from.
+# package: the crate that ships as the `tinyanalyzer` binary is
+# `crates/tinyanalyzer`, the same as any other member.
 members = ["crates/*"]
-# `vendor/` holds the pinned TinyBus submodule, which is its own workspace with
-# its own lockfile. `worktrees/` holds `git worktree` checkouts of this same
-# repository; each contains a full copy of this manifest and every crate under
-# it, so without this entry cargo walks into them and reports duplicate
-# packages.
-exclude = ["vendor", "worktrees"]
+# `worktrees/` holds `git worktree` checkouts of this same repository; each
+# contains a full copy of this manifest and every crate under it, so without
+# this entry cargo walks into them and reports duplicate packages.
+exclude = ["worktrees"]
 
 # Shared package metadata. A member inherits a field with `field.workspace =
 # true`, so the version the release workflow bumps is written in exactly one
@@ -22,35 +18,63 @@ version = "0.2.1"
 edition = "2024"
 rust-version = "1.88"
 license = "GPL-3.0-only"
-repository = "https://github.com/tinyhumansai/rust-template"
+repository = "https://github.com/tinyhumansai/tinyanalyzer"
 
 [workspace.dependencies]
-# The wire contract. `crates/template` depends on it and re-exports it, so a
-# host that only makes calls takes this crate alone.
+# The analysis engine. `crates/tinyanalyzer` depends on it and re-exports it,
+# so a tool embedding the analyzer takes this crate alone and never links the
+# HTTP server.
 # No `version` requirement on purpose: the workspace version moves on every
 # release, and a pinned requirement here would stop resolving the moment it did.
 # Nothing in this workspace is published, so the path is the whole address.
-template-bus = { path = "crates/template-bus" }
-# TinyBus defines the message types, interface macro, and frozen module ABI
-# used by the generated integration. Socket and CLI features are unnecessary
-# here.
-tinybus = { path = "vendor/tinybus/crates/tinybus", version = "0.1.0", default-features = false, features = [
-    "macros",
-    "modules",
-] }
-# The module-side SDK owns the isolated runtime and exports the ABI entrypoints
-# required by TinyBus's dynamic loader.
-tinybus-module = { path = "vendor/tinybus/crates/tinybus-module", version = "0.1.0" }
-# Derive macros for the crate-wide error type in `crates/template/src/error/`.
-# Every dependency entry should carry a comment like this one saying why it is
-# here.
+tinyanalyzer-core = { path = "crates/tinyanalyzer-core" }
+
+# Derive macros for the crate-wide error types in each crate's `src/error/`.
 thiserror = "2"
-# The bus payload types are serialized into TinyBus frames.
+# Report types are serialized to JSON for the dashboard API and the `--json`
+# output mode; the configuration file is deserialized from TOML.
 serde = { version = "1", features = ["derive"] }
-# Positional argument arrays and the module configuration blob.
 serde_json = "1"
-# Module integration tests exercise the real asynchronous in-memory TinyBus.
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+# `tinyanalyzer.toml` is the tool's configuration format.
+toml = { version = "0.9", default-features = false, features = ["parse", "serde"] }
+# Gitignore-aware, parallel directory traversal. Reusing ripgrep's walker is
+# what makes "analyze this repository" mean the same set of files a developer
+# sees, without reimplementing ignore-file semantics.
+ignore = "0.4"
+# User-supplied include/exclude patterns in `tinyanalyzer.toml` are globs.
+globset = "0.4"
+# The Rust source parser behind every per-file item, function-length, and
+# complexity metric. `full` is required to see function bodies; `visit` gives
+# the AST walker the analyzers are written against.
+syn = { version = "2", default-features = false, features = [
+    "full",
+    "parsing",
+    "visit",
+    "clone-impls",
+    "derive",
+    "printing",
+    "proc-macro",
+] }
+# `span-locations` is what turns a `syn` node into a line number. Without it
+# every reported location would be line 0.
+proc-macro2 = { version = "1", features = ["span-locations"] }
+# The dependency graph is cargo's own resolution, not a re-parse of manifests:
+# features, transitive edges, and duplicate versions are only correct if they
+# come from the resolver that produced `Cargo.lock`.
+cargo_metadata = "0.23"
+# Per-file parsing is embarrassingly parallel and dominates wall-clock time on
+# a large repository.
+rayon = "1"
+# The dashboard itself: a terminal UI rendered by ratatui over a crossterm
+# backend. The analyzer ships as one binary with no runtime, no browser, and no
+# bundled web assets — the dashboard is the program, not something the program
+# serves.
+ratatui = "0.30"
+crossterm = "0.29"
+# The command-line surface of the shipped binary.
+clap = { version = "4", features = ["derive", "env"] }
+# Integration tests build fixture trees that must not outlive the test.
+tempfile = "3"
 
 # Lints apply to every member that opts in with `[lints] workspace = true`, and
 # to every target of that member. CI runs clippy with `-D warnings`, so anything

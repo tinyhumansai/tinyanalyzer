@@ -1,0 +1,38 @@
+[package]
+name = "tinyanalyzer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Analyze a Rust codebase and explore its files, dependencies, dead code, and performance findings in an interactive terminal dashboard."
+documentation = "https://docs.rs/tinyanalyzer"
+readme = "../../README.md"
+keywords = ["analysis", "metrics", "tui", "dead-code", "dependencies"]
+categories = ["development-tools", "command-line-utilities", "visualization"]
+publish = false
+
+[[bin]]
+name = "tinyanalyzer"
+path = "src/main.rs"
+
+[dependencies]
+# The analysis engine, re-exported wholesale from `src/lib.rs` so a consumer
+# takes one dependency rather than two, and so `tinyanalyzer::Report` and
+# `tinyanalyzer_core::Report` are the same type.
+tinyanalyzer-core = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+clap = { workspace = true }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[features]
+default = []
+
+[lints]
+workspace = true
