@@ -599,13 +599,18 @@ impl Dashboard {
             .into_iter()
             .filter(|package| self.matches(&package.name))
             .collect();
+        self.sort_packages(&mut packages);
+        packages
+    }
+
+    /// Applies the dependency pane's active ordering to either sidebar.
+    fn sort_packages(&self, packages: &mut Vec<&PackageNode>) {
         match self.sorts[View::Dependencies.index()] {
             0 => packages.sort_by_key(|package| Reverse(self.dependency_counts(&package.id).0)),
             1 => packages.sort_by(|left, right| left.name.cmp(&right.name)),
             2 => packages.sort_by_key(|package| Reverse(self.dependency_counts(&package.id).1)),
             _ => packages.sort_by_key(|package| Reverse(package.source_bytes)),
         }
-        packages
     }
 
     /// Whether keyboard movement is targeting the dependency detail pane.
