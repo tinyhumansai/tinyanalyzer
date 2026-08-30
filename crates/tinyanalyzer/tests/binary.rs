@@ -202,7 +202,6 @@ fn it_reports_a_version_and_a_help_page() {
     }
 }
 
-
 /// Runs the binary under a pseudo-terminal and holds a key down until it exits.
 ///
 /// `script` is the shortest way to get a real terminal without depending on a
@@ -332,7 +331,12 @@ fn a_write_target_that_cannot_be_written_fails_loudly() {
     // permission bit this test would have to set and restore.
     let output = run(
         root.path(),
-        &["--output", "json", "--write", &root.path().display().to_string()],
+        &[
+            "--output",
+            "json",
+            "--write",
+            &root.path().display().to_string(),
+        ],
     );
 
     assert!(!output.status.success());
