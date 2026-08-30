@@ -409,16 +409,37 @@ impl Dashboard {
     /// External packages that become unreachable in the simulated graph.
     #[must_use]
     pub fn simulated_reclaimed_packages(&self) -> usize {
-        if self.removed_dependencies.is_empty() {
-            return 0;
-        }
-        let reachable = self.simulated_reachable();
+        self.simulated_unreachable_packages().len()
+    }
+
+    /// Direct dependency names explicitly removed from the simulation.
+    #[must_use]
+    pub fn removed_dependency_names(&self) -> Vec<&str> {
         self.report
             .dependencies
             .packages
             .iter()
+            .filter(|package| self.removed_dependencies.contains(&package.id))
+            .map(|package| package.name.as_str())
+            .collect()
+    }
+
+    /// External packages no longer reachable in the simulated graph.
+    #[must_use]
+    pub fn simulated_unreachable_packages(&self) -> Vec<&PackageNode> {
+        if self.removed_dependencies.is_empty() {
+            return Vec::new();
+        }
+        let reachable = self.simulated_reachable();
+        let mut packages: Vec<_> = self
+            .report
+            .dependencies
+            .packages
+            .iter()
             .filter(|package| !package.is_workspace_member && !reachable.contains(&package.id))
-            .count()
+            .collect();
+        packages.sort_by(|left, right| left.name.cmp(&right.name));
+        packages
     }
 
     /// How many rows the current view has.
@@ -562,6 +583,7 @@ impl Dashboard {
             Action::NextSort => {
                 let view = self.view.index();
                 self.sorts[view] = (self.sorts[view] + 1) % sort_count(self.view);
+                self.detail_scrolls[view] = 0;
                 self.set_cursor(0);
             }
             Action::SimulateRemoveDependency => self.simulate_remove_dependency(),

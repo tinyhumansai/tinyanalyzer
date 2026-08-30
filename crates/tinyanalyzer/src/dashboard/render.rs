@@ -667,15 +667,26 @@ fn dependencies(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
 
 /// The subtree beneath the selected dependency.
 fn dependency_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
+    let simulation = simulation_lines(dashboard);
     let Some(package) = dashboard.selected_package() else {
         frame.render_widget(
-            Paragraph::new("No dependency selected.").block(panel("Graph")),
+            Paragraph::new(if simulation.is_empty() {
+                vec![Line::from("No dependency selected.")]
+            } else {
+                simulation
+            })
+            .block(panel("Graph"))
+            .wrap(Wrap { trim: true }),
             area,
         );
         return;
     };
 
-    let mut lines = vec![
+    let mut lines = simulation;
+    if !lines.is_empty() {
+        lines.push(Line::from(""));
+    }
+    lines.extend([
         Line::from(Span::styled(
             format!("{} v{}", package.name, package.version),
             Style::default().add_modifier(Modifier::BOLD),
@@ -687,7 +698,7 @@ fn dependency_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
             ),
             Style::default().fg(MUTED),
         )),
-    ];
+    ]);
 
     if !package.features.is_empty() {
         lines.push(Line::from(Span::styled(
@@ -719,6 +730,38 @@ fn dependency_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
             .wrap(Wrap { trim: false }),
         area,
     );
+}
+
+/// Lines explaining the current dependency-removal simulation.
+fn simulation_lines(dashboard: &Dashboard) -> Vec<Line<'static>> {
+    if dashboard.removed_dependency_count() == 0 {
+        return Vec::new();
+    }
+
+    let mut lines = vec![Line::from(Span::styled(
+        format!(
+            "mock removed: {}",
+            dashboard.removed_dependency_names().join(", ")
+        ),
+        Style::default()
+            .fg(Color::LightRed)
+            .add_modifier(Modifier::BOLD),
+    ))];
+    let unreachable = dashboard.simulated_unreachable_packages();
+    lines.push(Line::from(Span::styled(
+        format!("unreachable crates ({})", unreachable.len()),
+        Style::default().fg(WARNING),
+    )));
+    for package in unreachable.iter().take(12) {
+        lines.push(Line::from(Span::styled(
+            format!("  {} v{}", package.name, package.version),
+            Style::default().fg(MUTED),
+        )));
+    }
+    if unreachable.len() > 12 {
+        lines.push(Line::from(format!("  … and {} more", unreachable.len() - 12)));
+    }
+    lines
 }
 
 /// Unreferenced items.

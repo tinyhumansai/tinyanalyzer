@@ -78,6 +78,16 @@ The `t` filter is the one worth knowing about: it removes test code from every
 row *and* every total at once, which is usually the honest answer to "how big is
 this project".
 
+Filters are case-insensitive regular expressions, so `^crates/.*/src/.*\\.rs$`
+can isolate Rust source below workspace crates. While a pattern is incomplete,
+the dashboard treats it literally and labels it `invalid regex` instead of
+blanking the pane unexpectedly.
+
+In Dependencies, `d` runs a reversible removal simulation. The selected direct
+dependency disappears, workspace reachability is recomputed, and the graph
+lists every crate that would become unreachable. Press `d` repeatedly to model
+several removals and `r` to restore the original graph.
+
 ## Configuration
 
 `tinyanalyzer.toml` in the repository root, and every part of it is optional —
