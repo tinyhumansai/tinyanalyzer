@@ -118,6 +118,7 @@ pub fn analyze(
             is_direct: direct.contains(&id),
             kinds: kinds_for(&id, &edges),
             features: node.features.iter().map(ToString::to_string).collect(),
+            available_features: package.features.keys().map(ToString::to_string).collect(),
             transitive_count: reachable.len(),
             exclusive_count: exclusive,
             depth: depths.get(&id).copied().unwrap_or(usize::MAX),

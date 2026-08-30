@@ -161,6 +161,7 @@ fn external(
         is_direct: direct,
         kinds: vec![tinyanalyzer_core::DependencyKind::Normal],
         features: vec!["default".to_owned()],
+        available_features: vec!["default".to_owned(), "serde".to_owned()],
         transitive_count: transitive,
         exclusive_count: exclusive,
         depth: 1,

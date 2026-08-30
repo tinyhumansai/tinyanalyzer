@@ -70,6 +70,9 @@ pub struct PackageNode {
     pub kinds: Vec<DependencyKind>,
     /// Features cargo resolved for it.
     pub features: Vec<String>,
+    /// Every feature declared by the package, including inactive ones.
+    #[serde(default)]
+    pub available_features: Vec<String>,
     /// Packages reachable from this one, excluding itself.
     pub transitive_count: usize,
     /// Packages reachable *only* through this one.
