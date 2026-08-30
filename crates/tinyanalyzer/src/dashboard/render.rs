@@ -544,7 +544,11 @@ fn files(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     ];
 
     let list_title = if let Some(parent) = dashboard.dependency_parent() {
-        format!("Dependencies of {} ({})", parent.name, dashboard.row_count())
+        format!(
+            "Dependencies of {} ({})",
+            parent.name,
+            dashboard.row_count()
+        )
     } else if dashboard.removed_dependency_count() == 0 {
         format!("Direct dependencies ({})", dashboard.row_count())
     } else {

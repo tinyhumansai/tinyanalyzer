@@ -589,8 +589,8 @@ impl Dashboard {
             self.report.dependencies.heaviest_direct()
         }
         .into_iter()
-            .filter(|package| self.matches(&package.name))
-            .collect();
+        .filter(|package| self.matches(&package.name))
+        .collect();
         match self.sorts[View::Dependencies.index()] {
             0 => packages.sort_by_key(|package| Reverse(self.dependency_counts(&package.id).0)),
             1 => packages.sort_by(|left, right| left.name.cmp(&right.name)),
