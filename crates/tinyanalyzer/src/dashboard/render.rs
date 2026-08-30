@@ -962,10 +962,7 @@ fn dependency_tree_line<'a>(
             style(SIZE),
         ),
         Span::styled(" · ", style(Color::Reset)),
-        Span::styled(
-            format!("{child_count:>COUNT_WIDTH$}"),
-            style(METRIC),
-        ),
+        Span::styled(format!("{child_count:>COUNT_WIDTH$}"), style(METRIC)),
         Span::styled(format!(" {child_label:<LABEL_WIDTH$}"), style(Color::Reset)),
     ])
 }

@@ -1279,10 +1279,8 @@ impl Dashboard {
             return;
         }
         if self.dependency_detail_path.pop().is_some() {
-            self.dependency_detail_cursor = self
-                .dependency_detail_cursors
-                .pop()
-                .unwrap_or_default();
+            self.dependency_detail_cursor =
+                self.dependency_detail_cursors.pop().unwrap_or_default();
         } else {
             self.reset_dependency_detail();
         }
