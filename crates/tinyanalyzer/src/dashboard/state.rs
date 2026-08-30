@@ -11,8 +11,7 @@
 //! this struct, answerable without drawing anything.
 
 use tinyanalyzer_core::{
-    DeadCodeCandidate, DirectoryMetrics, FileMetrics, Finding, PackageNode, Report, StartView,
-    Totals,
+    DeadCodeCandidate, DirectoryMetrics, FileMetrics, Finding, PackageNode, Report, StartView, Totals,
 };
 
 /// A pane of the dashboard.
@@ -110,6 +109,14 @@ pub enum Action {
     First,
     /// Move the cursor to the last row.
     Last,
+    /// Select a row directly, as when it is clicked.
+    SelectRow(usize),
+    /// Enter the selected directory.
+    EnterDirectory,
+    /// Enter a directory row directly, as when it is clicked.
+    EnterDirectoryAt(usize),
+    /// Return to the parent directory.
+    LeaveDirectory,
     /// Show or hide test code.
     ToggleTests,
     /// Start typing a filter.
@@ -136,6 +143,8 @@ pub struct Dashboard {
     cursors: [usize; View::ALL.len()],
     filter: String,
     editing_filter: bool,
+    directory_path: String,
+    directory_cursors: Vec<usize>,
     quit: bool,
 }
 
@@ -150,6 +159,8 @@ impl Dashboard {
             cursors: [0; View::ALL.len()],
             filter: String::new(),
             editing_filter: false,
+            directory_path: ".".to_owned(),
+            directory_cursors: Vec::new(),
             quit: false,
         }
     }
@@ -217,15 +228,49 @@ impl Dashboard {
             .collect()
     }
 
-    /// Directories matching the current filters.
+    /// Immediate child directories at the current browser level.
+    ///
+    /// Metrics include every matching file below the child, like `ncdu`, so a
+    /// parent row honestly represents the whole subtree rather than only files
+    /// stored directly inside it.
     #[must_use]
-    pub fn directories(&self) -> Vec<&DirectoryMetrics> {
-        self.report
-            .directories
-            .iter()
-            .filter(|directory| !(self.hide_tests && directory.is_test_only))
-            .filter(|directory| self.matches(&directory.path))
-            .collect()
+    pub fn directories(&self) -> Vec<DirectoryMetrics> {
+        let mut children = std::collections::BTreeMap::<String, DirectoryMetrics>::new();
+
+        for file in self.files() {
+            let Some(child_path) = immediate_child(&self.directory_path, &file.directory) else {
+                continue;
+            };
+
+            let entry = children
+                .entry(child_path.clone())
+                .or_insert_with(|| DirectoryMetrics {
+                    path: child_path,
+                    files: 0,
+                    bytes: 0,
+                    lines: Default::default(),
+                    is_test_only: true,
+                });
+            entry.files = entry.files.saturating_add(1);
+            entry.bytes = entry.bytes.saturating_add(file.bytes);
+            entry.lines.add(file.lines);
+            entry.is_test_only = entry.is_test_only && file.is_test;
+        }
+
+        let mut rows: Vec<_> = children.into_values().collect();
+        rows.sort_by(|left, right| {
+            right
+                .bytes
+                .cmp(&left.bytes)
+                .then_with(|| left.path.cmp(&right.path))
+        });
+        rows
+    }
+
+    /// Directory currently open in the level-by-level browser.
+    #[must_use]
+    pub fn directory_path(&self) -> &str {
+        &self.directory_path
     }
 
     /// Direct dependencies matching the current filter, heaviest first.
@@ -384,6 +429,10 @@ impl Dashboard {
             Action::PageUp => self.move_cursor(-PAGE.try_into().unwrap_or(i64::MAX)),
             Action::First => self.set_cursor(0),
             Action::Last => self.set_cursor(self.row_count().saturating_sub(1)),
+            Action::SelectRow(position) => self.set_cursor(position),
+            Action::EnterDirectory => self.enter_directory(self.cursor()),
+            Action::EnterDirectoryAt(position) => self.enter_directory(position),
+            Action::LeaveDirectory => self.leave_directory(),
             Action::ToggleTests => {
                 self.hide_tests = !self.hide_tests;
                 self.clamp_cursor();
@@ -430,4 +479,60 @@ impl Dashboard {
         let cursor = &mut self.cursors[self.view.index()];
         *cursor = (*cursor).min(last);
     }
+
+    /// Opens the directory at `position` when it contains another level.
+    fn enter_directory(&mut self, position: usize) {
+        if self.view != View::Directories {
+            return;
+        }
+
+        let rows = self.directories();
+        let Some(selected) = rows.get(position) else {
+            return;
+        };
+        let selected_path = selected.path.clone();
+        let has_children = self.report.files.iter().any(|file| {
+            file.directory
+                .strip_prefix(&selected_path)
+                .is_some_and(|rest| rest.starts_with('/'))
+        });
+        if !has_children {
+            self.set_cursor(position);
+            return;
+        }
+
+        self.directory_cursors.push(position);
+        self.directory_path = selected_path;
+        self.set_cursor(0);
+    }
+
+    /// Returns to the parent directory and restores its previous cursor.
+    fn leave_directory(&mut self) {
+        if self.view != View::Directories || self.directory_path == "." {
+            return;
+        }
+
+        self.directory_path = self
+            .directory_path
+            .rsplit_once('/')
+            .map_or_else(|| ".".to_owned(), |(parent, _)| parent.to_owned());
+        let cursor = self.directory_cursors.pop().unwrap_or_default();
+        self.set_cursor(cursor);
+    }
+}
+
+/// Returns the immediate child of `current` containing `directory`.
+fn immediate_child(current: &str, directory: &str) -> Option<String> {
+    let remainder = if current == "." {
+        (directory != ".").then_some(directory)?
+    } else {
+        directory.strip_prefix(current)?.strip_prefix('/')?
+    };
+    let child = remainder.split('/').next()?;
+
+    Some(if current == "." {
+        child.to_owned()
+    } else {
+        format!("{current}/{child}")
+    })
 }

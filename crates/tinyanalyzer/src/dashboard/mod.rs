@@ -19,7 +19,11 @@ pub use state::{Action, Dashboard, View};
 use crate::error::{Error, Result};
 use ratatui::Terminal;
 use ratatui::backend::Backend;
-use ratatui::crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui::crossterm::event::{
+    self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
+    KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
+use ratatui::layout::Rect;
 use tinyanalyzer_core::{Report, StartView};
 
 /// Opens the dashboard on `report` and runs until the operator leaves.
@@ -32,13 +36,20 @@ pub fn run(report: Report, start: StartView, hide_tests: bool) -> Result<()> {
     let mut dashboard = Dashboard::new(report, start, hide_tests);
     let mut terminal = ratatui::try_init().map_err(|source| Error::Terminal { source })?;
 
+    if let Err(source) = ratatui::crossterm::execute!(std::io::stdout(), EnableMouseCapture) {
+        let _ = ratatui::try_restore();
+        return Err(Error::Terminal { source });
+    }
+
     let outcome = drive(&mut terminal, &mut dashboard, &mut read_event);
 
     // Restored before the outcome is inspected: a failure inside the loop must
     // not leave the terminal in raw mode on the way out.
+    let mouse_restored = ratatui::crossterm::execute!(std::io::stdout(), DisableMouseCapture)
+        .map_err(|source| Error::Terminal { source });
     let restored = ratatui::try_restore().map_err(|source| Error::Terminal { source });
 
-    outcome.and(restored)
+    outcome.and(mouse_restored).and(restored)
 }
 
 /// Blocks until the terminal reports an event.
@@ -73,21 +84,78 @@ where
     // without the loop knowing which it is holding.
     B::Error: std::error::Error + Send + Sync + 'static,
 {
+    let mut area = Rect::default();
     while !dashboard.should_quit() {
         terminal
-            .draw(|frame| render::draw(frame, dashboard))
+            .draw(|frame| {
+                area = frame.area();
+                render::draw(frame, dashboard);
+            })
             .map_err(|source| Error::Terminal {
                 source: std::io::Error::other(source),
             })?;
 
-        if let Event::Key(key) = events()?
-            && let Some(action) = action_for(key, dashboard.editing_filter())
-        {
+        if let Some(action) = action_for_event(events()?, area, dashboard) {
             dashboard.apply(action);
         }
     }
 
     Ok(())
+}
+
+/// Maps a terminal event to a dashboard action.
+fn action_for_event(event: Event, area: Rect, dashboard: &Dashboard) -> Option<Action> {
+    match event {
+        Event::Key(key) if dashboard.view() == View::Directories && !dashboard.editing_filter() => {
+            match key.code {
+                KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
+                    Some(Action::EnterDirectory)
+                }
+                KeyCode::Backspace | KeyCode::Left | KeyCode::Char('h') => {
+                    Some(Action::LeaveDirectory)
+                }
+                _ => action_for(key, false),
+            }
+        }
+        Event::Key(key) => action_for(key, dashboard.editing_filter()),
+        Event::Mouse(mouse) if !dashboard.editing_filter() => action_for_mouse(mouse, area, dashboard),
+        _ => None,
+    }
+}
+
+/// Maps mouse coordinates onto tabs and the active row list.
+fn action_for_mouse(mouse: MouseEvent, area: Rect, dashboard: &Dashboard) -> Option<Action> {
+    match mouse.kind {
+        MouseEventKind::ScrollDown => return Some(Action::MoveDown),
+        MouseEventKind::ScrollUp => return Some(Action::MoveUp),
+        MouseEventKind::Down(MouseButton::Right) if dashboard.view() == View::Directories => {
+            return Some(Action::LeaveDirectory);
+        }
+        MouseEventKind::Down(MouseButton::Left) => {}
+        _ => return None,
+    }
+
+    if mouse.row == area.y.saturating_add(1) {
+        let mut x = area.x;
+        for (index, view) in View::ALL.iter().enumerate() {
+            let width = u16::try_from(format!(" {}·{}  ", index + 1, view.title()).chars().count())
+                .unwrap_or(u16::MAX);
+            if mouse.column >= x && mouse.column < x.saturating_add(width) {
+                return Some(Action::SelectView(index));
+            }
+            x = x.saturating_add(width);
+        }
+    }
+
+    let row = render::row_at(area, dashboard.view(), mouse.column, mouse.row)?;
+    if row >= dashboard.row_count() {
+        return None;
+    }
+    if dashboard.view() == View::Directories {
+        Some(Action::EnterDirectoryAt(row))
+    } else {
+        Some(Action::SelectRow(row))
+    }
 }
 
 /// What a key press means, given whether a filter is being typed.

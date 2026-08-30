@@ -39,6 +39,51 @@ pub(super) fn draw(frame: &mut Frame<'_>, dashboard: &Dashboard) {
     status(frame, areas[3], dashboard);
 }
 
+/// Returns the row under a mouse coordinate in the active view's primary list.
+pub(super) fn row_at(area: Rect, view: View, column: u16, row: u16) -> Option<usize> {
+    let body = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Min(3),
+        Constraint::Length(1),
+    ])
+    .split(area)[2];
+
+    let (list, header) = match view {
+        View::Overview => {
+            let lower = Layout::vertical([
+                Constraint::Percentage(50),
+                Constraint::Percentage(50),
+            ])
+            .split(body)[1];
+            (lower, false)
+        }
+        View::Files => (
+            Layout::horizontal([Constraint::Percentage(62), Constraint::Percentage(38)])
+                .split(body)[0],
+            true,
+        ),
+        View::Directories | View::DeadCode => (body, true),
+        View::Dependencies => (
+            Layout::horizontal([Constraint::Percentage(48), Constraint::Percentage(52)])
+                .split(body)[0],
+            true,
+        ),
+        View::Findings => (
+            Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)])
+                .split(body)[0],
+            false,
+        ),
+    };
+
+    if column <= list.x || column >= list.right().saturating_sub(1) {
+        return None;
+    }
+    let first = list.y.saturating_add(if header { 2 } else { 1 });
+    (row >= first && row < list.bottom().saturating_sub(1))
+        .then(|| usize::from(row.saturating_sub(first)))
+}
+
 /// The project name and the headline totals.
 fn title(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     let totals = dashboard.totals();
@@ -419,14 +464,14 @@ fn file_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     );
 }
 
-/// Directories, ranked.
+/// Immediate child directories at the current browser level.
 fn directories(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     let rows: Vec<Row<'_>> = dashboard
         .directories()
         .iter()
         .map(|directory| {
             Row::new(vec![
-                Cell::from(truncate_path(&directory.path, 60)),
+                Cell::from(format!("{}/", directory.path.rsplit('/').next().unwrap_or("."))),
                 Cell::from(directory.files.to_string()),
                 Cell::from(directory.lines.code.to_string()),
                 Cell::from(directory.lines.comment.to_string()),
@@ -457,7 +502,11 @@ fn directories(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                 "size",
                 "",
             ]))
-            .block(panel(&format!("Directories ({})", dashboard.row_count()))),
+            .block(panel(&format!(
+                "Directories · {} ({})",
+                dashboard.directory_path(),
+                dashboard.row_count()
+            ))),
         dashboard.cursor(),
     );
 }

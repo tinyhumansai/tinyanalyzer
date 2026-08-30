@@ -63,12 +63,14 @@ items, split along the seams already in it" is.
 | Key | What it does |
 |---|---|
 | `q`, `Esc`, `Ctrl-C` | Leave |
-| `Tab`, `←` `→`, `h` `l`, `1`–`6` | Change view |
+| `Tab`, `←` `→`, `h` `l`, `1`–`6` | Change view (`←` `→` and `h` `l` navigate in Directories) |
 | `↑` `↓`, `j` `k` | Move the cursor |
 | `PgUp` `PgDn`, `u` `d` | Move a screenful |
 | `Home` `End`, `g` `G` | First and last row |
 | `t` | Show or hide test code, everywhere |
 | `/` | Filter rows; `Enter` keeps it, `Esc` clears it |
+| `Enter`, `→`, `l` / `Backspace`, `←`, `h` | Enter / leave a directory |
+| Mouse | Click tabs and rows, wheel to move, right-click to leave a directory |
 
 The `t` filter is the one worth knowing about: it removes test code from every
 row *and* every total at once, which is usually the honest answer to "how big is
