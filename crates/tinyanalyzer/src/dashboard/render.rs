@@ -136,7 +136,12 @@ fn title(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                     .to_string(),
                 Style::default().fg(METRIC),
             ),
-            Span::raw(" total · "),
+            Span::raw(" total deps · "),
+            Span::styled(
+                human_bytes(dashboard.simulated_build_source_bytes()),
+                Style::default().fg(SIZE),
+            ),
+            Span::raw(" dependency source · "),
             Span::styled(
                 dashboard.simulated_build_dependency_count().to_string(),
                 Style::default().fg(SIZE),

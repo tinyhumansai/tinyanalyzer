@@ -1051,7 +1051,8 @@ fn dependency_removal_simulation_recomputes_the_visible_graph() {
     let text = rendered(&dashboard);
     assert!(text.contains("crates reclaimed"));
     assert!(text.contains("mock removed"));
-    assert!(text.contains("2 direct deps · 3 total · 1 crates if built"));
+    assert!(text.contains("2 direct deps · 3 total deps · 100 B dependency source"));
+    assert!(text.contains("1 crates if built"));
 
     dashboard.apply(Action::RestoreDependencies);
     assert_eq!(dashboard.removed_dependency_count(), 0);
@@ -1065,7 +1066,8 @@ fn dependency_header_reports_the_resolved_build_graph_size() {
 
     let text = rendered(&dashboard);
 
-    assert!(text.contains("2 direct deps · 3 total · 3 crates if built"));
+    assert!(text.contains("2 direct deps · 3 total deps · 2.7 KiB dependency source"));
+    assert!(text.contains("3 crates if built"));
 }
 
 #[test]

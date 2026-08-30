@@ -581,6 +581,19 @@ impl Dashboard {
         self.report.dependencies.heaviest_direct().len()
     }
 
+    /// Bytes occupied by every external package's checked-out source.
+    #[must_use]
+    pub fn dependency_source_bytes(&self) -> u64 {
+        self.report
+            .dependencies
+            .packages
+            .iter()
+            .filter(|package| !package.is_workspace_member)
+            .fold(0_u64, |total, package| {
+                total.saturating_add(package.source_bytes)
+            })
+    }
+
     /// Number of external crates that the simulated build would compile.
     #[must_use]
     pub fn simulated_build_dependency_count(&self) -> usize {
@@ -594,6 +607,23 @@ impl Dashboard {
             .iter()
             .filter(|package| !package.is_workspace_member && reachable.contains(&package.id))
             .count()
+    }
+
+    /// Source bytes retained by the simulated external build graph.
+    #[must_use]
+    pub fn simulated_build_source_bytes(&self) -> u64 {
+        if self.removed_dependencies.is_empty() {
+            return self.dependency_source_bytes();
+        }
+        let reachable = self.simulated_reachable();
+        self.report
+            .dependencies
+            .packages
+            .iter()
+            .filter(|package| !package.is_workspace_member && reachable.contains(&package.id))
+            .fold(0_u64, |total, package| {
+                total.saturating_add(package.source_bytes)
+            })
     }
 
     /// Unreferenced items matching the current filters.
