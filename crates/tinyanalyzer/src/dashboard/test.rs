@@ -45,7 +45,11 @@ fn fixture() -> (TempDir, Report) {
             "    let _ = 1;\n".repeat(80)
         ),
     );
-    write(root.path(), "src/small.rs", "pub fn unreferenced() {}\n");
+    write(
+        root.path(),
+        "src/small.rs",
+        "pub fn unreferenced() {}\n\n#[test]\nfn small_test() {\n    assert!(true);\n}\n",
+    );
     write(root.path(), "tests/api.rs", "#[test]\nfn t() {}\n");
     write(root.path(), "README.md", "# Title\n");
 
@@ -123,6 +127,14 @@ fn graph_dashboard() -> (TempDir, Dashboard) {
         .find(|package| package.is_workspace_member)
         .map(|package| package.id.clone())
         .expect("the fixture resolves to at least one member");
+    let workspace_package = report
+        .dependencies
+        .packages
+        .iter_mut()
+        .find(|package| package.id == workspace_root)
+        .expect("the workspace package remains available");
+    workspace_package.features = vec!["default".to_owned()];
+    workspace_package.available_features = vec!["default".to_owned(), "cli".to_owned()];
 
     report
         .dependencies
@@ -357,6 +369,26 @@ fn hiding_tests_removes_them_from_the_rows_and_the_totals() {
     assert!(dashboard.row_count() < with_tests);
     assert!(dashboard.totals().lines.total < total_lines);
     assert!(!dashboard.files().iter().any(|file| file.is_test));
+}
+
+#[test]
+fn hiding_tests_subtracts_test_blocks_from_mixed_rust_files() {
+    let (_root, mut dashboard) = dashboard();
+    dashboard.apply(Action::SelectView(View::Files.index()));
+    let file = dashboard
+        .files()
+        .iter()
+        .find(|file| file.path == "src/small.rs")
+        .copied()
+        .expect("the fixture contains a mixed source file");
+    assert!(!file.is_test);
+    let all_lines = dashboard.file_lines(file);
+    let all_functions = dashboard.file_function_count(file);
+
+    dashboard.apply(Action::ToggleTests);
+
+    assert!(dashboard.file_lines(file).code < all_lines.code);
+    assert_eq!(dashboard.file_function_count(file), all_functions - 1);
 }
 
 #[test]
@@ -1007,6 +1039,32 @@ fn dependency_keys_are_contextual() {
         action_for_event(&Event::Key(key(KeyCode::Char('r'))), area, &dashboard),
         Some(Action::RestoreDependencies)
     );
+    assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Char('f'))), area, &dashboard),
+        Some(Action::ToggleFeature)
+    );
+}
+
+#[test]
+fn cargo_features_can_be_toggled_for_a_dependency_and_the_workspace_root() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Dependencies.index()));
+
+    assert_eq!(
+        dashboard.simulated_features(),
+        vec![("default", true), ("serde", false)]
+    );
+    dashboard.apply(Action::NextFeature);
+    dashboard.apply(Action::ToggleFeature);
+    assert_eq!(dashboard.simulated_features()[1], ("serde", true));
+
+    dashboard.apply(Action::ToggleFeatureTarget);
+    assert!(dashboard.feature_root_target());
+    assert_eq!(
+        dashboard.simulated_features(),
+        vec![("default", true), ("cli", false)]
+    );
+    assert!(rendered(&dashboard).contains("workspace root"));
 }
 
 #[test]
