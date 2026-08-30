@@ -13,9 +13,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::{action_for, action_for_event};
 use super::render;
 use super::state::{Action, Dashboard, View};
+use super::{action_for, action_for_event};
 use crate::error::{Error, Result};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
@@ -1058,7 +1058,11 @@ fn mouse_clicks_select_tabs_and_rows_and_the_wheel_moves_the_cursor() {
     let (_root, mut dashboard) = dashboard();
     let area = Rect::new(0, 0, 160, 48);
 
-    let files_tab = action_for_event(mouse(MouseEventKind::Down(MouseButton::Left), 14, 1), area, &dashboard);
+    let files_tab = action_for_event(
+        mouse(MouseEventKind::Down(MouseButton::Left), 14, 1),
+        area,
+        &dashboard,
+    );
     assert_eq!(files_tab, Some(Action::SelectView(View::Files.index())));
     dashboard.apply(files_tab.expect("the files tab is clickable"));
 
