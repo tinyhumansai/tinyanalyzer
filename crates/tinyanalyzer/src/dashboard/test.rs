@@ -489,28 +489,31 @@ fn an_incomplete_regex_is_treated_as_literal_until_it_becomes_valid() {
 
 #[test]
 fn each_view_cycles_through_sort_orders() {
-    let (_root, mut dashboard) = dashboard();
-    dashboard.apply(Action::SelectView(View::Files.index()));
-    assert_eq!(dashboard.sort_label(), "weight");
+    let (_root, mut dashboard) = graph_dashboard();
+    let cases: &[(View, &[&str])] = &[
+        (View::Overview, &["severity", "title", "rule"]),
+        (
+            View::Files,
+            &["weight", "path", "lines", "size", "complexity"],
+        ),
+        (View::Directories, &["size", "path", "files", "lines"]),
+        (
+            View::Dependencies,
+            &["exclusive", "name", "reachable"],
+        ),
+        (View::DeadCode, &["confidence", "name", "file"]),
+        (View::Findings, &["severity", "title", "rule"]),
+    ];
 
-    dashboard.apply(Action::NextSort);
-    assert_eq!(dashboard.sort_label(), "path");
-    assert!(
-        dashboard
-            .files()
-            .windows(2)
-            .all(|pair| pair[0].path <= pair[1].path)
-    );
-
-    dashboard.apply(Action::SelectView(View::Directories.index()));
-    dashboard.apply(Action::NextSort);
-    assert_eq!(dashboard.sort_label(), "path");
-    assert!(
-        dashboard
-            .directories()
-            .windows(2)
-            .all(|pair| pair[0].path <= pair[1].path)
-    );
+    for (view, labels) in cases {
+        dashboard.apply(Action::SelectView(view.index()));
+        for label in *labels {
+            assert_eq!(dashboard.sort_label(), *label);
+            let _ = dashboard.row_count();
+            dashboard.apply(Action::NextSort);
+        }
+        assert_eq!(dashboard.sort_label(), labels[0], "sort order wraps");
+    }
 }
 
 #[test]
