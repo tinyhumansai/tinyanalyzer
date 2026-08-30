@@ -79,7 +79,7 @@ The `t` filter is the one worth knowing about: it removes test code from every
 row *and* every total at once, which is usually the honest answer to "how big is
 this project".
 
-Filters are case-insensitive regular expressions, so `^crates/.*/src/.*\\.rs$`
+Filters are case-insensitive regular expressions, so `^crates/.*/src/.*\.rs$`
 can isolate Rust source below workspace crates. While a pattern is incomplete,
 the dashboard treats it literally and labels it `invalid regex` instead of
 blanking the pane unexpectedly.
