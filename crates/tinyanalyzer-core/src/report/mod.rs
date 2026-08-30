@@ -76,7 +76,7 @@ pub fn analyze_with(root: impl AsRef<Path>, config: &Config) -> Result<Report> {
     let discovered = walk::discover(root, &config.scan)?;
     let manifests = manifest_map(&discovered);
 
-    let parsed: Vec<ParsedFile> = discovered
+    let parsed: Vec<ParsedFile<'_>> = discovered
         .par_iter()
         .map(|file| parse_one(file, &manifests))
         .collect();
