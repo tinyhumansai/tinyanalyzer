@@ -94,7 +94,7 @@ items, split along the seams already in it" is.
 
 | Key | What it does |
 |---|---|
-| `q`, `Esc`, `Ctrl-C` | Leave |
+| `q`, `Esc`, `Ctrl-C` | Leave; in the focused dependency sidebar, `Esc` backs out first |
 | `Tab`, `Shift-Tab`, `1`–`6` | Change view |
 | `↑` `↓`, `j` `k` | Move the cursor |
 | `PgUp` `PgDn`, `u` `d` | Move a screenful |
@@ -105,6 +105,7 @@ items, split along the seams already in it" is.
 | `i` | Toggle whether discovery follows `.gitignore` and rebuild the report |
 | `d`, `r` in Dependencies | Toggle mock removal for the selected dependency; restore all removals |
 | `[`, `]`, `f`, `w` in Dependencies | Select/toggle a Cargo feature; switch dependency/root target |
+| `Enter`, `→`, `l` / `Esc`, `Backspace`, `←`, `h` in Dependencies | Focus/drill into the right dependency sidebar / return one level |
 | `Enter`, `→`, `l` / `Backspace`, `←`, `h` | Enter / leave a directory |
 | `o` in Directories | Toggle between directories and directories + files |
 | Mouse | Click tabs and rows, wheel to move, right-click to leave a directory |
@@ -131,7 +132,10 @@ Each direct dependency row shows its own source size, and `s` can sort the pane
 by that column after cycling through exclusive, name, and reachable-crate order.
 Every child in the selected dependency tree also shows its checked-out source
 size and immediate child-dependency count, so expensive branches are visible
-without changing the selection.
+without changing the selection. Press `Enter` to focus that sidebar, use the
+arrow keys to select a child, and press `Enter` again to drill down; `Esc`
+returns one level and eventually restores focus to the direct-dependency list.
+The active `s` ordering applies to both sidebars.
 The `exclusive` and `reaches` counts are recalculated after every toggle, so
 shared transitive crates move to whichever remaining direct dependency now owns
 their cost; removed rows show zero until restored.
