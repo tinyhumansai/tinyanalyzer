@@ -858,8 +858,8 @@ impl Dashboard {
         }
         let current = i64::try_from(self.feature_cursor).unwrap_or_default();
         let last = i64::try_from(count.saturating_sub(1)).unwrap_or(i64::MAX);
-        self.feature_cursor = usize::try_from(current.saturating_add(delta).clamp(0, last))
-            .unwrap_or_default();
+        self.feature_cursor =
+            usize::try_from(current.saturating_add(delta).clamp(0, last)).unwrap_or_default();
     }
 
     fn toggle_feature(&mut self) {
