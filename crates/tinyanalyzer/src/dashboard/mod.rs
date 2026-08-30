@@ -192,10 +192,7 @@ fn action_for_event(event: &Event, area: Rect, dashboard: &Dashboard) -> Option<
                 KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
                     Some(Action::EnterDependency)
                 }
-                KeyCode::Esc if dashboard.dependency_detail_focused() => {
-                    Some(Action::LeaveDependency)
-                }
-                KeyCode::Backspace | KeyCode::Left | KeyCode::Char('h')
+                KeyCode::Esc | KeyCode::Backspace | KeyCode::Left | KeyCode::Char('h')
                     if dashboard.dependency_detail_focused() =>
                 {
                     Some(Action::LeaveDependency)
