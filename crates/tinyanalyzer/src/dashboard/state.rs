@@ -121,6 +121,8 @@ pub enum Action {
     EnterDirectoryAt(usize),
     /// Return to the parent directory.
     LeaveDirectory,
+    /// Show or hide files in the directory browser.
+    ToggleDirectoriesOnly,
     /// Scroll the active detail pane down.
     ScrollDetailDown,
     /// Scroll the active detail pane up.
@@ -173,6 +175,7 @@ pub struct Dashboard {
     editing_filter: bool,
     directory_path: String,
     directory_cursors: Vec<usize>,
+    directories_only: bool,
     removed_dependencies: BTreeSet<String>,
     feature_overrides: BTreeMap<String, BTreeSet<String>>,
     feature_cursor: usize,
@@ -199,6 +202,7 @@ impl Dashboard {
             editing_filter: false,
             directory_path: ".".to_owned(),
             directory_cursors: Vec::new(),
+            directories_only: false,
             removed_dependencies: BTreeSet::new(),
             feature_overrides: BTreeMap::new(),
             feature_cursor: 0,
@@ -429,6 +433,43 @@ impl Dashboard {
         rows
     }
 
+    /// Child directories and immediate files at the current browser level.
+    #[must_use]
+    pub(super) fn browser_entries(&self) -> Vec<BrowserEntry<'_>> {
+        let mut entries: Vec<_> = self
+            .directories()
+            .into_iter()
+            .filter(|directory| directory.path != "..")
+            .map(BrowserEntry::Directory)
+            .collect();
+
+        if !self.directories_only {
+            entries.extend(
+                self.files()
+                    .into_iter()
+                    .filter(|file| file.directory == self.directory_path)
+                    .map(BrowserEntry::File),
+            );
+        }
+
+        match self.sorts[View::Directories.index()] {
+            0 => entries.sort_by_key(|entry| Reverse(entry.bytes())),
+            1 => entries.sort_by(|left, right| left.path().cmp(right.path())),
+            2 => entries.sort_by_key(|entry| Reverse(entry.file_count())),
+            _ => entries.sort_by_key(|entry| Reverse(entry.lines(self).code)),
+        }
+        if self.directory_path != "." {
+            entries.insert(0, BrowserEntry::Parent);
+        }
+        entries
+    }
+
+    /// Whether the directory browser is hiding files.
+    #[must_use]
+    pub const fn directories_only(&self) -> bool {
+        self.directories_only
+    }
+
     /// Directory currently open in the level-by-level browser.
     #[must_use]
     pub fn directory_path(&self) -> &str {
@@ -618,7 +659,7 @@ impl Dashboard {
         match self.view {
             View::Overview => self.report.findings.len(),
             View::Files => self.files().len(),
-            View::Directories => self.directories().len(),
+            View::Directories => self.browser_entries().len(),
             View::Dependencies => self.packages().len(),
             View::DeadCode => self.dead_code().len(),
             View::Findings => self.findings().len(),
@@ -742,6 +783,10 @@ impl Dashboard {
             Action::EnterDirectory => self.enter_directory(self.cursor()),
             Action::EnterDirectoryAt(position) => self.enter_directory(position),
             Action::LeaveDirectory => self.leave_directory(),
+            Action::ToggleDirectoriesOnly => {
+                self.directories_only = !self.directories_only;
+                self.clamp_cursor();
+            }
             Action::ScrollDetailDown => {
                 let scroll = &mut self.detail_scrolls[self.view.index()];
                 *scroll = scroll.saturating_add(3);
@@ -839,15 +884,19 @@ impl Dashboard {
             return;
         }
 
-        let rows = self.directories();
+        let rows = self.browser_entries();
         let Some(selected) = rows.get(position) else {
             return;
         };
-        if selected.path == ".." {
+        if matches!(selected, BrowserEntry::Parent) {
             self.leave_directory();
             return;
         }
-        let selected_path = selected.path.clone();
+        let BrowserEntry::Directory(directory) = selected else {
+            self.set_cursor(position);
+            return;
+        };
+        let selected_path = directory.path.clone();
         let has_children = self.files().iter().any(|file| {
             file.directory
                 .strip_prefix(&selected_path)
