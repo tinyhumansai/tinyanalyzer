@@ -1124,12 +1124,13 @@ fn dependency_removal_simulation_recomputes_the_visible_graph() {
 
 #[test]
 fn dependency_counts_recompute_when_another_direct_dependency_is_toggled() {
-    let (_root, mut dashboard) = graph_dashboard();
-    dashboard
-        .report
+    let (_root, original) = graph_dashboard();
+    let mut report = original.report().clone();
+    report
         .dependencies
         .edges
         .push(edge("leaf@0.1.0", "deep@2.0.0"));
+    let mut dashboard = Dashboard::new(report, StartView::Dependencies, false);
     dashboard.apply(Action::SelectView(View::Dependencies.index()));
 
     assert_eq!(dashboard.dependency_counts("heavy@1.2.3"), (1, 1));
