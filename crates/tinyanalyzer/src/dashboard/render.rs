@@ -117,12 +117,10 @@ fn title(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     let totals = dashboard.totals();
     let project = &dashboard.report().project;
 
-    let mut spans = vec![
-        Span::styled(
-            format!(" {} ", project.name),
-            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-        ),
-    ];
+    let mut spans = vec![Span::styled(
+        format!(" {} ", project.name),
+        Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+    )];
     if dashboard.view() == View::Dependencies {
         spans.extend([
             Span::styled(
@@ -131,7 +129,11 @@ fn title(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
             ),
             Span::raw(" direct deps · "),
             Span::styled(
-                dashboard.report().dependencies.external_packages.to_string(),
+                dashboard
+                    .report()
+                    .dependencies
+                    .external_packages
+                    .to_string(),
                 Style::default().fg(METRIC),
             ),
             Span::raw(" total · "),
@@ -595,7 +597,11 @@ fn directories(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                 path.rsplit('/').next().unwrap_or(path).to_owned()
             };
             let name_color = severity_for_path(dashboard, path, is_directory).map_or(
-                if is_directory { DIRECTORY } else { Color::White },
+                if is_directory {
+                    DIRECTORY
+                } else {
+                    Color::White
+                },
                 severity_color,
             );
             let lines = entry.lines(dashboard);
@@ -642,14 +648,7 @@ fn directories(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         frame,
         area,
         Table::new(rows, widths)
-            .header(header_row(&[
-                "name",
-                "files",
-                "code",
-                "docs",
-                "size",
-                "",
-            ]))
+            .header(header_row(&["name", "files", "code", "docs", "size", ""]))
             .block(panel(&format!(
                 "Directories · {} ({})",
                 dashboard.directory_path(),
