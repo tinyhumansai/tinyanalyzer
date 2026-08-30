@@ -107,10 +107,10 @@ impl ItemCounts {
 
 /// One function or method.
 //
-// The `is_*` flags are five independent facts about one function, each one a
-// column in a table an operator sorts and filters by. Packing them into a
-// bitflag or an enum would make the report harder to read and to serialize
-// without removing a single piece of state.
+// The `is_*` flags are five independent facts about one function, each of them a
+// column an operator sorts and filters the dashboard by. Folding them into a
+// bitflag or an enum would cost the report its readable serialized form without
+// removing a single piece of state.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Function {
@@ -159,7 +159,9 @@ impl Function {
         // `end_line` is produced by the parser from the same span as
         // `start_line`, so it is never the smaller of the two; saturating
         // subtraction states that rather than relying on it.
-        self.end_line.saturating_sub(self.start_line).saturating_add(1)
+        self.end_line
+            .saturating_sub(self.start_line)
+            .saturating_add(1)
     }
 }
 

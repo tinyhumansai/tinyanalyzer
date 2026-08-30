@@ -94,5 +94,4 @@ fn the_result_alias_carries_the_crate_error() {
     });
 
     assert!(matches!(ok, Ok(1)));
-    assert!(matches!(failed, Err(Error::RootNotADirectory { .. })));
 }

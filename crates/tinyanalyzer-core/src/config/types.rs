@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Load one with [`Config::load`](super::Config::load) rather than constructing
 /// it by hand; [`Config::default`] is what an unconfigured repository gets, and
-/// every section's own `Default` is the value that section documents.
+/// each section's own `Default` is the value that section documents.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
@@ -35,20 +35,6 @@ pub struct Config {
     /// a note saying so reads very differently on a dashboard from one nobody
     /// has looked at.
     pub notes: Vec<Note>,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            project: ProjectConfig::default(),
-            scan: ScanConfig::default(),
-            thresholds: Thresholds::default(),
-            dead_code: DeadCodeConfig::default(),
-            dependencies: DependencyConfig::default(),
-            ui: UiConfig::default(),
-            notes: Vec::new(),
-        }
-    }
 }
 
 /// Human-facing identity of the project under analysis.
@@ -105,12 +91,21 @@ impl Default for ScanConfig {
         Self {
             include: Vec::new(),
             exclude: vec![
+                // Build output and vendored trees: nobody wrote them and
+                // nobody will refactor them.
                 "target/**".to_owned(),
                 "**/target/**".to_owned(),
                 "vendor/**".to_owned(),
                 "worktrees/**".to_owned(),
                 "node_modules/**".to_owned(),
                 ".git/**".to_owned(),
+                // Lockfiles and license texts are enormous, generated or
+                // legally fixed, and would otherwise top every ranking in the
+                // report while being the two files in the repository nobody is
+                // allowed to shorten.
+                "**/*.lock".to_owned(),
+                "LICENSE*".to_owned(),
+                "**/LICENSE*".to_owned(),
             ],
             test_patterns: vec![
                 "**/tests/**".to_owned(),
@@ -298,4 +293,16 @@ pub enum NoteLevel {
     Warning,
     /// Something actively hurting the project.
     Critical,
+}
+
+impl NoteLevel {
+    /// The word used for this level on the dashboard.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Info => "info",
+            Self::Warning => "warning",
+            Self::Critical => "critical",
+        }
+    }
 }

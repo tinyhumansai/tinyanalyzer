@@ -6,7 +6,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use super::{CONFIG_FILE_NAME, CONFIG_FILE_NAME_ALT, Config, NoteLevel, StartView, compile_glob_set};
+use super::{
+    CONFIG_FILE_NAME, CONFIG_FILE_NAME_ALT, Config, NoteLevel, StartView, compile_glob_set,
+};
 use crate::error::Error;
 use std::path::Path;
 use tempfile::TempDir;
@@ -83,8 +85,11 @@ fn the_primary_file_name_wins_over_the_alternative() {
     let root = temp();
     std::fs::write(root.path().join(CONFIG_FILE_NAME), "[ui]\ntable_rows = 1\n")
         .expect("the fixture is writable");
-    std::fs::write(root.path().join(CONFIG_FILE_NAME_ALT), "[ui]\ntable_rows = 2\n")
-        .expect("the fixture is writable");
+    std::fs::write(
+        root.path().join(CONFIG_FILE_NAME_ALT),
+        "[ui]\ntable_rows = 2\n",
+    )
+    .expect("the fixture is writable");
 
     assert_eq!(Config::load(root.path()).expect("valid").ui.table_rows, 1);
 }
@@ -140,7 +145,9 @@ fn notes_match_by_glob_and_default_to_info() {
     )
     .expect("valid configuration");
 
-    let parser = config.notes_for("src/parser/lexer.rs").expect("valid globs");
+    let parser = config
+        .notes_for("src/parser/lexer.rs")
+        .expect("valid globs");
     assert_eq!(parser.len(), 1);
     assert_eq!(parser[0].level, NoteLevel::Info);
 
@@ -148,7 +155,12 @@ fn notes_match_by_glob_and_default_to_info() {
     assert_eq!(legacy.len(), 1);
     assert_eq!(legacy[0].level, NoteLevel::Critical);
 
-    assert!(config.notes_for("src/main.rs").expect("valid globs").is_empty());
+    assert!(
+        config
+            .notes_for("src/main.rs")
+            .expect("valid globs")
+            .is_empty()
+    );
 }
 
 #[test]
@@ -173,7 +185,10 @@ fn the_display_name_prefers_the_configured_one() {
     let mut config = Config::default();
     config.project.name = Some("Tiny Analyzer".to_owned());
 
-    assert_eq!(config.display_name(Path::new("/tmp/anything")), "Tiny Analyzer");
+    assert_eq!(
+        config.display_name(Path::new("/tmp/anything")),
+        "Tiny Analyzer"
+    );
 }
 
 #[test]
@@ -186,7 +201,11 @@ fn the_display_name_falls_back_to_the_directory_name() {
 
 #[test]
 fn an_empty_pattern_list_compiles_to_no_opinion() {
-    assert!(compile_glob_set(&[]).expect("an empty list is valid").is_none());
+    assert!(
+        compile_glob_set(&[])
+            .expect("an empty list is valid")
+            .is_none()
+    );
 }
 
 #[test]

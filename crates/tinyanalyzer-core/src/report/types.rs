@@ -55,7 +55,6 @@ impl Report {
     }
 
     /// Every file that is not test code.
-    #[must_use]
     pub fn production_files(&self) -> impl Iterator<Item = &FileMetrics> {
         self.files.iter().filter(|file| !file.is_test)
     }

@@ -1,26 +1,41 @@
 # Roadmap
 
-Replace this file with the real plan for the crate generated from this
-template, or delete it if the project does not need a public roadmap.
-
-Keep it short and honest: what exists, what is next, and what is deliberately
-out of scope. A roadmap that lists everything is a roadmap nobody trusts.
-
-## Shipped
-
-- module layout, crate-wide error type, and the public re-export surface
-- lint configuration in `[lints]`, enforced identically locally and in CI
-- CI: format, clippy, build, test, per-file coverage, rustdoc, MSRV, and
-  supply-chain checks
-- a manual release workflow that versions, tags, publishes to crates.io, and
-  creates a GitHub release with crate and TinyBus runtime/module assets
+What is not built yet, roughly in the order it would be worth building. Nothing
+here is committed to; the list exists so that a gap in the tool reads as a known
+gap rather than an oversight.
 
 ## Next
 
-- the first real feature area, replacing the placeholder `greeting` module
-- module-level `README.md` and `docs/spec/` entries as modules grow
+- **Compare two reports.** The report already serializes and carries a schema
+  version, so `tinyanalyzer --compare before.json` is mostly rendering: what got
+  heavier, what got lighter, what findings a branch introduced. This is the
+  feature that turns the tool from a snapshot into a ratchet.
+- **A CI mode.** Exit non-zero when a finding at or above a given severity
+  appears, so a repository can hold a line it has reached.
+- **Build-time attribution.** `cargo build --timings` knows which crates
+  dominate a build. Joining that to the dependency weights this tool already
+  computes would answer "what is actually making my builds slow" rather than
+  "what is large".
 
-## Out Of Scope
+## Later
 
-- anything that cannot be tested deterministically
-- convenience wrappers that hide the crate's error taxonomy from callers
+- **Call-graph-aware dead code.** The identifier census is deliberately cheap and
+  documented as approximate. Resolving `use` statements and module paths would
+  raise confidence on the medium-confidence half of the list without needing a
+  compiler.
+- **Per-function ownership of unsafe and panic paths.** Currently counted per
+  file; per function would make the table directly actionable.
+- **Binary size attribution.** Which crates and which monomorphizations account
+  for the shipped binary.
+- **More languages.** The line counter already handles a dozen; item-level
+  analysis is Rust only, and the module boundary for adding another is
+  `rust_source`.
+
+## Deliberately not planned
+
+- **A web dashboard.** The tool ships as one binary with no runtime and nothing
+  fetched at startup, and that is a feature rather than a limitation: it runs
+  over SSH, in a container, and on a machine with no browser.
+- **Auto-fixing.** Every finding names a specific remedy, and every remedy is a
+  judgment call about a codebase this tool has not read the history of. Rewriting
+  somebody's code on the strength of a heuristic is a different product.

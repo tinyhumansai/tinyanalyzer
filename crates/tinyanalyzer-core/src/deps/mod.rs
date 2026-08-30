@@ -61,10 +61,13 @@ pub fn analyze(
             message: source.to_string(),
         })?;
 
-    let resolve = metadata.resolve.as_ref().ok_or_else(|| Error::CargoMetadata {
-        root: root.to_path_buf(),
-        message: "cargo returned no resolved graph".to_owned(),
-    })?;
+    let resolve = metadata
+        .resolve
+        .as_ref()
+        .ok_or_else(|| Error::CargoMetadata {
+            root: root.to_path_buf(),
+            message: "cargo returned no resolved graph".to_owned(),
+        })?;
 
     let members: BTreeSet<String> = metadata
         .workspace_members
@@ -245,10 +248,7 @@ fn direct_dependencies(
 }
 
 /// Every package reachable from `seeds`, excluding the seeds themselves.
-fn reachable_from(
-    seeds: &[String],
-    adjacency: &BTreeMap<String, Vec<String>>,
-) -> BTreeSet<String> {
+fn reachable_from(seeds: &[String], adjacency: &BTreeMap<String, Vec<String>>) -> BTreeSet<String> {
     let mut seen: BTreeSet<String> = BTreeSet::new();
     let mut queue: VecDeque<&String> = VecDeque::new();
 

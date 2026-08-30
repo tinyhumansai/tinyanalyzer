@@ -5,7 +5,8 @@
 //! useful report against a repository that has never heard of it, and a
 //! configuration file only ever records deviations from that baseline.
 //!
-//! Everything the file can say lives in [`types`]; this module is the loading,
+//! Everything the file can say lives in [`Config`] and the section types it
+//! holds; this module is the loading,
 //! the file-name policy, and the note lookup the report assembly uses.
 //!
 //! # Example
@@ -133,10 +134,10 @@ impl Config {
             return name.clone();
         }
 
-        root.file_name()
-            .map_or_else(|| "unnamed project".to_owned(), |name| {
-                name.to_string_lossy().into_owned()
-            })
+        root.file_name().map_or_else(
+            || "unnamed project".to_owned(),
+            |name| name.to_string_lossy().into_owned(),
+        )
     }
 }
 
@@ -170,13 +171,10 @@ pub(crate) fn compile_glob_set(patterns: &[String]) -> Result<Option<globset::Gl
         builder.add(compile_glob(pattern)?);
     }
 
-    builder
-        .build()
-        .map(Some)
-        .map_err(|source| Error::Glob {
-            pattern: patterns.join(", "),
-            message: source.to_string(),
-        })
+    builder.build().map(Some).map_err(|source| Error::Glob {
+        pattern: patterns.join(", "),
+        message: source.to_string(),
+    })
 }
 
 #[cfg(test)]

@@ -22,7 +22,7 @@ use crate::error::{Error, Result};
 use crate::loc::Language;
 use ignore::{WalkBuilder, WalkState};
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Mutex, PoisonError};
 
 /// Walks `root` and returns every file the configuration admits.
 ///
@@ -74,9 +74,8 @@ pub fn discover(root: impl AsRef<Path>, scan: &ScanConfig) -> Result<Vec<SourceF
                         // One unreadable directory should not lose the whole
                         // analysis, but it must not be silent either: the first
                         // failure is kept and reported once the walk finishes.
-                        if let Ok(mut slot) = failure.lock()
-                            && slot.is_none()
-                        {
+                        let mut slot = failure.lock().unwrap_or_else(PoisonError::into_inner);
+                        if slot.is_none() {
                             *slot = Some(error.to_string());
                         }
                         return WalkState::Continue;
@@ -87,9 +86,7 @@ pub fn discover(root: impl AsRef<Path>, scan: &ScanConfig) -> Result<Vec<SourceF
                     return WalkState::Continue;
                 }
 
-                let Some(relative) = relative_path(root, entry.path()) else {
-                    return WalkState::Continue;
-                };
+                let relative = relative_path(root, entry.path());
 
                 if exclude.as_ref().is_some_and(|set| set.is_match(&relative)) {
                     return WalkState::Continue;
@@ -101,22 +98,25 @@ pub fn discover(root: impl AsRef<Path>, scan: &ScanConfig) -> Result<Vec<SourceF
                 let is_test_path = tests.as_ref().is_some_and(|set| set.is_match(&relative));
                 let file = read_file(entry.path(), relative, is_test_path, scan.max_file_bytes);
 
-                if let Ok(mut files) = collected.lock() {
-                    files.push(file);
-                }
+                collected
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .push(file);
 
                 WalkState::Continue
             })
         });
 
-    if let Some(message) = failure.into_inner().unwrap_or_default() {
+    if let Some(message) = failure.into_inner().unwrap_or_else(PoisonError::into_inner) {
         return Err(Error::Walk {
             root: root.to_path_buf(),
             message,
         });
     }
 
-    let mut files = collected.into_inner().unwrap_or_default();
+    let mut files = collected
+        .into_inner()
+        .unwrap_or_else(PoisonError::into_inner);
     files.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
 
     Ok(files)
@@ -124,22 +124,16 @@ pub fn discover(root: impl AsRef<Path>, scan: &ScanConfig) -> Result<Vec<SourceF
 
 /// Renders `path` relative to `root` with forward slashes.
 ///
-/// Returns `None` for a path outside `root`, which only happens when a followed
-/// symbolic link leaves the tree — a file the analysis has no business
-/// reporting under a relative name it does not have.
-fn relative_path(root: &Path, path: &Path) -> Option<String> {
-    let relative = path.strip_prefix(root).ok()?;
-
-    let rendered: Vec<String> = relative
+/// A path that is not under `root` is returned as it stands. That can only
+/// happen behind a followed symbolic link, and naming the file by the path the
+/// walk actually reached it through is more useful than dropping it.
+fn relative_path(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
         .components()
         .map(|component| component.as_os_str().to_string_lossy().into_owned())
-        .collect();
-
-    if rendered.is_empty() {
-        return None;
-    }
-
-    Some(rendered.join("/"))
+        .collect::<Vec<String>>()
+        .join("/")
 }
 
 /// Reads one file, or records why it was left unread.

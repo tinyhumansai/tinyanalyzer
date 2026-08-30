@@ -122,6 +122,65 @@ fn every_branching_construct_adds_complexity() {
 }
 
 #[test]
+fn a_dispatch_table_is_not_counted_as_branching() {
+    // Every arm names a constant. The function makes no decision, and counting
+    // it as fifteen would make every exhaustive `match` in a codebase look like
+    // its worst function.
+    let file = parsed(
+        r#"
+        fn label(kind: u8) -> &'static str {
+            match kind {
+                0 => "zero",
+                1 => "one",
+                2 => "two",
+                _ => "many",
+            }
+        }
+        "#,
+    );
+
+    assert_eq!(file.functions[0].complexity, 1);
+}
+
+#[test]
+fn an_arm_that_does_real_work_still_counts() {
+    let file = parsed(
+        r"
+        fn run(kind: u8, flag: bool) -> u8 {
+            match kind {
+                0 => 1,
+                _ => {
+                    if flag { 2 } else { 3 }
+                }
+            }
+        }
+        ",
+    );
+
+    // 1 base + the block arm + the `if` inside it.
+    assert_eq!(file.functions[0].complexity, 3);
+}
+
+#[test]
+fn a_guarded_arm_counts_even_when_its_body_is_a_constant() {
+    let file = parsed(
+        r"
+        fn run(kind: u8, flag: bool) -> u8 {
+            match kind {
+                0 if flag => 1,
+                _ => 2,
+            }
+        }
+        ",
+    );
+
+    assert_eq!(
+        file.functions[0].complexity, 2,
+        "the guard is the decision, not the body"
+    );
+}
+
+#[test]
 fn a_nested_function_does_not_inflate_its_parent() {
     let file = parsed("fn outer() { fn inner(a: bool) { if a {} } }");
 
@@ -218,10 +277,7 @@ fn a_method_is_not_a_dead_code_candidate() {
     let file = parsed("struct S; impl S { fn method(&self) {} }");
 
     assert!(
-        !file
-            .definitions
-            .iter()
-            .any(|item| item.name == "method"),
+        !file.definitions.iter().any(|item| item.name == "method"),
         "methods are reached through their type, not by name"
     );
 }

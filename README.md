@@ -1,156 +1,233 @@
-# Rust Template
+# tinyanalyzer
 
-A production-ready Rust 2024 TinyBus module template used by TinyHumans AI. It
-ships the workspace layout, TinyBus ABI adapter, error handling, testing,
-documentation, CI, and multi-platform release workflow that every new
-integration in this organization starts from.
-
-It is a two-crate cargo workspace. `crates/template-bus` is the wire contract —
-member names, payload types, and the contract version, with no transport and no
-behavior — and `crates/template` is the implementation, built as both an `rlib`
-and the `cdylib` TinyBus loads. A host that only makes calls depends on the
-contract crate alone and compiles neither the module nor `tinybus` itself.
-
-## Use This Template
-
-Choose **Use this template** on GitHub, create a repository, then work through
-the checklist at the top of [`AGENTS.md`](AGENTS.md):
-
-- rename the `crates/template` and `crates/template-bus` directories and the
-  `name` fields in their manifests, and set the shared `description`,
-  `repository`, `keywords`, and `categories`;
-- update this README and the crate documentation in `crates/template/src/lib.rs`;
-- replace the placeholder `greeting` module with the first real feature area, in
-  both crates: the payload types in the contract, the behavior in the module;
-- rename the TinyBus interface, object path, and member constants in
-  `crates/template-bus/src/names/`, and the matching `provides` / `methods`
-  declarations in `crates/template/src/tinybus_module/`;
-- update the security contact and repository links in the community files;
-- replace `ROADMAP.md` with the real plan, or delete it;
-- change the license if GPL-3.0-only is not appropriate.
-
-Search for `template` and `template_bus` to find every remaining
-template-specific value.
-
-## What You Get
-
-| Area | What is configured |
-| --- | --- |
-| Layout | A cargo workspace under `crates/`, split into a dependency-light wire contract and the module that implements it; directory modules with `mod.rs` / `types.rs` / `test.rs`, a crate-wide error type, integration tests, and a runnable example |
-| Lints | `unsafe_code` forbidden, `missing_docs`, clippy `all` + `pedantic`, no `unwrap`/`expect`/`panic`/`todo` in library code — all declared once in `[workspace.lints]` so every crate, local run, and CI run agree |
-| CI | Format, clippy, build, test (default and all features), a run of the bundled example, an assertion that the contract crate stays transport-free, at least 90% line coverage in every source file, rustdoc with `-D warnings`, an MSRV build, and a `cargo-deny` supply-chain check |
-| Release | Manual `workflow_dispatch` bump that validates, versions, tags, and creates installable native module packages for every supported platform |
-| Community | Issue and pull request templates, Dependabot, contributing, security, support, and code of conduct docs |
-| Agents | [`AGENTS.md`](AGENTS.md) as the single source of truth, symlinked as `CLAUDE.md`, plus a `.claude/settings.json` allowlist for the standard commands |
-| Vendor | TinyBus host types and module SDK pinned as the `vendor/tinybus` build-time submodule |
-
-## Layout
-
-```text
-Cargo.toml              # virtual workspace: members, shared metadata, lints
-crates/
-├── template-bus/       # the wire contract — what crosses the bus
-│   ├── README.md       # why the contract is its own crate
-│   └── src/
-│       ├── lib.rs      # crate docs + the entire public re-export surface
-│       ├── names/      # interface, object path, one constant per member
-│       ├── greeting/   # payload types, one directory per family
-│       │   ├── mod.rs
-│       │   ├── types.rs
-│       │   └── test.rs
-│       └── version/    # contract version and the host bind rule
-└── template/           # the module — behavior, adapter, and the cdylib
-    ├── src/
-    │   ├── lib.rs      # crate docs + public surface, re-exporting the contract
-    │   ├── error/      # crate-wide `Error` and `Result<T>`
-    │   ├── greeting/   # one directory per feature area
-    │   └── tinybus_module/   # bus interface, setup, and ABI v1 exports
-    ├── tests/
-    │   └── public_api.rs     # integration tests against the public API only
-    └── examples/
-        ├── basic.rs                  # ordinary library API usage
-        ├── verify_module.rs          # local dynamic-module verification
-        └── verify_github_release.rs  # tagged-release download and bus call
-vendor/
-└── tinybus/            # pinned TinyBus git submodule
-docs/
-├── README.md           # documentation index and conventions
-├── specs/              # behavior and architecture specifications
-├── plans/              # implementation-ordered delivery plans
-└── adr/                # immutable architecture decision records
-```
-
-The split is the point. A payload type describes what a frame carries; the
-behavior that answers it is a different obligation. `template` depends on
-`template-bus` and re-exports all of it, so `template::GreetRequest` and
-`template_bus::GreetRequest` are the *same* type rather than structural twins,
-and a host is never forced to choose between linking the whole module and
-redefining the vocabulary. See
-[`crates/template-bus/README.md`](crates/template-bus/README.md).
-
-Within each crate, feature areas use directory modules: implementation and
-exports live in `mod.rs`, substantial types move to `types.rs`, and unit tests
-live in `test.rs`. [`AGENTS.md`](AGENTS.md) holds the complete repository
-guidance, and `CLAUDE.md` is a symlink to it so every coding agent reads one
-source of truth.
-
-## Development
-
-Clone with submodules, or initialize them before building:
+Point it at a Rust repository. It reads every file, parses every `.rs`, resolves
+the dependency graph, works out what nothing references, and opens a terminal
+dashboard over the result — ranked so the first thing you see is the thing most
+worth fixing.
 
 ```sh
-git submodule update --init --recursive
+tinyanalyzer                 # analyze the current directory, open the dashboard
+tinyanalyzer ../some/repo    # analyze somewhere else
+tinyanalyzer --output summary   # print a ranked text report instead
+tinyanalyzer --output json      # print the whole report as JSON
 ```
+
+One binary. No runtime, no browser, no bundled web assets, nothing fetched at
+startup: the dashboard *is* the program.
+
+## What it tells you
+
+**Where the weight is.** Every file with its lines of code, comments, items,
+functions, and a single weight score that ranks a dense two-hundred-line state
+machine above a thousand lines of constants — because "what should I look at
+first" is not the same question as "what is longest".
+
+**What each dependency actually costs.** Not the transitive count, which is
+mostly crates something else pulls in anyway, but the *exclusive* count: how
+many crates would leave the build entirely if you dropped this one. Plus every
+crate resolved at two versions, and every declared dependency no source file
+names.
+
+**What nothing references.** A workspace-wide identifier census finds items with
+no caller anywhere. It sees through macro invocations, which an AST walk cannot,
+and it tells you how sure it is: private items come back at high confidence,
+public ones at medium, because a library's callers may not be in this repository.
+
+**What is costing you at runtime.** Allocations inside loop bodies, loops nested
+inside loops, `dyn` dispatch sites, monomorphized generics, `unwrap` and `expect`
+outside test code.
+
+**What to do about all of it.** Every finding carries the measurement *and* a
+specific remedy. "This file is large" is not actionable; "629 lines across 23
+items, split along the seams already in it" is.
+
+## The dashboard
+
+```
+ tinyanalyzer   58 files · 8339 loc · 508 functions · 216 crates · 382.0 KiB
+ 1·Overview  2·Files  3·Directories  4·Dependencies  5·Dead code  6·Findings
+┌ Totals ───────────────────────┐┌ Languages by lines of code ─────────────┐
+│ files                  58     ││ ██████████                              │
+│ lines of code        8339     ││ ██████████                              │
+│ functions             508     ││ ██████████       ▃▃▃▃▃▃                 │
+│ allocations in loops   56     ││ Rust           Markdown         TOML    │
+└───────────────────────────────┘└─────────────────────────────────────────┘
+┌ Top findings (51) ──────────────────────────────────────────────────────┐
+│ high    crates/…/dashboard/render.rs is 629 lines of code               │
+│ high    crates/…/deps/mod.rs allocates 20 times inside loops            │
+│ high    Dashboard::apply has 19 paths through it                        │
+└─────────────────────────────────────────────────────────────────────────┘
+ q quit · tab/1-6 view · ↑↓ move · t tests · / filter · tests shown
+```
+
+| Key | What it does |
+|---|---|
+| `q`, `Esc`, `Ctrl-C` | Leave |
+| `Tab`, `←` `→`, `h` `l`, `1`–`6` | Change view |
+| `↑` `↓`, `j` `k` | Move the cursor |
+| `PgUp` `PgDn`, `u` `d` | Move a screenful |
+| `Home` `End`, `g` `G` | First and last row |
+| `t` | Show or hide test code, everywhere |
+| `/` | Filter rows; `Enter` keeps it, `Esc` clears it |
+
+The `t` filter is the one worth knowing about: it removes test code from every
+row *and* every total at once, which is usually the honest answer to "how big is
+this project".
+
+## Configuration
+
+`tinyanalyzer.toml` in the repository root, and every part of it is optional —
+an unconfigured repository gets a useful report, and the file only ever records
+deviations from that. `tiny-analyzer.toml` is accepted too.
+
+```toml
+[project]
+name = "my-project"
+description = "what it is"
+
+[scan]
+exclude = ["generated/**"]        # added to the defaults, not replacing them
+test_patterns = ["**/fixtures/**"]
+respect_gitignore = true
+max_file_bytes = 2_000_000
+
+[thresholds]
+large_file_lines = 400
+huge_file_lines = 800
+long_function_lines = 60
+high_complexity = 15
+heavy_dependency_crates = 20
+min_comment_ratio = 0.05
+
+[dead_code]
+ignore = ["main", "some_macro_target"]
+tests_count_as_uses = false       # an item only its tests call is dead weight
+
+[dependencies]
+ignore_unused = ["thiserror"]     # reached only through a derive macro
+
+[ui]
+start_view = "findings"
+hide_tests = true
+
+# Things to note: a path and a sentence saying why it looks the way it does.
+# A file the team already knows is huge, with a note saying so, reads very
+# differently from one nobody has looked at.
+[[notes]]
+path = "crates/parser/src/**"
+note = "hand-written parser; the long functions are deliberate"
+level = "info"                    # info | warning | critical
+```
+
+This repository's own [`tinyanalyzer.toml`](tinyanalyzer.toml) is the worked
+example.
+
+## Command line
+
+| Flag | What it does |
+|---|---|
+| `<PATH>` | Repository to analyze. Defaults to `.` |
+| `-o, --output <dashboard\|summary\|json>` | What to do with the report |
+| `--write <FILE>` | Write the output to a file instead of stdout |
+| `-c, --config <FILE>` | Use this configuration instead of looking for one |
+| `--view <VIEW>` | Open the dashboard on `overview`, `files`, `dependencies`, `dead-code`, or `findings` |
+| `--hide-tests` | Exclude test code from every total on startup |
+| `--no-deps` | Skip the dependency graph — pure filesystem work |
+| `--no-dead-code` | Skip dead-code detection |
+| `--hidden` | Include dotfiles and dot-directories |
+| `--no-ignore` | Analyze files `.gitignore` would exclude |
+
+Flags override the configuration file rather than replacing it: `--no-deps`
+against a repository with configured thresholds keeps those thresholds.
+
+## As a library
+
+The analysis engine is its own crate with no terminal, no renderer, and no
+argument parser in it, so it can be embedded in a CI check, an editor plugin, or
+anything that wants the numbers without the interface.
+
+```rust
+use tinyanalyzer_core::{Report, analyze};
+
+let report: Report = analyze(".")?;
+
+for finding in report.findings.iter().take(5) {
+    println!("[{}] {}", finding.severity.label(), finding.title);
+    println!("    {}", finding.suggestion);
+}
+# Ok::<(), tinyanalyzer_core::Error>(())
+```
+
+The report is fully serializable, and `schema_version` moves whenever a field is
+removed or changes meaning — so two reports from two commits can be diffed to
+see what a refactor actually did.
+
+## What it approximates, and how
+
+Every measurement here is either exact or documented as an approximation. The
+three that are worth knowing about before you act on them:
+
+- **Cyclomatic complexity** counts branches, not paths: `if`, `match` arms,
+  loops, `&&`, `||`, `?`. A `match` whose arms all name constants is a lookup
+  table, not a decision, and is not counted — otherwise every exhaustive `match`
+  over an enum would rank as the worst function in the repository.
+- **Dead code** is an identifier census, not name resolution. Two unrelated items
+  with the same name vouch for each other, so it under-reports rather than
+  over-reports — the right direction for a list somebody is going to act on.
+  Read `crates/tinyanalyzer-core/src/dead_code/mod.rs` before deleting anything.
+- **Unused dependencies** are dependencies no source file *names*. A crate
+  reached through a macro expansion, a build script, or a linker side effect has
+  no `use` naming it. Remove and build; if the build fails, add it to
+  `ignore_unused`.
+
+Files that do not parse are reported as findings rather than silently dropped,
+because a file missing from the Rust-level measurements reads as a clean one.
+
+## Building
+
+```sh
+cargo build --release
+./target/release/tinyanalyzer
+```
+
+Requires Rust 1.88 or newer. The four commands CI runs, which a local run should
+reproduce exactly:
 
 ```sh
 cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo build --all-targets --all-features
 cargo test --all-features
-cargo run -p template --example basic
-cargo build -p template --release --lib   # produces the installable cdylib
 ```
 
-Those four checks are exactly what CI runs. Optional extras:
+## Layout
 
-```sh
-cargo doc --no-deps --all-features   # CI builds this with RUSTDOCFLAGS="-D warnings"
-cargo deny check all                 # supply-chain check; see deny.toml
-cargo install cargo-llvm-cov         # once, before running the coverage gate
-.github/scripts/check-file-coverage.sh 90 coverage.json
+```text
+crates/
+├── tinyanalyzer-core/   # the analysis engine: no terminal, no CLI, no server
+│   ├── config/          # tinyanalyzer.toml
+│   ├── walk/            # which files are in scope
+│   ├── loc/             # code, comment, and blank lines
+│   ├── rust_source/     # syn-based items, complexity, cost signals
+│   ├── deps/            # the resolved dependency graph and its real cost
+│   ├── dead_code/       # the workspace-wide identifier census
+│   ├── findings/        # the rules that turn measurements into advice
+│   └── report/          # all of it, joined and ranked
+└── tinyanalyzer/        # the binary: command line, text output, dashboard
+    ├── cli/
+    ├── summary/
+    └── dashboard/       # state machine, renderer, event loop
 ```
 
-## Releasing
+CI asserts that the engine never grows a dependency on a terminal UI, an
+argument parser, a server, or an async runtime.
 
-Run the **Release** workflow from the Actions tab with a `patch`, `minor`, or
-`major` bump. Use `current` only to resume an interrupted release whose version
-commit and tag already exist. The workflow revalidates the workspace, versions
-and tags it — one `[workspace.package]` version that every member inherits —
-builds `crates/template` as a TinyBus `cdylib`, and creates a GitHub release.
-Assets follow `template-<version>-<platform>.<tar.gz|zip>` and contain the
-native module, its SHA-256 `modules.toml`, license, and
-[`MODULE.md`](MODULE.md). Every release also publishes `checksum.toml`, which
-TinyBus uses to verify an archive before extraction. The workflow loads the
-published Ubuntu archive through TinyBus's GitHub release API and calls its
-`Greet` method before declaring the release successful. TinyBus itself is not
-shipped by this repository; the pinned submodule is the build-time SDK. The stable native
-matrix covers Ubuntu 22.04 and 24.04 on x86_64 and ARM64; Fedora 43 and 44 on
-x86_64 and ARM64; rolling Arch Linux on its officially supported x86_64
-architecture; macOS 15 and 26 on Intel and Apple Silicon; Windows Server 2022
-and 2025 on x86_64; and Windows 11 on ARM64. Preview, deprecated, and unofficial
-architecture images are not release gates. Do not hand-edit the version in the
-root `Cargo.toml`.
+## Contributing
 
-## Documentation
-
-- [`AGENTS.md`](AGENTS.md) — repository guidelines for humans and agents
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to propose a change
-- [`docs/specs/`](docs/specs/README.md) — behavior and architecture specs
-- [`docs/plans/`](docs/plans/README.md) — test-first implementation plans
-- [`docs/adr/`](docs/adr/0001-record-architecture-decisions.md) — architecture
-  decision records
-- [`SECURITY.md`](SECURITY.md) — how to report a vulnerability
+See [`AGENTS.md`](AGENTS.md) for how work is done in this repository —
+`CLAUDE.md` is a symlink to the same file — and
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for the pull request process.
 
 ## License
 
-GPL-3.0-only. See [LICENSE](LICENSE).
+GPL-3.0-only. See [`LICENSE`](LICENSE).

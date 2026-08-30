@@ -28,10 +28,9 @@ docs/
 Complex modules also carry a module-level `README.md` inside `src/<module>/`
 covering their design, public surface, and important constraints.
 
-The current module-release contract is in
-[`specs/tinybus-module-release.md`](specs/tinybus-module-release.md), with its
-implementation sequence in
-[`plans/tinybus-module-release.md`](plans/tinybus-module-release.md).
+The analyzer's own contract — what it measures, what it approximates, and what
+it refuses to guess — is in
+[`specs/analysis-contract.md`](specs/analysis-contract.md).
 
 ## Conventions
 
