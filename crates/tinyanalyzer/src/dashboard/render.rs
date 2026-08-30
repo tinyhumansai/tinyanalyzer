@@ -374,15 +374,12 @@ fn totals_layout(area: Rect) -> (Option<Rect>, Rect) {
         .map(|row| wordmark_line(row).width())
         .max()
         .unwrap_or_default();
-    let fits = area.height >= MIN_TOTALS_WITH_WORDMARK_HEIGHT
-        && usize::from(area.width) >= wordmark_width;
+    let fits =
+        area.height >= MIN_TOTALS_WITH_WORDMARK_HEIGHT && usize::from(area.width) >= wordmark_width;
 
     if fits {
-        let rows = Layout::vertical([
-            Constraint::Length(WORDMARK_HEIGHT),
-            Constraint::Min(0),
-        ])
-        .split(area);
+        let rows =
+            Layout::vertical([Constraint::Length(WORDMARK_HEIGHT), Constraint::Min(0)]).split(area);
         (Some(rows[0]), rows[1])
     } else {
         (None, area)
