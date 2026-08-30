@@ -1249,6 +1249,51 @@ fn the_directories_view_lists_directories_with_their_sizes() {
 }
 
 #[test]
+fn directory_browser_combines_files_and_directories_and_can_hide_files() {
+    let (_root, mut dashboard) = graph_dashboard();
+    dashboard.apply(Action::SelectView(View::Directories.index()));
+
+    for path in ["crates", "crates/engine", "crates/engine/src"] {
+        let position = dashboard
+            .browser_entries()
+            .iter()
+            .position(|entry| entry.path() == path)
+            .expect("the next directory level is visible");
+        dashboard.apply(Action::EnterDirectoryAt(position));
+    }
+
+    assert!(
+        dashboard
+            .browser_entries()
+            .iter()
+            .any(|entry| entry.path() == "crates/engine/src/lib.rs" && !entry.is_directory())
+    );
+    assert!(rendered(&dashboard).contains("lib.rs"));
+
+    dashboard.apply(Action::ToggleDirectoriesOnly);
+
+    assert!(dashboard.directories_only());
+    assert!(
+        dashboard
+            .browser_entries()
+            .iter()
+            .all(|entry| entry.is_directory())
+    );
+}
+
+#[test]
+fn o_toggles_the_directory_only_filter() {
+    let (_root, mut dashboard) = graph_dashboard();
+    let area = Rect::new(0, 0, 160, 48);
+    dashboard.apply(Action::SelectView(View::Directories.index()));
+
+    assert_eq!(
+        action_for_event(&Event::Key(key(KeyCode::Char('o'))), area, &dashboard),
+        Some(Action::ToggleDirectoriesOnly)
+    );
+}
+
+#[test]
 fn directories_are_grouped_by_level_and_navigation_restores_the_parent_cursor() {
     let (_root, mut dashboard) = graph_dashboard();
     dashboard.apply(Action::SelectView(View::Directories.index()));
