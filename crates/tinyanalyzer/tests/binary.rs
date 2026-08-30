@@ -227,7 +227,14 @@ fn under_a_terminal(root: &Path, keys: &str) -> Option<Output> {
 
     let mut child = Command::new("script")
         .arg("-qec")
-        .arg(format!("{BINARY} {}", root.display()))
+        // The pty `script` allocates inherits its size from this process, which
+        // under a test harness has no terminal at all — so it comes up 0x0 and
+        // the dashboard draws nothing into it. Sizing it first is what makes
+        // the rendered frame observable.
+        .arg(format!(
+            "stty rows 40 cols 150; {BINARY} {}",
+            root.display()
+        ))
         .arg("/dev/null")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
