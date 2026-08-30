@@ -516,12 +516,12 @@ fn each_view_cycles_through_sort_orders() {
         (View::Overview, &["severity", "title", "rule"]),
         (
             View::Files,
-            &["weight", "path", "lines", "size", "complexity"],
+            &["size", "complexity", "weight", "path", "lines"],
         ),
         (View::Directories, &["size", "path", "files", "lines"]),
         (
             View::Dependencies,
-            &["exclusive", "name", "reachable", "source size"],
+            &["source size", "exclusive", "name", "reachable"],
         ),
         (View::DeadCode, &["confidence", "name", "file"]),
         (View::Findings, &["severity", "title", "rule"]),
@@ -536,6 +536,38 @@ fn each_view_cycles_through_sort_orders() {
         }
         assert_eq!(dashboard.sort_label(), labels[0], "sort order wraps");
     }
+}
+
+#[test]
+fn panes_with_byte_metrics_sort_by_size_by_default() {
+    let (_root, mut dashboard) = graph_dashboard();
+
+    dashboard.apply(Action::SelectView(View::Files.index()));
+    assert_eq!(dashboard.sort_label(), "size");
+    assert!(
+        dashboard
+            .files()
+            .windows(2)
+            .all(|files| files[0].bytes >= files[1].bytes)
+    );
+
+    dashboard.apply(Action::SelectView(View::Directories.index()));
+    assert_eq!(dashboard.sort_label(), "size");
+    assert!(
+        dashboard
+            .directories()
+            .windows(2)
+            .all(|directories| directories[0].bytes >= directories[1].bytes)
+    );
+
+    dashboard.apply(Action::SelectView(View::Dependencies.index()));
+    assert_eq!(dashboard.sort_label(), "source size");
+    assert!(
+        dashboard
+            .packages()
+            .windows(2)
+            .all(|packages| packages[0].source_bytes >= packages[1].source_bytes)
+    );
 }
 
 #[test]
@@ -856,53 +888,12 @@ fn the_rendered_dashboard_shows_the_project_and_the_tab_bar() {
 }
 
 #[test]
-fn the_wordmark_sits_immediately_above_the_overview_totals() {
+fn overview_totals_and_languages_share_the_top_row() {
     let (_root, dashboard) = dashboard();
-    let rows = rendered_rows(&dashboard, 320, 50);
-    let body_start = 2;
-
-    assert!(rows[body_start].contains("▒▒▒▒▒▒"));
-    assert!(
-        rows[body_start + usize::from(render::WORDMARK_HEIGHT)].starts_with("┌ Totals"),
-        "the totals panel should begin on the row immediately after the wordmark"
-    );
-    assert!(
-        rows[body_start].contains("┌ Languages by lines of code"),
-        "the languages panel should remain at the top of the overview"
-    );
-    assert!(
-        rows.iter().all(|row| !row.contains("[0;")),
-        "ANSI control sequences must be converted to TUI styles"
-    );
-}
-
-#[test]
-fn the_wordmark_preserves_its_embedded_colors() {
-    let (_root, dashboard) = dashboard();
-    let backend = TestBackend::new(320, 50);
-    let mut terminal = Terminal::new(backend).expect("an in-memory terminal");
-    terminal
-        .draw(|frame| render::draw(frame, &dashboard))
-        .expect("the overview draws");
-
-    let first_block = terminal
-        .backend()
-        .buffer()
-        .cell((1, 2))
-        .expect("the first wordmark block is visible");
-    assert_eq!(first_block.symbol(), "▒");
-    assert_eq!(first_block.fg, ratatui::style::Color::LightRed);
-    assert_eq!(first_block.bg, ratatui::style::Color::Red);
-}
-
-#[test]
-fn a_narrow_overview_keeps_the_totals_and_drops_the_wordmark() {
-    let (_root, dashboard) = dashboard();
-    let rows = rendered_rows(&dashboard, 60, 50);
+    let rows = rendered_rows(&dashboard, 160, 50);
 
     assert!(rows[2].starts_with("┌ Totals"));
     assert!(rows[2].contains("┌ Languages by lines of code"));
-    assert!(!rows.iter().any(|row| row.contains("▒▒▒▒▒▒")));
 }
 
 #[test]
@@ -1196,15 +1187,16 @@ fn dependency_tree_rows_show_source_size_and_immediate_child_count() {
         dashboard
             .selected_dependency_detail_package()
             .map(|package| package.name.as_str()),
-        Some("leaf")
+        Some("deep")
     );
     dashboard.apply(Action::MoveDependencyUp);
     assert_eq!(
         dashboard
             .selected_dependency_detail_package()
             .map(|package| package.name.as_str()),
-        Some("deep")
+        Some("leaf")
     );
+    dashboard.apply(Action::MoveDependencyDown);
     dashboard.apply(Action::EnterDependency);
     assert_eq!(
         dashboard
@@ -1218,6 +1210,7 @@ fn dependency_tree_rows_show_source_size_and_immediate_child_count() {
     assert!(dashboard.dependency_detail_focused());
     dashboard.apply(Action::NextSort);
     assert_eq!(dashboard.dependency_detail_packages()[0].name, "deep");
+    dashboard.apply(Action::NextSort);
     dashboard.apply(Action::NextSort);
     dashboard.apply(Action::NextSort);
     assert_eq!(
