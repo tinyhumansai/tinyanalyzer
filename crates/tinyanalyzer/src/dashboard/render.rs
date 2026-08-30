@@ -258,6 +258,13 @@ fn status(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
                 Style::default().fg(Color::LightMagenta),
             ));
             spans.push(Span::raw(" features"));
+        } else if dashboard.view() == View::Directories {
+            spans.push(Span::styled(" · o", Style::default().fg(ACCENT)));
+            spans.push(Span::raw(if dashboard.directories_only() {
+                " dirs only"
+            } else {
+                " dirs + files"
+            }));
         }
 
         Line::from(spans)
@@ -572,38 +579,50 @@ fn file_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     );
 }
 
-/// Immediate child directories at the current browser level.
+/// Immediate child directories and files at the current browser level.
 fn directories(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     let rows: Vec<Row<'_>> = dashboard
-        .directories()
+        .browser_entries()
         .iter()
-        .map(|directory| {
-            let directory_color = severity_for_path(dashboard, &directory.path, true)
-                .map_or(DIRECTORY, severity_color);
+        .map(|entry| {
+            let is_directory = entry.is_directory();
+            let path = entry.path();
+            let name = if path == ".." {
+                "../".to_owned()
+            } else if is_directory {
+                format!("{}/", path.rsplit('/').next().unwrap_or("."))
+            } else {
+                path.rsplit('/').next().unwrap_or(path).to_owned()
+            };
+            let name_color = severity_for_path(dashboard, path, is_directory).map_or(
+                if is_directory { DIRECTORY } else { Color::White },
+                severity_color,
+            );
+            let lines = entry.lines(dashboard);
             Row::new(vec![
                 Cell::from(Span::styled(
-                    if directory.path == ".." {
-                        "../".to_owned()
-                    } else {
-                        format!("{}/", directory.path.rsplit('/').next().unwrap_or("."))
-                    },
+                    name,
                     Style::default()
-                        .fg(if directory.is_test_only {
+                        .fg(if entry.is_test_only() {
                             MUTED
                         } else {
-                            directory_color
+                            name_color
                         })
-                        .add_modifier(Modifier::BOLD),
+                        .add_modifier(if is_directory {
+                            Modifier::BOLD
+                        } else {
+                            Modifier::empty()
+                        }),
                 )),
-                metric_cell(&directory.files, Color::LightMagenta),
-                metric_cell(&directory.lines.code, METRIC),
-                metric_cell(&directory.lines.comment, DOCUMENTATION),
+                metric_cell(&entry.file_count(), Color::LightMagenta),
+                metric_cell(&lines.code, METRIC),
+                metric_cell(&lines.comment, DOCUMENTATION),
                 Cell::from(Span::styled(
-                    human_bytes(directory.bytes),
+                    human_bytes(entry.bytes()),
                     Style::default().fg(SIZE),
                 )),
                 Cell::from(Span::styled(
-                    if directory.is_test_only { "tests" } else { "" },
+                    if entry.is_test_only() { "tests" } else { "" },
                     Style::default().fg(MUTED),
                 )),
             ])
@@ -624,7 +643,7 @@ fn directories(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         area,
         Table::new(rows, widths)
             .header(header_row(&[
-                "directory",
+                "name",
                 "files",
                 "code",
                 "docs",
