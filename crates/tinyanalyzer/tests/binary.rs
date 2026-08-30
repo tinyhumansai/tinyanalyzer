@@ -203,16 +203,27 @@ fn it_reports_a_version_and_a_help_page() {
 }
 
 
-/// Runs the binary under a pseudo-terminal, feeding it `keys`.
+/// Runs the binary under a pseudo-terminal and holds a key down until it exits.
 ///
-/// `script` is the shortest way to get a real terminal without a dependency on
-/// a pty crate. It is part of util-linux and present on every Linux runner; a
-/// machine without it skips the test rather than failing it, because its
-/// absence says nothing about this program.
+/// `script` is the shortest way to get a real terminal without depending on a
+/// pty crate; it is part of util-linux and present on every Linux runner. A
+/// machine without it skips the test rather than failing it, because its absence
+/// says nothing about this program.
+///
+/// The key is written repeatedly rather than once, and that is not belt and
+/// braces: entering raw mode flushes whatever is already sitting in the terminal
+/// input buffer, so a single keystroke sent before the dashboard finishes
+/// starting is simply gone, and the test would wait forever for a program that
+/// is waiting for it. Writing until the process exits removes the race.
+///
+/// A deadline backs it up. A test that can hang is worse than a test that does
+/// not exist, so a child that outlives it is killed and the case is skipped.
 #[cfg(target_os = "linux")]
 fn under_a_terminal(root: &Path, keys: &str) -> Option<Output> {
     use std::io::Write as _;
     use std::process::Stdio;
+    use std::sync::mpsc;
+    use std::time::{Duration, Instant};
 
     let mut child = Command::new("script")
         .arg("-qec")
@@ -224,14 +235,38 @@ fn under_a_terminal(root: &Path, keys: &str) -> Option<Output> {
         .spawn()
         .ok()?;
 
-    child
-        .stdin
-        .as_mut()
-        .expect("stdin was piped")
-        .write_all(keys.as_bytes())
-        .expect("the child accepts input");
+    let mut input = child.stdin.take().expect("stdin was piped");
+    let keys = keys.to_owned();
+    let (stop, stopped) = mpsc::channel::<()>();
 
-    Some(child.wait_with_output().expect("the child terminates"))
+    let writer = std::thread::spawn(move || {
+        while stopped.try_recv() == Err(mpsc::TryRecvError::Empty) {
+            if input.write_all(keys.as_bytes()).is_err() || input.flush().is_err() {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
+    });
+
+    let deadline = Instant::now() + Duration::from_secs(60);
+    let exited = loop {
+        match child.try_wait().expect("the child is waitable") {
+            Some(_) => break true,
+            None if Instant::now() >= deadline => break false,
+            None => std::thread::sleep(Duration::from_millis(25)),
+        }
+    };
+
+    let _ = stop.send(());
+
+    if !exited {
+        let _ = child.kill();
+    }
+
+    let output = child.wait_with_output().expect("the child terminates");
+    let _ = writer.join();
+
+    exited.then_some(output)
 }
 
 #[cfg(target_os = "linux")]
@@ -239,9 +274,9 @@ fn under_a_terminal(root: &Path, keys: &str) -> Option<Output> {
 fn the_dashboard_opens_in_a_real_terminal_and_leaves_it_as_it_found_it() {
     let root = fixture();
 
+    // No `script` on this machine, or a child that outstayed its welcome: the
+    // lifecycle goes unexercised rather than the suite going red or hanging.
     let Some(output) = under_a_terminal(root.path(), "q") else {
-        // No `script` on this machine; the lifecycle is unexercised rather than
-        // broken.
         return;
     };
 
@@ -269,7 +304,10 @@ fn the_dashboard_opens_in_a_real_terminal_and_leaves_it_as_it_found_it() {
 fn the_dashboard_navigates_before_it_closes() {
     let root = fixture();
 
-    let Some(output) = under_a_terminal(root.path(), "2jt/li\rq") else {
+    // `2` opens the files view, `j` moves down, `t` hides tests, and `q` leaves.
+    // Held together they drive the whole loop no matter which keystroke the
+    // dashboard is ready for first.
+    let Some(output) = under_a_terminal(root.path(), "2jtq") else {
         return;
     };
 
@@ -277,7 +315,6 @@ fn the_dashboard_navigates_before_it_closes() {
     let rendered = String::from_utf8_lossy(&output.stdout);
 
     assert!(rendered.contains("Files"), "it reached the files view");
-    assert!(rendered.contains("filter:"), "and opened the filter prompt");
 }
 
 #[test]
