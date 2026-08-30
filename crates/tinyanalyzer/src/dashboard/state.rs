@@ -274,7 +274,6 @@ pub struct Dashboard {
     dependency_detail_path: Vec<String>,
     dependency_detail_cursors: Vec<usize>,
     dependency_detail_cursor: usize,
-    dependency_detail_focused: bool,
     dependency_simulation: RefCell<Option<DependencySimulation>>,
     dependency_simulation_builds: Cell<usize>,
     feature_overrides: BTreeMap<String, BTreeSet<String>>,
@@ -308,7 +307,6 @@ impl Dashboard {
             dependency_detail_path: Vec::new(),
             dependency_detail_cursors: Vec::new(),
             dependency_detail_cursor: 0,
-            dependency_detail_focused: false,
             dependency_simulation: RefCell::new(None),
             dependency_simulation_builds: Cell::new(0),
             feature_overrides: BTreeMap::new(),
@@ -615,8 +613,8 @@ impl Dashboard {
 
     /// Whether keyboard movement is targeting the dependency detail pane.
     #[must_use]
-    pub const fn dependency_detail_focused(&self) -> bool {
-        self.dependency_detail_focused
+    pub fn dependency_detail_focused(&self) -> bool {
+        self.dependency_detail_root.is_some()
     }
 
     /// Package whose children form the current detail level.
@@ -1099,7 +1097,7 @@ impl Dashboard {
                 let view = self.view.index();
                 self.sorts[view] = (self.sorts[view] + 1) % sort_count(self.view);
                 self.detail_scrolls[view] = 0;
-                if self.view == View::Dependencies && self.dependency_detail_focused {
+                if self.view == View::Dependencies && self.dependency_detail_focused() {
                     if let Some(root) = &self.dependency_detail_root {
                         self.cursors[view] = self
                             .packages()
@@ -1191,7 +1189,7 @@ impl Dashboard {
         let last = self.row_count().saturating_sub(1);
         let cursor = &mut self.cursors[self.view.index()];
         *cursor = (*cursor).min(last);
-        if self.view == View::Dependencies && self.dependency_detail_focused {
+        if self.view == View::Dependencies && self.dependency_detail_focused() {
             let detail_last = self.dependency_detail_packages().len().saturating_sub(1);
             self.dependency_detail_cursor = self.dependency_detail_cursor.min(detail_last);
         }
@@ -1252,7 +1250,7 @@ impl Dashboard {
         if self.view != View::Dependencies {
             return;
         }
-        if self.dependency_detail_focused {
+        if self.dependency_detail_focused() {
             let Some(id) = self
                 .selected_dependency_detail_package()
                 .map(|package| package.id.clone())
@@ -1274,7 +1272,6 @@ impl Dashboard {
                 return;
             }
             self.dependency_detail_root = Some(id);
-            self.dependency_detail_focused = true;
             self.dependency_detail_cursor = 0;
         }
         self.detail_scrolls[View::Dependencies.index()] = 0;
@@ -1282,7 +1279,7 @@ impl Dashboard {
 
     /// Returns to the preceding detail level, then to the direct list.
     fn leave_dependency(&mut self) {
-        if self.view != View::Dependencies || !self.dependency_detail_focused {
+        if self.view != View::Dependencies || !self.dependency_detail_focused() {
             return;
         }
         if self.dependency_detail_path.pop().is_some() {
@@ -1296,7 +1293,7 @@ impl Dashboard {
 
     /// Moves the highlighted dependency in the detail pane.
     fn move_dependency_detail(&mut self, delta: i64) {
-        if !self.dependency_detail_focused {
+        if !self.dependency_detail_focused() {
             return;
         }
         let current = i64::try_from(self.dependency_detail_cursor).unwrap_or(i64::MAX);
@@ -1312,7 +1309,6 @@ impl Dashboard {
         self.dependency_detail_path.clear();
         self.dependency_detail_cursors.clear();
         self.dependency_detail_cursor = 0;
-        self.dependency_detail_focused = false;
     }
 
     /// Compiles the filter, falling back to a literal while a regex is incomplete.
@@ -1340,7 +1336,7 @@ impl Dashboard {
 
     /// Toggles the selected direct dependency in the simulated workspace edges.
     fn simulate_remove_dependency(&mut self) {
-        if self.view != View::Dependencies || self.dependency_detail_focused {
+        if self.view != View::Dependencies || self.dependency_detail_focused() {
             return;
         }
         let Some(id) = self.selected_package().map(|package| package.id.clone()) else {
