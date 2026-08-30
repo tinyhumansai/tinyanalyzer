@@ -301,8 +301,8 @@ pub fn action_for(key: KeyEvent, editing_filter: bool) -> Option<Action> {
 
     match key.code {
         KeyCode::Char('q') | KeyCode::Esc => Some(Action::Quit),
-        KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => Some(Action::NextView),
-        KeyCode::BackTab | KeyCode::Left | KeyCode::Char('h') => Some(Action::PreviousView),
+        KeyCode::Tab => Some(Action::NextView),
+        KeyCode::BackTab => Some(Action::PreviousView),
         KeyCode::Down | KeyCode::Char('j') => Some(Action::MoveDown),
         KeyCode::Up | KeyCode::Char('k') => Some(Action::MoveUp),
         KeyCode::PageDown | KeyCode::Char('d') => Some(Action::PageDown),

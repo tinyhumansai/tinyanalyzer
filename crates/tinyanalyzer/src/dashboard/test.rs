@@ -635,6 +635,18 @@ fn keys_map_onto_the_actions_they_describe() {
         action_for(key(KeyCode::BackTab), false),
         Some(Action::PreviousView)
     );
+    for code in [
+        KeyCode::Left,
+        KeyCode::Right,
+        KeyCode::Char('h'),
+        KeyCode::Char('l'),
+    ] {
+        assert_eq!(
+            action_for(key(code), false),
+            None,
+            "horizontal navigation is not tab navigation"
+        );
+    }
     assert_eq!(
         action_for(key(KeyCode::Down), false),
         Some(Action::MoveDown)
@@ -672,10 +684,8 @@ fn every_documented_key_is_mapped() {
         (KeyCode::Char('g'), Action::First),
         (KeyCode::End, Action::Last),
         (KeyCode::Char('G'), Action::Last),
-        (KeyCode::Right, Action::NextView),
-        (KeyCode::Char('l'), Action::NextView),
-        (KeyCode::Left, Action::PreviousView),
-        (KeyCode::Char('h'), Action::PreviousView),
+        (KeyCode::Tab, Action::NextView),
+        (KeyCode::BackTab, Action::PreviousView),
         (KeyCode::Up, Action::MoveUp),
         (KeyCode::Char('k'), Action::MoveUp),
         (KeyCode::Char('j'), Action::MoveDown),

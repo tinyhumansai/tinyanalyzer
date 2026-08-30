@@ -63,7 +63,7 @@ items, split along the seams already in it" is.
 | Key | What it does |
 |---|---|
 | `q`, `Esc`, `Ctrl-C` | Leave |
-| `Tab`, `←` `→`, `h` `l`, `1`–`6` | Change view (`←` `→` and `h` `l` navigate in Directories) |
+| `Tab`, `Shift-Tab`, `1`–`6` | Change view |
 | `↑` `↓`, `j` `k` | Move the cursor |
 | `PgUp` `PgDn`, `u` `d` | Move a screenful |
 | `Home` `End`, `g` `G` | First and last row |
