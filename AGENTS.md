@@ -232,7 +232,7 @@ network is gated and named `live_*`.
   producing nothing, one at it producing a finding. A test that only uses
   obviously extreme inputs cannot see a rule that fires one unit early.
 - Use descriptive, behavioral test names: `rejects_an_empty_name`, not
-  `test_greet_2`.
+  `test_analyze_2`.
 - Cover the failure paths, not just the happy path. Every new error variant
   needs a test that produces it.
 - For async behavior, standardize on one runtime (`tokio` as a dev-dependency
