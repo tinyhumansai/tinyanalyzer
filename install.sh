@@ -32,7 +32,13 @@ version="${TINYANALYZER_VERSION:-}"
 if [ -z "$version" ]; then
     latest_url="$(curl --proto '=https' --tlsv1.2 -fsSL -o /dev/null -w '%{url_effective}' \
         "https://github.com/${repository}/releases/latest")"
-    version="${latest_url##*/}"
+    case "$latest_url" in
+        */releases/tag/*) version="${latest_url##*/}" ;;
+        *)
+            echo "tinyanalyzer installer: no published release is available yet" >&2
+            exit 1
+            ;;
+    esac
 fi
 
 case "$version" in
