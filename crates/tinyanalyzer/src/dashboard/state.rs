@@ -118,6 +118,10 @@ pub enum Action {
     EnterDirectoryAt(usize),
     /// Return to the parent directory.
     LeaveDirectory,
+    /// Scroll the active detail pane down.
+    ScrollDetailDown,
+    /// Scroll the active detail pane up.
+    ScrollDetailUp,
     /// Show or hide test code.
     ToggleTests,
     /// Start typing a filter.
@@ -142,6 +146,7 @@ pub struct Dashboard {
     view: View,
     hide_tests: bool,
     cursors: [usize; View::ALL.len()],
+    detail_scrolls: [u16; View::ALL.len()],
     filter: String,
     editing_filter: bool,
     directory_path: String,
@@ -158,6 +163,7 @@ impl Dashboard {
             view: View::from_start(start),
             hide_tests,
             cursors: [0; View::ALL.len()],
+            detail_scrolls: [0; View::ALL.len()],
             filter: String::new(),
             editing_filter: false,
             directory_path: ".".to_owned(),
@@ -206,6 +212,12 @@ impl Dashboard {
     #[must_use]
     pub fn cursor(&self) -> usize {
         self.cursors[self.view.index()]
+    }
+
+    /// Vertical offset of the current view's detail pane.
+    #[must_use]
+    pub fn detail_scroll(&self) -> u16 {
+        self.detail_scrolls[self.view.index()]
     }
 
     /// Totals for the current test filter.
@@ -434,6 +446,14 @@ impl Dashboard {
             Action::EnterDirectory => self.enter_directory(self.cursor()),
             Action::EnterDirectoryAt(position) => self.enter_directory(position),
             Action::LeaveDirectory => self.leave_directory(),
+            Action::ScrollDetailDown => {
+                let scroll = &mut self.detail_scrolls[self.view.index()];
+                *scroll = scroll.saturating_add(3);
+            }
+            Action::ScrollDetailUp => {
+                let scroll = &mut self.detail_scrolls[self.view.index()];
+                *scroll = scroll.saturating_sub(3);
+            }
             Action::ToggleTests => {
                 self.hide_tests = !self.hide_tests;
                 self.clamp_cursor();
@@ -467,7 +487,12 @@ impl Dashboard {
     /// Puts the cursor at `position`, clamped to the current view's rows.
     fn set_cursor(&mut self, position: usize) {
         let last = self.row_count().saturating_sub(1);
-        self.cursors[self.view.index()] = position.min(last);
+        let view = self.view.index();
+        let next = position.min(last);
+        if self.cursors[view] != next {
+            self.detail_scrolls[view] = 0;
+        }
+        self.cursors[view] = next;
     }
 
     /// Pulls the cursor back into range after the row set shrinks.

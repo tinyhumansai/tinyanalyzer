@@ -81,6 +81,29 @@ pub(super) fn row_at(area: Rect, view: View, column: u16, row: u16) -> Option<us
         .then(|| usize::from(row.saturating_sub(first)))
 }
 
+/// Whether a mouse coordinate is inside the active view's detail pane.
+pub(super) fn detail_contains(area: Rect, view: View, column: u16, row: u16) -> bool {
+    let body = Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Length(1),
+        Constraint::Min(3),
+        Constraint::Length(1),
+    ])
+    .split(area)[2];
+    let percentage = match view {
+        View::Files => 62,
+        View::Dependencies | View::Findings => 55,
+        View::Overview | View::Directories | View::DeadCode => return false,
+    };
+    let detail = Layout::horizontal([
+        Constraint::Percentage(percentage),
+        Constraint::Percentage(100 - percentage),
+    ])
+    .split(body)[1];
+
+    column >= detail.x && column < detail.right() && row >= detail.y && row < detail.bottom()
+}
+
 /// The project name and the headline totals.
 fn title(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     let totals = dashboard.totals();
@@ -456,6 +479,7 @@ fn file_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     frame.render_widget(
         Paragraph::new(lines)
             .block(panel("Detail"))
+            .scroll((dashboard.detail_scroll(), 0))
             .wrap(Wrap { trim: true }),
         area,
     );
@@ -620,6 +644,7 @@ fn dependency_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     frame.render_widget(
         Paragraph::new(lines)
             .block(panel("Graph"))
+            .scroll((dashboard.detail_scroll(), 0))
             .wrap(Wrap { trim: false }),
         area,
     );
@@ -743,6 +768,7 @@ fn finding_detail(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
     frame.render_widget(
         Paragraph::new(detail_lines(finding))
             .block(panel("Detail"))
+            .scroll((dashboard.detail_scroll(), 0))
             .wrap(Wrap { trim: true }),
         area,
     );

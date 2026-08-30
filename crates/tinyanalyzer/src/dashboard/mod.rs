@@ -160,8 +160,24 @@ fn action_for_event(event: &Event, area: Rect, dashboard: &Dashboard) -> Option<
 /// Maps mouse coordinates onto tabs and the active row list.
 fn action_for_mouse(mouse: MouseEvent, area: Rect, dashboard: &Dashboard) -> Option<Action> {
     match mouse.kind {
-        MouseEventKind::ScrollDown => return Some(Action::MoveDown),
-        MouseEventKind::ScrollUp => return Some(Action::MoveUp),
+        MouseEventKind::ScrollDown => {
+            return Some(
+                if render::detail_contains(area, dashboard.view(), mouse.column, mouse.row) {
+                    Action::ScrollDetailDown
+                } else {
+                    Action::MoveDown
+                },
+            );
+        }
+        MouseEventKind::ScrollUp => {
+            return Some(
+                if render::detail_contains(area, dashboard.view(), mouse.column, mouse.row) {
+                    Action::ScrollDetailUp
+                } else {
+                    Action::MoveUp
+                },
+            );
+        }
         MouseEventKind::Down(MouseButton::Right) if dashboard.view() == View::Directories => {
             return Some(Action::LeaveDirectory);
         }
