@@ -160,6 +160,69 @@ pub enum Action {
 /// How many rows a page key moves.
 const PAGE: usize = 10;
 
+/// One row in the ncdu-style directory browser.
+#[derive(Debug)]
+pub(super) enum BrowserEntry<'a> {
+    /// Synthetic link to the parent directory.
+    Parent,
+    /// A child directory with cumulative subtree metrics.
+    Directory(DirectoryMetrics),
+    /// A file stored directly at the current level.
+    File(&'a FileMetrics),
+}
+
+impl BrowserEntry<'_> {
+    /// Full report-relative path.
+    pub(super) fn path(&self) -> &str {
+        match self {
+            Self::Parent => "..",
+            Self::Directory(directory) => &directory.path,
+            Self::File(file) => &file.path,
+        }
+    }
+
+    /// Whether this row can be entered as a directory.
+    pub(super) const fn is_directory(&self) -> bool {
+        matches!(self, Self::Parent | Self::Directory(_))
+    }
+
+    /// Number of files represented by this row.
+    pub(super) const fn file_count(&self) -> usize {
+        match self {
+            Self::Parent => 0,
+            Self::Directory(directory) => directory.files,
+            Self::File(_) => 1,
+        }
+    }
+
+    /// Bytes represented by this row.
+    pub(super) const fn bytes(&self) -> u64 {
+        match self {
+            Self::Parent => 0,
+            Self::Directory(directory) => directory.bytes,
+            Self::File(file) => file.bytes,
+        }
+    }
+
+    /// Line counts represented by this row under the current test policy.
+    pub(super) fn lines(&self, dashboard: &Dashboard) -> LineCounts {
+        match self {
+            Self::Parent => LineCounts::default(),
+            Self::Directory(directory) => directory.lines,
+            Self::File(file) => dashboard.file_lines(file),
+        }
+    }
+
+    /// Whether the row represents only test code.
+    pub(super) const fn is_test_only(&self) -> bool {
+        match self {
+            Self::Parent => false,
+            Self::Directory(directory) => directory.is_test_only,
+            Self::File(file) => file.is_test,
+        }
+    }
+}
+
 /// Everything the dashboard is showing.
 #[derive(Debug, Clone)]
 pub struct Dashboard {
