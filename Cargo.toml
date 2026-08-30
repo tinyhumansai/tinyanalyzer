@@ -65,6 +65,9 @@ cargo_metadata = "0.23"
 # Per-file parsing is embarrassingly parallel and dominates wall-clock time on
 # a large repository.
 rayon = "1"
+# Dashboard filters are compiled regular expressions; invalid expressions fall
+# back to literal matching while the operator is still typing them.
+regex = "1"
 # The dashboard itself: a terminal UI rendered by ratatui over a crossterm
 # backend. The analyzer ships as one binary with no runtime, no browser, and no
 # bundled web assets — the dashboard is the program, not something the program
