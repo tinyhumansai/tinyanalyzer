@@ -171,6 +171,15 @@ pub(super) enum BrowserEntry<'a> {
     File(&'a FileMetrics),
 }
 
+/// Which kinds of entries the directory browser exposes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DirectoryVisibility {
+    /// Show child directories and immediate files together.
+    All,
+    /// Hide files while retaining directory navigation.
+    DirectoriesOnly,
+}
+
 impl BrowserEntry<'_> {
     /// Full report-relative path.
     pub(super) fn path(&self) -> &str {
@@ -238,7 +247,7 @@ pub struct Dashboard {
     editing_filter: bool,
     directory_path: String,
     directory_cursors: Vec<usize>,
-    directories_only: bool,
+    directory_visibility: DirectoryVisibility,
     removed_dependencies: BTreeSet<String>,
     feature_overrides: BTreeMap<String, BTreeSet<String>>,
     feature_cursor: usize,
@@ -265,7 +274,7 @@ impl Dashboard {
             editing_filter: false,
             directory_path: ".".to_owned(),
             directory_cursors: Vec::new(),
-            directories_only: false,
+            directory_visibility: DirectoryVisibility::All,
             removed_dependencies: BTreeSet::new(),
             feature_overrides: BTreeMap::new(),
             feature_cursor: 0,
@@ -506,7 +515,7 @@ impl Dashboard {
             .map(BrowserEntry::Directory)
             .collect();
 
-        if !self.directories_only {
+        if self.directory_visibility == DirectoryVisibility::All {
             entries.extend(
                 self.files()
                     .into_iter()
@@ -530,7 +539,10 @@ impl Dashboard {
     /// Whether the directory browser is hiding files.
     #[must_use]
     pub const fn directories_only(&self) -> bool {
-        self.directories_only
+        matches!(
+            self.directory_visibility,
+            DirectoryVisibility::DirectoriesOnly
+        )
     }
 
     /// Directory currently open in the level-by-level browser.
@@ -847,7 +859,10 @@ impl Dashboard {
             Action::EnterDirectoryAt(position) => self.enter_directory(position),
             Action::LeaveDirectory => self.leave_directory(),
             Action::ToggleDirectoriesOnly => {
-                self.directories_only = !self.directories_only;
+                self.directory_visibility = match self.directory_visibility {
+                    DirectoryVisibility::All => DirectoryVisibility::DirectoriesOnly,
+                    DirectoryVisibility::DirectoriesOnly => DirectoryVisibility::All,
+                };
                 self.clamp_cursor();
             }
             Action::ScrollDetailDown => {
