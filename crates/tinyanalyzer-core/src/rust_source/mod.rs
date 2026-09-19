@@ -274,7 +274,7 @@ impl FileVisitor {
             self.file.performance.async_functions =
                 self.file.performance.async_functions.saturating_add(1);
         }
-        if signature.unsafety.is_some() {
+        if matches!(&signature.safety, syn::Safety::Unsafe(_)) {
             self.file.unsafe_blocks = self.file.unsafe_blocks.saturating_add(1);
         }
 
@@ -288,7 +288,7 @@ impl FileVisitor {
             parameters: signature.inputs.len(),
             is_public: public,
             is_async: signature.asyncness.is_some(),
-            is_unsafe: signature.unsafety.is_some(),
+            is_unsafe: matches!(&signature.safety, syn::Safety::Unsafe(_)),
             is_generic,
             is_test,
         });
@@ -704,7 +704,7 @@ impl<'ast> Visit<'ast> for ComplexityVisitor {
         // over an enum — the shape this codebase is *supposed* to use — read as
         // the most tangled function in the repository, which trains a reader to
         // ignore the metric entirely.
-        if !is_lookup_arm(&node.body) || node.guard.is_some() {
+        if !is_lookup_arm(&node.body) || matches!(&node.pat, syn::Pat::Guard(_)) {
             self.branch();
         }
 
