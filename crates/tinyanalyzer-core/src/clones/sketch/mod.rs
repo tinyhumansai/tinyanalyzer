@@ -195,6 +195,7 @@ fn align(a: &Tree<'_>, x: u32, b: &Tree<'_>, y: u32, out: &mut Vec<Hole>) {
                 first: x,
                 other: Some(y),
                 kind: kind_of(a, x),
+                inserted: false,
             });
         }
         return;
