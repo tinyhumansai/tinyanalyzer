@@ -431,17 +431,26 @@ fn run_shape(tree: &Tree<'_>, nodes: &[u32]) -> u64 {
 /// Item kinds that only name something declared elsewhere.
 const DECLARATIONS: &[&str] = &["mod_item", "use_declaration", "extern_crate_declaration"];
 
-/// Whether a run is nothing but `mod`, `use`, and `extern crate` lines.
+/// Whether a run is nothing but `mod`, `use`, and `extern crate` lines, or a
+/// file or module body made only of them.
 ///
 /// Every list of `pub mod a; pub mod b; …` has the same shape as every other,
 /// and there is nothing to fold: each line names a different module.
 fn is_declarations_only(tree: &Tree<'_>, nodes: &[u32]) -> bool {
-    nodes.iter().all(|&node| {
-        DECLARATIONS.contains(&tree.nodes[node as usize].kind)
-            && tree
-                .children(node)
-                .all(|child| tree.nodes[child as usize].kind != "declaration_list")
-    })
+    nodes
+        .iter()
+        .all(|&node| match tree.nodes[node as usize].kind {
+            "source_file" | "declaration_list" => {
+                let children: Vec<u32> = tree.named_children(node).collect();
+                is_declarations_only(tree, &children)
+            }
+            kind => {
+                DECLARATIONS.contains(&kind)
+                    && tree
+                        .children(node)
+                        .all(|child| tree.nodes[child as usize].kind != "declaration_list")
+            }
+        })
 }
 
 /// Node kinds whose children form a sequence a copy can be a run of.
