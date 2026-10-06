@@ -34,8 +34,8 @@
 mod types;
 
 pub use types::{
-    Config, DeadCodeConfig, DependencyConfig, Note, NoteLevel, ProjectConfig, ScanConfig,
-    StartView, Thresholds, UiConfig,
+    CloneConfig, Config, DeadCodeConfig, DependencyConfig, ExtraRoot, Note, NoteLevel,
+    ProjectConfig, ScanConfig, StartView, Thresholds, UiConfig,
 };
 
 use crate::error::{Error, Result};

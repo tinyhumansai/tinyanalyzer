@@ -33,6 +33,7 @@
 //! | [`rust_source`] | What does each Rust file define, and how tangled is it? |
 //! | [`deps`] | What does the dependency graph actually cost? |
 //! | [`dead_code`] | What does nothing reference? |
+//! | [`clones`] | What is written more than once, and what would replace it? |
 //! | [`findings`] | What should somebody do about all this? |
 //! | [`report`] | All of it, joined and ranked. |
 //!
@@ -52,6 +53,7 @@
 //! # Ok::<(), tinyanalyzer_core::Error>(())
 //! ```
 
+pub mod clones;
 pub mod config;
 pub mod dead_code;
 pub mod deps;
@@ -65,9 +67,14 @@ pub mod walk;
 // The public surface, centralized here so a consumer has one predictable place
 // to import from and every path through this crate resolves to the same
 // definitions.
+pub use clones::{
+    CloneGroup, CloneInput, CloneInstance, CloneKind, Detector, FragmentKind, Parameter,
+    ParameterKind, Sketch, SketchKind, SymbolRecord,
+};
 pub use config::{
-    CONFIG_FILE_NAME, CONFIG_FILE_NAME_ALT, Config, DeadCodeConfig, DependencyConfig, Note,
-    NoteLevel, ProjectConfig, ScanConfig, StartView, Thresholds, UiConfig,
+    CONFIG_FILE_NAME, CONFIG_FILE_NAME_ALT, CloneConfig, Config, DeadCodeConfig,
+    DependencyConfig, ExtraRoot, Note, NoteLevel, ProjectConfig, ScanConfig, StartView,
+    Thresholds, UiConfig,
 };
 pub use dead_code::{Confidence, DeadCodeCandidate};
 pub use deps::{
@@ -79,7 +86,7 @@ pub use findings::{Finding, Location, Rule, Severity};
 pub use loc::{Language, LineCounts, count_lines};
 pub use report::{
     DirectoryMetrics, FileMetrics, LanguageMetrics, ParseFailureReport, ProjectSummary, Report,
-    SCHEMA_VERSION, Totals, analyze, analyze_with,
+    SCHEMA_VERSION, Totals, analyze, analyze_with, symbol_index,
 };
 pub use rust_source::{
     Definition, DefinitionKind, Function, ItemCounts, PerformanceSignals, RustFile,

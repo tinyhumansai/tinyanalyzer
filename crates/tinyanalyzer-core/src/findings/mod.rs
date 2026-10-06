@@ -21,6 +21,7 @@ mod types;
 
 pub use types::{Finding, Location, Rule, Severity};
 
+use crate::clones::CloneGroup;
 use crate::config::Thresholds;
 use crate::dead_code::{Confidence, DeadCodeCandidate};
 use crate::deps::DependencyReport;
@@ -50,6 +51,8 @@ pub struct FindingInputs<'a> {
     pub dead_code: &'a [DeadCodeCandidate],
     /// Files the Rust parser refused.
     pub parse_failures: &'a [ParseFailureReport],
+    /// Code written more than once.
+    pub clones: &'a [CloneGroup],
 }
 
 /// Runs every rule and returns the findings, most severe first.
@@ -67,6 +70,7 @@ pub fn analyze(inputs: FindingInputs<'_>, thresholds: &Thresholds) -> Vec<Findin
     dependencies(inputs.dependencies, thresholds, &mut findings);
     dead_code(inputs.dead_code, &mut findings);
     parse_failures(inputs.parse_failures, &mut findings);
+    duplicate_code(inputs.clones, thresholds, &mut findings);
 
     findings.sort_by(|left, right| {
         left.severity.cmp(&right.severity).then_with(|| {
@@ -489,6 +493,63 @@ fn parse_failures(failures: &[ParseFailureReport], out: &mut Vec<Finding>) {
             "The file is counted in the line totals but absent from every item, complexity, and dead-code measurement. Check whether it uses syntax newer than this tool's parser.".to_owned(),
             Some(at_line(&failure.path, failure.line)),
             1.0,
+        ));
+    }
+}
+
+/// Flags duplicated code that could be folded into one helper.
+///
+/// One finding per group that has an editable copy, is not test-only, and
+/// would save at least `duplicate_min_lines` lines — a group that saves less
+/// is real but not worth a reader's attention next to everything else here.
+/// The full ranked list, test code included, is in the report's `clones`.
+fn duplicate_code(groups: &[crate::clones::CloneGroup], thresholds: &Thresholds, out: &mut Vec<Finding>) {
+    for group in groups {
+        if group.in_tests || group.lines_saved < thresholds.duplicate_min_lines {
+            continue;
+        }
+        let Some(first) = group.instances.iter().find(|instance| instance.editable) else {
+            continue;
+        };
+        let copies = group.instances.len();
+        let elsewhere = group
+            .instances
+            .iter()
+            .filter(|instance| !std::ptr::eq(*instance, first))
+            .take(3)
+            .map(|instance| format!("{}:{}", instance.file, instance.start_line))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let more = if copies > 4 {
+            format!(" and {} more", copies - 4)
+        } else {
+            String::new()
+        };
+
+        out.push(finding(
+            Rule::DuplicateCode,
+            if group.lines_saved >= thresholds.long_function_lines {
+                Severity::High
+            } else {
+                Severity::Medium
+            },
+            format!(
+                "{} lines are written {copies} times ({} {})",
+                group.lines,
+                group.kind.label(),
+                group.fragment.label()
+            ),
+            format!(
+                "{copies} copies of {} lines ({} tokens, {:.0}% similar); also at {elsewhere}{more}. Folding them saves about {} line{}.",
+                group.lines,
+                group.tokens,
+                group.similarity * 100.0,
+                group.lines_saved,
+                plural(group.lines_saved)
+            ),
+            format!("{} Sketch: `{}`", group.sketch.summary, group.sketch.signature),
+            Some(at_line(&first.file, first.start_line)),
+            metric(group.lines_saved),
         ));
     }
 }
