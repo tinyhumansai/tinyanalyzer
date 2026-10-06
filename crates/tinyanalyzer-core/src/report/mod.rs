@@ -26,8 +26,8 @@ pub use types::{
     SCHEMA_VERSION, Totals,
 };
 
-use crate::clones::{self, CloneGroup, CloneInput, SymbolRecord};
-use crate::config::{CloneConfig, Config, compile_glob_set};
+use crate::clones::{self, CloneInput, SymbolRecord};
+use crate::config::{CloneConfig, Config, ScanConfig, compile_glob_set};
 use crate::dead_code::DeadCodeInput;
 use crate::deps::{self, CrateReferences, DependencyReport};
 use crate::error::{Error, Result};
@@ -168,87 +168,6 @@ pub fn analyze_with(root: impl AsRef<Path>, config: &Config) -> Result<Report> {
         findings,
         parse_failures,
     })
-}
-
-/// The symbol index for the repository rooted at `root`: every item in every
-/// Rust file the analysis would cover, including the configured extra roots.
-///
-/// # Errors
-///
-/// Returns [`Error::RootNotADirectory`] if `root` is not a directory, and
-/// [`Error::Glob`] or [`Error::Walk`] if a walk fails or a `read_only` pattern
-/// is not a valid glob.
-pub fn symbol_index(root: impl AsRef<Path>, config: &Config) -> Result<Vec<SymbolRecord>> {
-    let root = root.as_ref();
-    if !root.is_dir() {
-        return Err(Error::RootNotADirectory {
-            path: root.to_path_buf(),
-        });
-    }
-    let discovered = walk::discover(root, &config.scan)?;
-    let extra = extra_sources(root, config)?;
-    let inputs = clone_inputs(&discovered, &extra, &config.clones)?;
-    Ok(clones::symbols(&inputs))
-}
-
-/// Files under the configured extra roots, with their reported path prefix
-/// and whether they are editable.
-fn extra_sources(root: &Path, config: &Config) -> Result<Vec<(String, bool, SourceFile)>> {
-    let mut sources = Vec::new();
-    for extra in &config.clones.extra_roots {
-        let directory = root.join(&extra.path);
-        let prefix = extra.path.trim_end_matches('/').replace('\\', "/");
-        for file in walk::discover(&directory, &ScanConfig::default())? {
-            sources.push((prefix.clone(), extra.editable, file));
-        }
-    }
-    Ok(sources)
-}
-
-/// The Rust files clone detection reads, with their editability resolved.
-fn clone_inputs<'a>(
-    discovered: &'a [SourceFile],
-    extra: &'a [(String, bool, SourceFile)],
-    config: &CloneConfig,
-) -> Result<Vec<CloneInput<'a>>> {
-    let read_only = compile_glob_set(&config.read_only)?;
-    let editable = |path: &str| {
-        read_only
-            .as_ref()
-            .is_none_or(|globs| !globs.is_match(path))
-    };
-
-    let mut inputs: Vec<CloneInput<'a>> = discovered
-        .iter()
-        .filter(|file| file.language == Language::Rust)
-        .filter_map(|file| {
-            Some(CloneInput {
-                path: file.relative_path.as_str(),
-                text: file.text.as_deref()?,
-                is_test_path: file.is_test_path,
-                editable: editable(&file.relative_path),
-            })
-        })
-        .collect();
-
-    for (prefix, root_editable, file) in extra {
-        if file.language != Language::Rust {
-            continue;
-        }
-        let Some(text) = file.text.as_deref() else {
-            continue;
-        };
-        // The prefixed path has to outlive this function, so it is leaked
-        // into the input slice's lifetime by storing it on the heap once.
-        inputs.push(CloneInput {
-            path: file.relative_path.as_str(),
-            text,
-            is_test_path: file.is_test_path,
-            editable: *root_editable && editable(&format!("{prefix}/{}", file.relative_path)),
-        });
-    }
-
-    Ok(inputs)
 }
 
 /// Seconds since the Unix epoch, or zero if the clock is unreadable.
@@ -543,6 +462,70 @@ fn totals(
     totals.external_packages = dependencies.external_packages;
 
     totals
+}
+
+/// The symbol index for the repository rooted at `root`: every item in every
+/// Rust file the analysis would cover, including the configured extra roots.
+///
+/// # Errors
+///
+/// Returns [`Error::RootNotADirectory`] if `root` is not a directory, and
+/// [`Error::Glob`] or [`Error::Walk`] if a walk fails or a `read_only` pattern
+/// is not a valid glob.
+pub fn symbol_index(root: impl AsRef<Path>, config: &Config) -> Result<Vec<SymbolRecord>> {
+    let root = root.as_ref();
+    if !root.is_dir() {
+        return Err(Error::RootNotADirectory {
+            path: root.to_path_buf(),
+        });
+    }
+    let discovered = walk::discover(root, &config.scan)?;
+    let extra = extra_sources(root, config)?;
+    let inputs = clone_inputs(&discovered, &extra, &config.clones)?;
+    Ok(clones::symbols(&inputs))
+}
+
+/// Files under the configured extra roots, renamed to carry the root as a
+/// prefix, with whether each root is editable.
+fn extra_sources(root: &Path, config: &Config) -> Result<Vec<(bool, SourceFile)>> {
+    let mut sources = Vec::new();
+    for extra in &config.clones.extra_roots {
+        let prefix = extra.path.trim_end_matches(['/', '\\']).replace('\\', "/");
+        for mut file in walk::discover(root.join(&extra.path), &ScanConfig::default())? {
+            file.relative_path = format!("{prefix}/{}", file.relative_path);
+            sources.push((extra.editable, file));
+        }
+    }
+    Ok(sources)
+}
+
+/// The Rust files clone detection reads, with their editability resolved.
+fn clone_inputs<'a>(
+    discovered: &'a [SourceFile],
+    extra: &'a [(bool, SourceFile)],
+    config: &CloneConfig,
+) -> Result<Vec<CloneInput<'a>>> {
+    let read_only = compile_glob_set(&config.read_only)?;
+    let writable = |path: &str| {
+        read_only
+            .as_ref()
+            .is_none_or(|globs| !globs.is_match(path))
+    };
+
+    let own = discovered.iter().map(|file| (true, file));
+    let extra = extra.iter().map(|(editable, file)| (*editable, file));
+    Ok(own
+        .chain(extra)
+        .filter(|(_, file)| file.language == Language::Rust)
+        .filter_map(|(editable, file)| {
+            Some(CloneInput {
+                path: file.relative_path.as_str(),
+                text: file.text.as_deref()?,
+                is_test_path: file.is_test_path,
+                editable: editable && writable(&file.relative_path),
+            })
+        })
+        .collect())
 }
 
 #[cfg(test)]
