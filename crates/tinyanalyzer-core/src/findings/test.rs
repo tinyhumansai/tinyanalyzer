@@ -50,6 +50,7 @@ fn run(files: &[FileMetrics], thresholds: &Thresholds) -> Vec<super::Finding> {
             dependencies: &DependencyReport::default(),
             dead_code: &[],
             parse_failures: &[],
+            clones: &[],
         },
         thresholds,
     )
@@ -259,6 +260,7 @@ fn a_large_directory_is_reported() {
             dependencies: &DependencyReport::default(),
             dead_code: &[],
             parse_failures: &[],
+            clones: &[],
         },
         &Thresholds::default(),
     );
@@ -283,6 +285,7 @@ fn a_duplicated_dependency_is_reported_with_both_versions() {
             dependencies: &dependencies,
             dead_code: &[],
             parse_failures: &[],
+            clones: &[],
         },
         &Thresholds::default(),
     );
@@ -315,6 +318,7 @@ fn an_unused_dependency_is_reported() {
             dependencies: &dependencies,
             dead_code: &[],
             parse_failures: &[],
+            clones: &[],
         },
         &Thresholds::default(),
     );
@@ -344,6 +348,7 @@ fn dead_code_is_summarized_once_rather_than_item_by_item() {
             dependencies: &DependencyReport::default(),
             dead_code: &candidates,
             parse_failures: &[],
+            clones: &[],
         },
         &Thresholds::default(),
     );
@@ -378,6 +383,7 @@ fn only_medium_confidence_dead_code_produces_no_finding() {
             dependencies: &DependencyReport::default(),
             dead_code: &candidates,
             parse_failures: &[],
+            clones: &[],
         },
         &Thresholds::default(),
     );
@@ -400,6 +406,7 @@ fn a_parse_failure_is_surfaced_rather_than_swallowed() {
             dependencies: &DependencyReport::default(),
             dead_code: &[],
             parse_failures: &failures,
+            clones: &[],
         },
         &Thresholds::default(),
     );
