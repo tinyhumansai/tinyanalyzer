@@ -1979,7 +1979,7 @@ fn the_duplicates_view_hides_test_only_groups_and_filters_by_path() {
 
     dashboard.apply(Action::StartFilter);
     for c in "one.rs".chars() {
-        dashboard.apply(Action::FilterChar(c));
+        dashboard.apply(Action::FilterPush(c));
     }
     assert_eq!(dashboard.row_count(), 1);
     assert!(dashboard.clones()[0].in_tests);
@@ -1993,7 +1993,7 @@ fn the_duplicates_view_sorts_three_ways() {
     for _ in 0..3 {
         labels.push(dashboard.sort_label());
         assert_eq!(dashboard.clones().len(), 2);
-        dashboard.apply(Action::CycleSort);
+        dashboard.apply(Action::NextSort);
     }
 
     assert_eq!(labels, ["score", "lines saved", "copies"]);
