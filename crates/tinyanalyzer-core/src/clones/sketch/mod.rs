@@ -263,11 +263,7 @@ fn choose(
         return SketchKind::Loop;
     }
 
-    let names_an_item = holes.keys().any(|&node| {
-        let data = &tree.nodes[node as usize];
-        data.field == Field::Name && data.parent != crate::clones::syntax::NONE
-    });
-    if names_an_item {
+    if holes.keys().any(|&node| needs_macro(tree, node)) {
         return SketchKind::Macro;
     }
 
@@ -276,6 +272,21 @@ fn choose(
     }
 
     SketchKind::Function
+}
+
+/// Whether a difference is something no function parameter can stand for: a
+/// field name, or the declared name of an item, field, or variant.
+fn needs_macro(tree: &Tree<'_>, node: u32) -> bool {
+    let data = &tree.nodes[node as usize];
+    if matches!(data.kind, "field_identifier" | "shorthand_field_identifier") {
+        return true;
+    }
+    if data.field != Field::Name || data.parent == crate::clones::syntax::NONE {
+        return false;
+    }
+    let parent = tree.nodes[data.parent as usize].kind;
+    parent.ends_with("_item")
+        || matches!(parent, "field_declaration" | "enum_variant" | "macro_definition")
 }
 
 /// Whether the copies are at least [`LOOP_MIN_COPIES`] consecutive siblings in

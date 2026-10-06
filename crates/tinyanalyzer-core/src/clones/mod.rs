@@ -87,8 +87,39 @@ pub fn analyze(
             .then_with(|| left.instances[0].start_line.cmp(&right.instances[0].start_line))
             .then_with(|| left.id.cmp(&right.id))
     });
+    let mut groups = suppress_overlaps(groups);
     groups.truncate(config.max_groups);
     groups
+}
+
+/// Drops a group when most of its copies overlap the copies of a better
+/// group already kept.
+///
+/// The suffix array reports every length a repeated run can be cut at: six
+/// copies of fourteen lines, four of twenty-two, three of thirty — all the same
+/// sequence of tests. They are not nested, so the detectors' own subsumption
+/// keeps them all; this greedy pass, in score order, keeps the best cut.
+fn suppress_overlaps(ranked: Vec<CloneGroup>) -> Vec<CloneGroup> {
+    let mut kept: Vec<CloneGroup> = Vec::with_capacity(ranked.len());
+    for group in ranked {
+        let overlapping = group
+            .instances
+            .iter()
+            .filter(|instance| {
+                kept.iter()
+                    .flat_map(|better| better.instances.iter())
+                    .any(|other| {
+                        other.file == instance.file
+                            && other.start_line <= instance.end_line
+                            && instance.start_line <= other.end_line
+                    })
+            })
+            .count();
+        if overlapping * 2 <= group.instances.len() {
+            kept.push(group);
+        }
+    }
+    kept
 }
 
 /// The symbol index over `inputs`, in file and line order.
