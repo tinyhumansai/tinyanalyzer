@@ -15,6 +15,12 @@ description = "Analyze a Rust codebase and explore it in a terminal dashboard"
 large_file_lines = 300
 huge_file_lines = 550
 
+[clones]
+# Every group this repository's own copies produce is real, but the test
+# fixtures repeat on purpose — each test spells out its whole input — so they
+# are left out of the ranking rather than folded.
+include_tests = false
+
 [dead_code]
 # `main` is called by the runtime, not by this workspace.
 ignore = ["main"]
