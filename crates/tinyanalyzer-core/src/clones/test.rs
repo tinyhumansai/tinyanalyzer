@@ -147,3 +147,30 @@ fn the_symbol_index_serializes_one_line_per_item() {
     assert!(lines.lines().all(|line| line.starts_with('{') && line.ends_with('}')));
     assert!(lines.contains("\"qualified_name\":\"a\""));
 }
+
+#[test]
+fn every_kind_has_a_distinct_label() {
+    use super::{CloneKind, FragmentKind, SketchKind};
+    use std::collections::BTreeSet;
+
+    let fragments: BTreeSet<&str> = FragmentKind::ALL.iter().map(|kind| kind.label()).collect();
+    let clones: BTreeSet<&str> = [CloneKind::Exact, CloneKind::Renamed, CloneKind::NearMiss]
+        .iter()
+        .map(|kind| kind.label())
+        .collect();
+    let sketches: BTreeSet<&str> = [
+        SketchKind::Function,
+        SketchKind::Generic,
+        SketchKind::Macro,
+        SketchKind::Loop,
+        SketchKind::Recursive,
+        SketchKind::SharedType,
+    ]
+    .iter()
+    .map(|kind| kind.label())
+    .collect();
+
+    assert_eq!(fragments.len(), FragmentKind::ALL.len());
+    assert_eq!(clones.len(), 3);
+    assert_eq!(sketches.len(), 6);
+}
