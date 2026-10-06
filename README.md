@@ -303,6 +303,7 @@ crates/
 │   ├── rust_source/     # syn-based items, complexity, cost signals
 │   ├── deps/            # the resolved dependency graph and its real cost
 │   ├── dead_code/       # the workspace-wide identifier census
+│   ├── clones/          # tree-sitter clone detection and the symbol index
 │   ├── findings/        # the rules that turn measurements into advice
 │   └── report/          # all of it, joined and ranked
 └── tinyanalyzer/        # the binary: command line, text output, dashboard
