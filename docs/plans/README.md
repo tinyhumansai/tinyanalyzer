@@ -19,4 +19,7 @@ Prefer tasks that can be implemented and reviewed independently. Include short
 code snippets when they remove ambiguity, but do not paste entire future files
 into the plan.
 
-There are no open plans. Add one here when a specification is accepted.
+Plans:
+
+- [`clone-detection.md`](clone-detection.md) — clone detection and the symbol
+  index (complete).
