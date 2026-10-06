@@ -8,7 +8,7 @@ use clap::Parser;
 use std::process::ExitCode;
 use tinyanalyzer::cli::{Cli, Output};
 use tinyanalyzer::error::{Error, Result};
-use tinyanalyzer::{analyze_with, dashboard, summary};
+use tinyanalyzer::{analyze_with, dashboard, summary, symbol_index, symbols_to_json_lines};
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -36,6 +36,10 @@ fn main() -> ExitCode {
 /// Returns whatever the analysis, the renderer, or the terminal reported.
 fn run(cli: &Cli) -> Result<()> {
     let config = cli.config()?;
+    if cli.output == Output::Symbols {
+        let records = symbol_index(&cli.path, &config)?;
+        return emit(cli, symbols_to_json_lines(&records)?);
+    }
     let report = analyze_with(&cli.path, &config)?;
 
     match cli.output {
@@ -54,6 +58,7 @@ fn run(cli: &Cli) -> Result<()> {
         }
         Output::Summary => emit(cli, summary::render(&report, config.ui.hide_tests)),
         Output::Json => emit(cli, report.to_json()?),
+        Output::Symbols => Ok(()),
     }
 }
 

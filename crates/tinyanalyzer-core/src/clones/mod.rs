@@ -97,6 +97,22 @@ pub fn symbols(inputs: &[CloneInput<'_>]) -> Vec<SymbolRecord> {
     symbols::index(&parse_all(inputs))
 }
 
+/// Serializes a symbol index as JSON lines: one compact object per record.
+///
+/// # Errors
+///
+/// Returns [`crate::Error::Serialize`] if a record cannot be encoded.
+pub fn symbols_to_json_lines(records: &[SymbolRecord]) -> crate::Result<String> {
+    let mut out = String::new();
+    for record in records {
+        let line =
+            serde_json::to_string(record).map_err(|source| crate::Error::Serialize { source })?;
+        out.push_str(&line);
+        out.push('\n');
+    }
+    Ok(out)
+}
+
 /// Parses every input in parallel, keeping input order.
 fn parse_all<'s>(inputs: &[CloneInput<'s>]) -> Vec<Parsed<'s>> {
     inputs

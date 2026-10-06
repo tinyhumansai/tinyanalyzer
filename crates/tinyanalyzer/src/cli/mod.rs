@@ -36,7 +36,7 @@ pub struct Cli {
 
     /// Write the report to a file instead of standard output.
     ///
-    /// Only meaningful with `--output json` or `--output summary`.
+    /// Only meaningful with `--output json`, `summary`, or `symbols`.
     #[arg(long, value_name = "FILE")]
     pub write: Option<PathBuf>,
 
@@ -60,6 +60,13 @@ pub struct Cli {
     #[arg(long)]
     pub no_dead_code: bool,
 
+    /// Skip duplicate-code detection.
+    ///
+    /// Clone detection parses every file a second time, with tree-sitter, and
+    /// is the slowest pass after the dependency graph.
+    #[arg(long)]
+    pub no_clones: bool,
+
     /// Include hidden files and directories.
     #[arg(long)]
     pub hidden: bool,
@@ -80,6 +87,10 @@ pub enum Output {
     Summary,
     /// Print the whole report as JSON and exit.
     Json,
+    /// Print the symbol index — one JSON object per item — and exit.
+    ///
+    /// Skips every other measurement: the index is built from the files alone.
+    Symbols,
 }
 
 /// The dashboard view to open on.
@@ -94,6 +105,8 @@ pub enum View {
     Dependencies,
     /// Unreferenced items.
     DeadCode,
+    /// Duplicate code, ranked by what folding it would save.
+    Clones,
     /// Every finding, ranked by severity.
     Findings,
 }
@@ -105,6 +118,7 @@ impl From<View> for StartView {
             View::Files => Self::Files,
             View::Dependencies => Self::Dependencies,
             View::DeadCode => Self::DeadCode,
+            View::Clones => Self::Clones,
             View::Findings => Self::Findings,
         }
     }
@@ -131,6 +145,9 @@ impl Cli {
         }
         if self.no_dead_code {
             config.dead_code.enabled = false;
+        }
+        if self.no_clones {
+            config.clones.enabled = false;
         }
         if self.hidden {
             config.scan.include_hidden = true;

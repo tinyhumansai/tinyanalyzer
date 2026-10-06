@@ -69,7 +69,7 @@ pub mod walk;
 // definitions.
 pub use clones::{
     CloneGroup, CloneInput, CloneInstance, CloneKind, Detector, FragmentKind, Parameter,
-    ParameterKind, Sketch, SketchKind, SymbolRecord,
+    ParameterKind, Sketch, SketchKind, SymbolRecord, symbols_to_json_lines,
 };
 pub use config::{
     CONFIG_FILE_NAME, CONFIG_FILE_NAME_ALT, CloneConfig, Config, DeadCodeConfig,
