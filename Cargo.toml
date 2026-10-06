@@ -58,6 +58,14 @@ syn = { version = "2", default-features = false, features = [
 # `span-locations` is what turns a `syn` node into a line number. Without it
 # every reported location would be line 0.
 proc-macro2 = { version = "1", features = ["span-locations"] }
+# Structural clone detection walks a concrete syntax tree whose node kinds are
+# uniform across grammars, which is what lets the same normalizer, hasher, and
+# anti-unifier serve every language a grammar exists for. `syn` stays the
+# parser behind the per-item metrics; this one exists for `clones`.
+tree-sitter = "0.26"
+# The Rust grammar for `tree-sitter`. Compiled from C by `cc` at build time,
+# so every release target needs a C toolchain — all five already have one.
+tree-sitter-rust = "0.24"
 # The dependency graph is cargo's own resolution, not a re-parse of manifests:
 # features, transitive edges, and duplicate versions are only correct if they
 # come from the resolver that produced `Cargo.lock`.
