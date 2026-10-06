@@ -402,5 +402,9 @@ fn symbols_output_can_be_written_to_a_file() {
     );
 
     assert!(output.status.success());
-    assert!(std::fs::read_to_string(target).unwrap().contains("\"fetch\""));
+    assert!(
+        std::fs::read_to_string(target)
+            .unwrap()
+            .contains("\"fetch\"")
+    );
 }

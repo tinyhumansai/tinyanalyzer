@@ -24,8 +24,18 @@ fn all(tree: &Tree<'_>, kind: &str) -> Vec<u32> {
 fn comments_and_attributes_are_dropped() {
     let parsed = tree("/// docs\n#[inline]\nfn a() { // trailing\n    1 /* inner */ }\n");
 
-    assert!(parsed.nodes.iter().all(|node| !node.kind.ends_with("comment")));
-    assert!(parsed.nodes.iter().all(|node| node.kind != "attribute_item"));
+    assert!(
+        parsed
+            .nodes
+            .iter()
+            .all(|node| !node.kind.ends_with("comment"))
+    );
+    assert!(
+        parsed
+            .nodes
+            .iter()
+            .all(|node| node.kind != "attribute_item")
+    );
 }
 
 #[test]
@@ -58,7 +68,10 @@ fn renamed_copies_share_a_shape_and_differ_exactly() {
     let functions = all(&parsed, "function_item");
     let (a, b) = (functions[0], functions[1]);
 
-    assert_eq!(parsed.nodes[a as usize].shape, parsed.nodes[b as usize].shape);
+    assert_eq!(
+        parsed.nodes[a as usize].shape,
+        parsed.nodes[b as usize].shape
+    );
     assert_ne!(parsed.exact_hash(&[a]), parsed.exact_hash(&[b]));
 }
 
@@ -75,9 +88,8 @@ fn a_changed_operator_changes_the_shape() {
 
 #[test]
 fn independent_statements_hash_in_any_order() {
-    let parsed = tree(
-        "fn a() { left.push(1); right.push(2); }\nfn b() { right.push(2); left.push(1); }\n",
-    );
+    let parsed =
+        tree("fn a() { left.push(1); right.push(2); }\nfn b() { right.push(2); left.push(1); }\n");
     let blocks = all(&parsed, "block");
 
     assert_eq!(
@@ -88,9 +100,7 @@ fn independent_statements_hash_in_any_order() {
 
 #[test]
 fn dependent_statements_keep_their_order() {
-    let parsed = tree(
-        "fn a() { x.push(1); x.clear(); }\nfn b() { x.clear(); x.push(1); }\n",
-    );
+    let parsed = tree("fn a() { x.push(1); x.clear(); }\nfn b() { x.clear(); x.push(1); }\n");
     let blocks = all(&parsed, "block");
 
     assert_ne!(
@@ -101,9 +111,7 @@ fn dependent_statements_keep_their_order() {
 
 #[test]
 fn a_let_starts_a_new_run() {
-    let parsed = tree(
-        "fn a() { let v = 1; other(); }\nfn b() { other(); let v = 1; }\n",
-    );
+    let parsed = tree("fn a() { let v = 1; other(); }\nfn b() { other(); let v = 1; }\n");
     let blocks = all(&parsed, "block");
 
     assert_ne!(
@@ -138,7 +146,11 @@ fn syntax_errors_are_flagged_rather_than_fatal() {
 
     assert!(parsed.nodes[0].error);
     let functions = all(&parsed, "function_item");
-    assert!(functions.iter().any(|&node| !parsed.nodes[node as usize].error));
+    assert!(
+        functions
+            .iter()
+            .any(|&node| !parsed.nodes[node as usize].error)
+    );
 }
 
 #[test]

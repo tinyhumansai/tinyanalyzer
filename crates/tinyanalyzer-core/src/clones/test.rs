@@ -25,7 +25,10 @@ fn input<'a>(path: &'a str, text: &'a str, is_test_path: bool, editable: bool) -
 fn copies_across_files_are_reported_with_their_locations() {
     let (a, b) = (function("load"), function("fetch"));
     let groups = analyze(
-        &[input("src/a.rs", &a, false, true), input("src/b.rs", &b, false, true)],
+        &[
+            input("src/a.rs", &a, false, true),
+            input("src/b.rs", &b, false, true),
+        ],
         &CloneConfig::default(),
         &Thresholds::default(),
     );
@@ -35,7 +38,10 @@ fn copies_across_files_are_reported_with_their_locations() {
     assert_eq!(group.instances.len(), 2);
     assert_eq!(group.instances[0].file, "src/a.rs");
     assert_eq!(group.instances[0].item.as_deref(), Some("load"));
-    assert_eq!((group.instances[0].start_line, group.instances[0].end_line), (1, 9));
+    assert_eq!(
+        (group.instances[0].start_line, group.instances[0].end_line),
+        (1, 9)
+    );
     assert_eq!(group.lines, 9);
     assert_eq!(group.lines_saved, 7);
     assert!(group.editable && !group.in_tests && !group.recursive);
@@ -47,12 +53,18 @@ fn copies_across_files_are_reported_with_their_locations() {
 fn groups_with_no_editable_copy_are_dropped() {
     let (a, b) = (function("load"), function("fetch"));
     let read_only = analyze(
-        &[input("v/a.rs", &a, false, false), input("v/b.rs", &b, false, false)],
+        &[
+            input("v/a.rs", &a, false, false),
+            input("v/b.rs", &b, false, false),
+        ],
         &CloneConfig::default(),
         &Thresholds::default(),
     );
     let mixed = analyze(
-        &[input("src/a.rs", &a, false, true), input("v/b.rs", &b, false, false)],
+        &[
+            input("src/a.rs", &a, false, true),
+            input("v/b.rs", &b, false, false),
+        ],
         &CloneConfig::default(),
         &Thresholds::default(),
     );
@@ -66,17 +78,26 @@ fn groups_with_no_editable_copy_are_dropped() {
 fn test_code_ranks_lower_and_can_be_excluded() {
     let (a, b) = (function("load"), function("fetch"));
     let production = analyze(
-        &[input("src/a.rs", &a, false, true), input("src/b.rs", &b, false, true)],
+        &[
+            input("src/a.rs", &a, false, true),
+            input("src/b.rs", &b, false, true),
+        ],
         &CloneConfig::default(),
         &Thresholds::default(),
     );
     let tests = analyze(
-        &[input("tests/a.rs", &a, true, true), input("tests/b.rs", &b, true, true)],
+        &[
+            input("tests/a.rs", &a, true, true),
+            input("tests/b.rs", &b, true, true),
+        ],
         &CloneConfig::default(),
         &Thresholds::default(),
     );
     let excluded = analyze(
-        &[input("tests/a.rs", &a, true, true), input("tests/b.rs", &b, true, true)],
+        &[
+            input("tests/a.rs", &a, true, true),
+            input("tests/b.rs", &b, true, true),
+        ],
         &CloneConfig {
             include_tests: false,
             ..CloneConfig::default()
@@ -125,7 +146,10 @@ fn groups_are_capped_and_ranked_best_first() {
 fn a_disabled_fragment_kind_is_not_reported() {
     let (a, b) = (function("load"), function("fetch"));
     let groups = analyze(
-        &[input("src/a.rs", &a, false, true), input("src/b.rs", &b, false, true)],
+        &[
+            input("src/a.rs", &a, false, true),
+            input("src/b.rs", &b, false, true),
+        ],
         &CloneConfig {
             fragment_kinds: Vec::new(),
             ..CloneConfig::default()
@@ -144,7 +168,11 @@ fn the_symbol_index_serializes_one_line_per_item() {
 
     assert_eq!(records.len(), 2);
     assert_eq!(lines.lines().count(), 2);
-    assert!(lines.lines().all(|line| line.starts_with('{') && line.ends_with('}')));
+    assert!(
+        lines
+            .lines()
+            .all(|line| line.starts_with('{') && line.ends_with('}'))
+    );
     assert!(lines.contains("\"qualified_name\":\"a\""));
 }
 

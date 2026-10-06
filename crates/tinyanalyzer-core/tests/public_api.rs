@@ -602,8 +602,20 @@ fn the_serialized_clone_groups_keep_their_field_names() {
     let group = &value["clones"][0];
 
     for field in [
-        "id", "kind", "fragment", "detectors", "similarity", "tokens", "lines",
-        "lines_saved", "score", "in_tests", "editable", "recursive", "instances", "sketch",
+        "id",
+        "kind",
+        "fragment",
+        "detectors",
+        "similarity",
+        "tokens",
+        "lines",
+        "lines_saved",
+        "score",
+        "in_tests",
+        "editable",
+        "recursive",
+        "instances",
+        "sketch",
     ] {
         assert!(!group[field].is_null(), "clone groups serialize `{field}`");
     }
@@ -611,11 +623,13 @@ fn the_serialized_clone_groups_keep_their_field_names() {
     assert_eq!(group["fragment"], "function");
     assert_eq!(group["sketch"]["kind"], "function");
     assert_eq!(group["instances"][0]["file"], "src/fetch.rs");
-    assert!(value["findings"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|finding| finding["rule"] == "duplicate_code"));
+    assert!(
+        value["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|finding| finding["rule"] == "duplicate_code")
+    );
 }
 
 #[test]
@@ -623,8 +637,7 @@ fn a_report_written_before_clone_detection_still_reads() {
     let root = TempDir::new().expect("a temporary directory");
     write(root.path(), "src/lib.rs", "pub fn a() {}\n");
     let report = analyze_with(root.path(), &no_cargo()).expect("a walkable tree");
-    let mut value: serde_json::Value =
-        serde_json::from_str(&report.to_json().unwrap()).unwrap();
+    let mut value: serde_json::Value = serde_json::from_str(&report.to_json().unwrap()).unwrap();
     value.as_object_mut().unwrap().remove("clones");
 
     let read: tinyanalyzer_core::Report = serde_json::from_value(value).expect("still readable");

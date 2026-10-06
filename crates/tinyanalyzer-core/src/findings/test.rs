@@ -516,10 +516,13 @@ fn every_finding_names_a_measurement_and_a_remedy() {
     }
 }
 
-fn clone_group(lines: usize, copies: usize, in_tests: bool, editable: bool) -> crate::clones::CloneGroup {
-    use crate::clones::{
-        CloneGroup, CloneInstance, CloneKind, FragmentKind, Sketch, SketchKind,
-    };
+fn clone_group(
+    lines: usize,
+    copies: usize,
+    in_tests: bool,
+    editable: bool,
+) -> crate::clones::CloneGroup {
+    use crate::clones::{CloneGroup, CloneInstance, CloneKind, FragmentKind, Sketch, SketchKind};
     CloneGroup {
         id: "0".to_owned(),
         kind: CloneKind::Renamed,
@@ -552,7 +555,10 @@ fn clone_group(lines: usize, copies: usize, in_tests: bool, editable: bool) -> c
     }
 }
 
-fn duplicate_findings(groups: &[crate::clones::CloneGroup], thresholds: &Thresholds) -> Vec<super::Finding> {
+fn duplicate_findings(
+    groups: &[crate::clones::CloneGroup],
+    thresholds: &Thresholds,
+) -> Vec<super::Finding> {
     analyze(
         FindingInputs {
             files: &[],
@@ -600,6 +606,12 @@ fn duplicate_code_saving_a_long_function_is_high_severity() {
 fn test_only_or_read_only_duplicates_are_not_findings() {
     let thresholds = Thresholds::default();
 
-    assert_eq!(duplicate_findings(&[clone_group(20, 3, true, true)], &thresholds).len(), 0);
-    assert_eq!(duplicate_findings(&[clone_group(20, 3, false, false)], &thresholds).len(), 0);
+    assert_eq!(
+        duplicate_findings(&[clone_group(20, 3, true, true)], &thresholds).len(),
+        0
+    );
+    assert_eq!(
+        duplicate_findings(&[clone_group(20, 3, false, false)], &thresholds).len(),
+        0
+    );
 }

@@ -182,10 +182,13 @@ fn fragments_are_recognized_by_their_place() {
         .filter_map(|node| fragment_kind(tree, node))
         .collect();
 
-    assert_eq!(kinds, FragmentKind::ALL
-        .into_iter()
-        .filter(|kind| *kind != FragmentKind::Statements)
-        .collect());
+    assert_eq!(
+        kinds,
+        FragmentKind::ALL
+            .into_iter()
+            .filter(|kind| *kind != FragmentKind::Statements)
+            .collect()
+    );
 
     // The `else if` is part of the chain, not a second one.
     let chains = (0..u32::try_from(tree.nodes.len()).unwrap())
@@ -196,10 +199,16 @@ fn fragments_are_recognized_by_their_place() {
 
 #[test]
 fn renamed_functions_form_one_group() {
-    let a = format!("fn first(source: Reader, offset: u64) {{\n{}}}\n", body("x", 8));
-    let b = format!("fn second(input: Reader, base: u64) {{\n{}}}\n", body("y", 8))
-        .replace("source", "input")
-        .replace("offset", "base");
+    let a = format!(
+        "fn first(source: Reader, offset: u64) {{\n{}}}\n",
+        body("x", 8)
+    );
+    let b = format!(
+        "fn second(input: Reader, base: u64) {{\n{}}}\n",
+        body("y", 8)
+    )
+    .replace("source", "input")
+    .replace("offset", "base");
     let files = parsed(&[("a.rs", &a), ("b.rs", &b)]);
     let groups = run(&files, &limits(30, 4));
 
@@ -216,7 +225,10 @@ fn renamed_functions_form_one_group() {
 
 #[test]
 fn identical_functions_are_exact() {
-    let a = format!("fn first(source: Reader, offset: u64) {{\n{}}}\n", body("x", 8));
+    let a = format!(
+        "fn first(source: Reader, offset: u64) {{\n{}}}\n",
+        body("x", 8)
+    );
     let files = parsed(&[("a.rs", &a), ("b.rs", &a)]);
     let groups = run(&files, &limits(30, 4));
 
@@ -264,7 +276,10 @@ fn a_run_of_statements_inside_larger_functions_is_found() {
 
 #[test]
 fn a_near_miss_with_an_extra_statement_is_found() {
-    let a = format!("fn first(source: Reader, offset: u64) {{\n{}}}\n", body("x", 10));
+    let a = format!(
+        "fn first(source: Reader, offset: u64) {{\n{}}}\n",
+        body("x", 10)
+    );
     let b = format!(
         "fn second(source: Reader, offset: u64) {{\n{}    log(offset);\n}}\n",
         body("x", 10)
@@ -285,7 +300,10 @@ fn a_near_miss_with_an_extra_statement_is_found() {
 
 #[test]
 fn large_near_misses_are_confirmed_without_edit_distance() {
-    let a = format!("fn first(source: Reader, offset: u64) {{\n{}}}\n", body("x", 40));
+    let a = format!(
+        "fn first(source: Reader, offset: u64) {{\n{}}}\n",
+        body("x", 40)
+    );
     let b = format!(
         "fn second(source: Reader, offset: u64) {{\n{}    log(offset);\n}}\n",
         body("x", 40)
@@ -304,7 +322,10 @@ fn large_near_misses_are_confirmed_without_edit_distance() {
 
 #[test]
 fn unrelated_functions_are_not_grouped() {
-    let a = format!("fn first(source: Reader, offset: u64) {{\n{}}}\n", body("x", 8));
+    let a = format!(
+        "fn first(source: Reader, offset: u64) {{\n{}}}\n",
+        body("x", 8)
+    );
     let b = "fn second() {\n    match state { Ready => go(), Waiting(n) if n > 3 => wait(n), _ => {} }\n    while let Some(item) = queue.pop() { handle(item)?; }\n    loop { break; }\n}\n";
     let files = parsed(&[("a.rs", &a), ("b.rs", b)]);
 
@@ -313,7 +334,10 @@ fn unrelated_functions_are_not_grouped() {
 
 #[test]
 fn fragments_below_the_thresholds_are_ignored() {
-    let a = format!("fn first(source: Reader, offset: u64) {{\n{}}}\n", body("x", 3));
+    let a = format!(
+        "fn first(source: Reader, offset: u64) {{\n{}}}\n",
+        body("x", 3)
+    );
     let files = parsed(&[("a.rs", &a), ("b.rs", &a)]);
     let tokens = files[0].tree.nodes[1].leaf_count;
 
@@ -338,12 +362,17 @@ fn type_shapes_compare_field_types_and_blind_names() {
 
 #[test]
 fn syntax_errors_keep_a_fragment_out() {
-    let a = format!("fn first(source: Reader) {{\n{}    let = ;\n}}\n", body("x", 8));
+    let a = format!(
+        "fn first(source: Reader) {{\n{}    let = ;\n}}\n",
+        body("x", 8)
+    );
     let files = parsed(&[("a.rs", &a), ("b.rs", &a)]);
 
-    assert!(run(&files, &limits(30, 4))
-        .iter()
-        .all(|group| group.fragment != FragmentKind::Function));
+    assert!(
+        run(&files, &limits(30, 4))
+            .iter()
+            .all(|group| group.fragment != FragmentKind::Function)
+    );
 }
 
 fn candidate(units: Vec<Unit>) -> Candidate {
@@ -371,8 +400,14 @@ fn a_copy_inside_another_copy_marks_the_group_recursive() {
     let outer = node_of(&files, 0, "outer(inner(1))");
     let inner = node_of(&files, 0, "inner(1)");
     let mut group = candidate(vec![
-        Unit { file: 0, nodes: vec![inner] },
-        Unit { file: 0, nodes: vec![outer] },
+        Unit {
+            file: 0,
+            nodes: vec![inner],
+        },
+        Unit {
+            file: 0,
+            nodes: vec![outer],
+        },
     ]);
     tidy(&files, &mut group);
 
@@ -388,8 +423,14 @@ fn overlapping_copies_keep_the_first() {
         .filter(|&node| tree.nodes[node as usize].kind == "expression_statement")
         .collect();
     let mut group = candidate(vec![
-        Unit { file: 0, nodes: statements[1..3].to_vec() },
-        Unit { file: 0, nodes: statements[0..2].to_vec() },
+        Unit {
+            file: 0,
+            nodes: statements[1..3].to_vec(),
+        },
+        Unit {
+            file: 0,
+            nodes: statements[0..2].to_vec(),
+        },
     ]);
     tidy(&files, &mut group);
 
@@ -475,7 +516,10 @@ fn similarity_measures_behave_at_their_extremes() {
     assert!((estimated_jaccard(&same, &same) - 1.0).abs() < f64::EPSILON);
     let other: Vec<u32> = (1000..1040).collect();
     assert!(estimated_jaccard(&same, &signature(&other)) < 0.2);
-    assert_eq!(similar::bands(&same).len(), similar::SIGNATURE / similar::BAND_ROWS);
+    assert_eq!(
+        similar::bands(&same).len(),
+        similar::SIGNATURE / similar::BAND_ROWS
+    );
     // Shorter than one shingle still has a signature.
     assert_ne!(signature(&[1, 2]), [u64::MAX; similar::SIGNATURE]);
 
@@ -485,7 +529,10 @@ fn similarity_measures_behave_at_their_extremes() {
 
 #[test]
 fn dice_and_edit_distance_agree_on_identical_trees() {
-    let files = parsed(&[("a.rs", "fn f() { a(1); }\n"), ("b.rs", "fn g() { b(2); }\n")]);
+    let files = parsed(&[
+        ("a.rs", "fn f() { a(1); }\n"),
+        ("b.rs", "fn g() { b(2); }\n"),
+    ]);
     let (a, b) = (&files[0].tree, &files[1].tree);
 
     assert!((dice(&kind_bag(a, 0), &kind_bag(b, 0)) - 1.0).abs() < f64::EPSILON);
@@ -505,4 +552,3 @@ fn edit_distance_counts_an_inserted_statement() {
     assert_eq!(edit_distance(a, 0, b, 0), added);
     assert_eq!(edit_distance(b, 0, a, 0), added);
 }
-

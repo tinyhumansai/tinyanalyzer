@@ -187,5 +187,11 @@ fn no_clones_turns_clone_detection_off() {
     let path = root.path().to_str().unwrap();
 
     assert!(parse(&[path]).config().unwrap().clones.enabled);
-    assert!(!parse(&[path, "--no-clones"]).config().unwrap().clones.enabled);
+    assert!(
+        !parse(&[path, "--no-clones"])
+            .config()
+            .unwrap()
+            .clones
+            .enabled
+    );
 }

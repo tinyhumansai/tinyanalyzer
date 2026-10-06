@@ -272,6 +272,11 @@ path = "vendor/other"
 
 #[test]
 fn an_unknown_clones_key_is_rejected() {
-    assert!(toml::from_str::<Config>("[clones]
-readonly = []\n").is_err());
+    assert!(
+        toml::from_str::<Config>(
+            "[clones]
+readonly = []\n"
+        )
+        .is_err()
+    );
 }

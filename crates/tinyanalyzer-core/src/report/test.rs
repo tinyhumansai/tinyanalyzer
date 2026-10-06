@@ -547,10 +547,12 @@ fn duplicated_functions_are_reported_as_clones() {
 
     assert_eq!(report.clones.len(), 1);
     assert_eq!(report.clones[0].instances.len(), 2);
-    assert!(report
-        .findings
-        .iter()
-        .any(|finding| finding.rule == crate::findings::Rule::DuplicateCode));
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|finding| finding.rule == crate::findings::Rule::DuplicateCode)
+    );
 }
 
 #[test]
@@ -595,7 +597,12 @@ fn extra_roots_and_read_only_globs_set_what_may_change() {
         ]
     );
     // The extra root's files are clone inputs only, not report files.
-    assert!(report.files.iter().all(|file| !file.path.starts_with("vendor")));
+    assert!(
+        report
+            .files
+            .iter()
+            .all(|file| !file.path.starts_with("vendor"))
+    );
 }
 
 #[test]
@@ -622,7 +629,13 @@ fn the_symbol_index_covers_every_rust_item() {
 
     // File order is path order: `src/deep/inner.rs` sorts before `src/lib.rs`.
     assert_eq!(names, ["hidden", "a", "b", "t"]);
-    assert!(records.iter().find(|record| record.name == "t").unwrap().is_test);
+    assert!(
+        records
+            .iter()
+            .find(|record| record.name == "t")
+            .unwrap()
+            .is_test
+    );
 }
 
 #[test]

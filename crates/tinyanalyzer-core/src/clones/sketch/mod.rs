@@ -61,7 +61,11 @@ pub(crate) fn sketch(files: &[Parsed<'_>], candidate: &Candidate) -> Sketch {
             &mut found,
         );
         for hole in found {
-            let target = if hole.inserted { &mut inserted } else { &mut holes };
+            let target = if hole.inserted {
+                &mut inserted
+            } else {
+                &mut holes
+            };
             let entry = target.entry(hole.first).or_insert_with(|| {
                 let mut values = vec![String::new(); candidate.units.len()];
                 if !hole.inserted {
@@ -243,8 +247,7 @@ fn lcs(
     let (mut row, mut column) = (0, 0);
     while row < left.len() && column < right.len() {
         let gain = weight(row, column);
-        if gain > 0 && table[row * width + column] == table[(row + 1) * width + column + 1] + gain
-        {
+        if gain > 0 && table[row * width + column] == table[(row + 1) * width + column + 1] + gain {
             pairs.push((row, column));
             row += 1;
             column += 1;
