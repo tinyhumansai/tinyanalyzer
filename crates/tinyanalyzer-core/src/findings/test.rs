@@ -515,3 +515,91 @@ fn every_finding_names_a_measurement_and_a_remedy() {
         );
     }
 }
+
+fn clone_group(lines: usize, copies: usize, in_tests: bool, editable: bool) -> crate::clones::CloneGroup {
+    use crate::clones::{
+        CloneGroup, CloneInstance, CloneKind, FragmentKind, Sketch, SketchKind,
+    };
+    CloneGroup {
+        id: "0".to_owned(),
+        kind: CloneKind::Renamed,
+        fragment: FragmentKind::Function,
+        detectors: Vec::new(),
+        similarity: 1.0,
+        tokens: 100,
+        lines,
+        lines_saved: (copies - 1) * lines - copies,
+        score: 1.0,
+        in_tests,
+        editable,
+        recursive: false,
+        instances: (0..copies)
+            .map(|copy| CloneInstance {
+                file: format!("src/{copy}.rs"),
+                start_line: 3,
+                end_line: 2 + lines,
+                item: None,
+                editable,
+                is_test: in_tests,
+            })
+            .collect(),
+        sketch: Sketch {
+            kind: SketchKind::Function,
+            signature: "fn shared()".to_owned(),
+            summary: "Extract one function.".to_owned(),
+            parameters: Vec::new(),
+        },
+    }
+}
+
+fn duplicate_findings(groups: &[crate::clones::CloneGroup], thresholds: &Thresholds) -> Vec<super::Finding> {
+    analyze(
+        FindingInputs {
+            files: &[],
+            directories: &[],
+            dependencies: &DependencyReport::default(),
+            dead_code: &[],
+            parse_failures: &[],
+            clones: groups,
+        },
+        thresholds,
+    )
+}
+
+#[test]
+fn duplicate_code_is_reported_at_the_saved_lines_threshold() {
+    let thresholds = Thresholds {
+        duplicate_min_lines: 6,
+        ..Thresholds::default()
+    };
+    // Two copies of eight lines save 8 - 2 = 6; of seven lines, 5.
+    let at = duplicate_findings(&[clone_group(8, 2, false, true)], &thresholds);
+    let below = duplicate_findings(&[clone_group(7, 2, false, true)], &thresholds);
+
+    assert_eq!(rules(&at), [Rule::DuplicateCode]);
+    assert_eq!(below.len(), 0);
+    let finding = &at[0];
+    assert_eq!(finding.severity, Severity::Medium);
+    assert!(finding.title.contains("8 lines are written 2 times"));
+    assert!(finding.detail.contains("src/1.rs:3"));
+    assert!(finding.suggestion.contains("fn shared()"));
+    assert_eq!(finding.location.as_ref().unwrap().file, "src/0.rs");
+}
+
+#[test]
+fn duplicate_code_saving_a_long_function_is_high_severity() {
+    let thresholds = Thresholds::default();
+    let group = clone_group(thresholds.long_function_lines, 6, false, true);
+    let findings = duplicate_findings(&[group], &thresholds);
+
+    assert_eq!(findings[0].severity, Severity::High);
+    assert!(findings[0].detail.contains("and 2 more"));
+}
+
+#[test]
+fn test_only_or_read_only_duplicates_are_not_findings() {
+    let thresholds = Thresholds::default();
+
+    assert_eq!(duplicate_findings(&[clone_group(20, 3, true, true)], &thresholds).len(), 0);
+    assert_eq!(duplicate_findings(&[clone_group(20, 3, false, false)], &thresholds).len(), 0);
+}

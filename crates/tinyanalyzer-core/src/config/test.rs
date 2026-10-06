@@ -48,6 +48,13 @@ fn the_defaults_are_the_documented_ones() {
     assert_eq!(config.ui.table_rows, 20);
     assert!(config.ui.unicode);
     assert!(config.scan.exclude.iter().any(|glob| glob == "target/**"));
+    assert_eq!(config.thresholds.duplicate_min_tokens, 50);
+    assert_eq!(config.thresholds.duplicate_min_lines, 6);
+    assert!((config.thresholds.duplicate_similarity - 0.85).abs() < f64::EPSILON);
+    assert!(config.clones.enabled);
+    assert!(config.clones.include_tests);
+    assert_eq!(config.clones.max_groups, 500);
+    assert_eq!(config.clones.fragment_kinds.len(), 9);
 }
 
 #[test]
@@ -224,4 +231,47 @@ fn an_invalid_pattern_in_a_list_is_rejected() {
     let error = compile_glob_set(&["src/**{".to_owned()]).expect_err("a glob failure");
 
     assert!(matches!(error, Error::Glob { .. }));
+}
+
+#[test]
+fn the_clones_section_parses() {
+    let config: Config = toml::from_str(
+        r#"
+[ui]
+start_view = "clones"
+
+[thresholds]
+duplicate_min_tokens = 30
+duplicate_similarity = 0.9
+
+[clones]
+read_only = ["vendor/**"]
+fragment_kinds = ["function", "statements", "type_shape"]
+include_tests = false
+max_groups = 10
+
+[[clones.extra_roots]]
+path = "vendor/tinytools"
+editable = true
+
+[[clones.extra_roots]]
+path = "vendor/other"
+"#,
+    )
+    .expect("the section is valid");
+
+    assert_eq!(config.ui.start_view, StartView::Clones);
+    assert_eq!(config.thresholds.duplicate_min_tokens, 30);
+    assert_eq!(config.clones.read_only, ["vendor/**"]);
+    assert_eq!(config.clones.fragment_kinds.len(), 3);
+    assert!(!config.clones.include_tests);
+    assert_eq!(config.clones.max_groups, 10);
+    assert!(config.clones.extra_roots[0].editable);
+    assert!(!config.clones.extra_roots[1].editable);
+}
+
+#[test]
+fn an_unknown_clones_key_is_rejected() {
+    assert!(toml::from_str::<Config>("[clones]
+readonly = []\n").is_err());
 }
