@@ -62,6 +62,15 @@ pub(crate) fn sketch(files: &[Parsed<'_>], candidate: &Candidate) -> Sketch {
         }
     }
 
+    // A copy that is a whole item is replaced as a whole, so its own name
+    // differing is expected rather than a parameter.
+    let own_names: Vec<u32> = first
+        .nodes
+        .iter()
+        .filter_map(|&node| first_tree.field(node, Field::Name))
+        .collect();
+    holes.retain(|node, _| !own_names.contains(node));
+
     // Keep only the outermost hole on any path.
     let positions: Vec<u32> = holes.keys().copied().collect();
     holes.retain(|&node, _| {
