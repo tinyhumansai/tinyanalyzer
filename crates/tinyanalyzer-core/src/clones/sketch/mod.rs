@@ -162,31 +162,38 @@ fn align(a: &Tree<'_>, x: u32, b: &Tree<'_>, y: u32, out: &mut Vec<Hole>) {
 }
 
 /// Longest common subsequence of two sibling runs by shape, as index pairs.
-fn lcs(a: &Tree<'_>, left: &[u32], b: &Tree<'_>, right: &[u32]) -> Vec<(usize, usize)> {
-    let (n, m) = (left.len(), right.len());
-    let mut table = vec![0_u32; (n + 1) * (m + 1)];
-    for i in (0..n).rev() {
-        for j in (0..m).rev() {
-            table[i * (m + 1) + j] =
-                if a.nodes[left[i] as usize].shape == b.nodes[right[j] as usize].shape {
-                    table[(i + 1) * (m + 1) + j + 1] + 1
-                } else {
-                    table[(i + 1) * (m + 1) + j].max(table[i * (m + 1) + j + 1])
-                };
+fn lcs(
+    left_tree: &Tree<'_>,
+    left: &[u32],
+    right_tree: &Tree<'_>,
+    right: &[u32],
+) -> Vec<(usize, usize)> {
+    let same = |row: usize, column: usize| {
+        left_tree.nodes[left[row] as usize].shape == right_tree.nodes[right[column] as usize].shape
+    };
+    let width = right.len() + 1;
+    let mut table = vec![0_u32; (left.len() + 1) * width];
+    for row in (0..left.len()).rev() {
+        for column in (0..right.len()).rev() {
+            table[row * width + column] = if same(row, column) {
+                table[(row + 1) * width + column + 1] + 1
+            } else {
+                table[(row + 1) * width + column].max(table[row * width + column + 1])
+            };
         }
     }
 
     let mut pairs = Vec::new();
-    let (mut i, mut j) = (0, 0);
-    while i < n && j < m {
-        if a.nodes[left[i] as usize].shape == b.nodes[right[j] as usize].shape {
-            pairs.push((i, j));
-            i += 1;
-            j += 1;
-        } else if table[(i + 1) * (m + 1) + j] >= table[i * (m + 1) + j + 1] {
-            i += 1;
+    let (mut row, mut column) = (0, 0);
+    while row < left.len() && column < right.len() {
+        if same(row, column) {
+            pairs.push((row, column));
+            row += 1;
+            column += 1;
+        } else if table[(row + 1) * width + column] >= table[row * width + column + 1] {
+            row += 1;
         } else {
-            j += 1;
+            column += 1;
         }
     }
     pairs

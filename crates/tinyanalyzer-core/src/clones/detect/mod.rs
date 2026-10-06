@@ -579,7 +579,7 @@ fn confirm(
     limits: &Limits,
 ) -> Option<(f64, bool)> {
     let (tree_a, tree_b) = (&files[a.file as usize].tree, &files[b.file as usize].tree);
-    let (node_a, node_b) = (&tree_a.nodes[a.node as usize], &tree_b.nodes[b.node as usize]);
+    let (data_a, data_b) = (&tree_a.nodes[a.node as usize], &tree_b.nodes[b.node as usize]);
 
     if a.shape == b.shape {
         return None;
@@ -592,10 +592,10 @@ fn confirm(
     let size = |left: u32, right: u32| {
         similar::ratio(left.min(right) as usize, left.max(right) as usize)
     };
-    let nodes_a = node_a.end - a.node;
-    let nodes_b = node_b.end - b.node;
-    if size(node_a.leaf_count, node_b.leaf_count) < limits.similarity
-        || size(nodes_a, nodes_b) < limits.similarity
+    let size_a = data_a.end - a.node;
+    let size_b = data_b.end - b.node;
+    if size(data_a.leaf_count, data_b.leaf_count) < limits.similarity
+        || size(size_a, size_b) < limits.similarity
     {
         return None;
     }
@@ -608,10 +608,10 @@ fn confirm(
         return None;
     }
 
-    if nodes_a <= EDIT_DISTANCE_LIMIT && nodes_b <= EDIT_DISTANCE_LIMIT {
+    if size_a <= EDIT_DISTANCE_LIMIT && size_b <= EDIT_DISTANCE_LIMIT {
         let distance = similar::edit_distance(tree_a, a.node, tree_b, b.node);
         let similarity =
-            1.0 - similar::ratio(distance, nodes_a.max(nodes_b) as usize);
+            1.0 - similar::ratio(distance, size_a.max(size_b) as usize);
         return (similarity >= limits.similarity).then_some((similarity, true));
     }
 
