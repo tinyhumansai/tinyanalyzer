@@ -29,6 +29,7 @@ pub fn render(report: &Report, hide_tests: bool) -> String {
     heaviest_files(&mut out, report, hide_tests);
     dependencies(&mut out, report);
     dead_code(&mut out, report);
+    clones(&mut out, report, hide_tests);
     findings(&mut out, report);
 
     out
@@ -262,6 +263,44 @@ fn dead_code(out: &mut String, report: &Report) {
             out,
             "  … and {} more",
             report.dead_code.len() - SECTION_ROWS
+        );
+    }
+}
+
+fn clones(out: &mut String, report: &Report, hide_tests: bool) {
+    let groups: Vec<_> = report
+        .clones
+        .iter()
+        .filter(|group| !(hide_tests && group.in_tests))
+        .collect();
+    if groups.is_empty() {
+        return;
+    }
+
+    section(out, "Duplicate code");
+
+    for group in groups.iter().take(SECTION_ROWS) {
+        let first = &group.instances[0];
+        let _ = writeln!(
+            out,
+            "  {:>4} lines saved  {}×{:<4} {:<10}{}:{}",
+            group.lines_saved,
+            group.instances.len(),
+            group.lines,
+            group.kind.label(),
+            truncate_path(&first.file, 40),
+            first.start_line
+        );
+        let _ = writeln!(out, "      → {}", group.sketch.signature);
+    }
+
+    if groups.len() > SECTION_ROWS {
+        let total: usize = groups.iter().map(|group| group.lines_saved).sum();
+        let _ = writeln!(
+            out,
+            "  … and {} more; {total} lines could go across all {}",
+            groups.len() - SECTION_ROWS,
+            groups.len()
         );
     }
 }

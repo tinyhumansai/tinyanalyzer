@@ -413,20 +413,45 @@ fn signature(
 }
 
 /// A name for the shared code, from the first copy.
+///
+/// A whole item lends its own name (`shared_parse`); part of a function
+/// borrows the function's (`parse_step`); an impl block borrows its type's.
 fn base_name(tree: &Tree<'_>, first: &Unit) -> String {
     let node = first.first();
-    let own = (first.nodes.len() == 1).then(|| tree.name(node)).flatten();
-    match own {
-        Some(name) => format!("shared_{}", name.trim_start_matches("r#")),
+    let whole = (first.nodes.len() == 1)
+        .then(|| match tree.nodes[node as usize].kind {
+            "impl_item" => tree.field(node, Field::Type).map(|ty| tree.text(ty)),
+            _ => tree.name(node),
+        })
+        .flatten();
+    let name = match whole {
+        Some(name) => format!("shared_{}", identifier(name)),
         None => tree
             .enclosing(node, &["function_item"])
             .and_then(|function| tree.name(function))
             .map_or_else(
                 || "shared_helper".to_owned(),
-                |name| format!("{name}_step"),
+                |name| format!("{}_step", identifier(name)),
             ),
+    };
+    name.to_lowercase()
+}
+
+/// Reduces a name or type to an identifier: `Graph<State>` → `graph`.
+fn identifier(text: &str) -> String {
+    let head = text
+        .trim_start_matches("r#")
+        .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .find(|part| !part.is_empty())
+        .unwrap_or("helper");
+    let mut snake = String::new();
+    for (index, c) in head.chars().enumerate() {
+        if c.is_uppercase() && index > 0 {
+            snake.push('_');
+        }
+        snake.extend(c.to_lowercase());
     }
-    .to_lowercase()
+    snake
 }
 
 /// `shared_parse_config` → `SharedParseConfig`.
