@@ -52,7 +52,11 @@ fn a_function_record_carries_its_signature_and_names() {
     assert_eq!(record.parameters, ["&self", "f64", "&Point"]);
     assert_eq!(record.return_type.as_deref(), Some("Point"));
     assert_eq!(record.types, ["Point"]);
-    assert_eq!(record.identifiers, ["by", "new", "other", "scale", "total", "x"]);
+    // `Point` in `Point::new` is a path segment, which the grammar spells as a value name.
+    assert_eq!(
+        record.identifiers,
+        ["Point", "by", "new", "other", "scale", "total", "x"]
+    );
     assert_eq!(record.start_line, 1);
     assert_eq!(record.end_line, 4);
     assert_eq!(record.shape.len(), 16);

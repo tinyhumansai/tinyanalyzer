@@ -129,6 +129,7 @@ fn an_extra_statement_becomes_a_statements_parameter() {
     ]);
     let result = sketch(&files, &group(units_of(&files, "function_item"), FragmentKind::Function));
 
+    eprintln!("{result:#?}");
     assert!(result
         .parameters
         .iter()
