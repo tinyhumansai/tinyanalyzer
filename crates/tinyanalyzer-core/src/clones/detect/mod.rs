@@ -378,7 +378,10 @@ fn suffix_groups(files: &[Parsed<'_>], limits: &Limits) -> Vec<Candidate> {
     for unit in trimmed.into_iter().flatten() {
         let tree = &files[unit.file as usize].tree;
         let (start, end) = unit.lines(files);
-        if unit.tokens(files) < limits.min_tokens || end - start + 1 < limits.min_lines {
+        if unit.tokens(files) < limits.min_tokens
+            || end - start + 1 < limits.min_lines
+            || is_declarations_only(tree, &unit.nodes)
+        {
             continue;
         }
         let shape = run_shape(tree, &unit.nodes);
@@ -423,6 +426,23 @@ fn run_shape(tree: &Tree<'_>, nodes: &[u32]) -> u64 {
             mix(hash, tree.nodes[node as usize].shape)
         }),
     }
+}
+
+/// Item kinds that only name something declared elsewhere.
+const DECLARATIONS: &[&str] = &["mod_item", "use_declaration", "extern_crate_declaration"];
+
+/// Whether a run is nothing but `mod`, `use`, and `extern crate` lines.
+///
+/// Every list of `pub mod a; pub mod b; …` has the same shape as every other,
+/// and there is nothing to fold: each line names a different module.
+fn is_declarations_only(tree: &Tree<'_>, nodes: &[u32]) -> bool {
+    nodes.iter().all(|&node| {
+        let data = &tree.nodes[node as usize];
+        DECLARATIONS.contains(&data.kind) && tree.field(node, Field::Other).is_none_or(|_| {
+            tree.children(node)
+                .all(|child| tree.nodes[child as usize].kind != "declaration_list")
+        })
+    })
 }
 
 /// Node kinds whose children form a sequence a copy can be a run of.
