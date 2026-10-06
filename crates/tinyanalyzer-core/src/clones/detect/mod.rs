@@ -437,11 +437,10 @@ const DECLARATIONS: &[&str] = &["mod_item", "use_declaration", "extern_crate_dec
 /// and there is nothing to fold: each line names a different module.
 fn is_declarations_only(tree: &Tree<'_>, nodes: &[u32]) -> bool {
     nodes.iter().all(|&node| {
-        let data = &tree.nodes[node as usize];
-        DECLARATIONS.contains(&data.kind) && tree.field(node, Field::Other).is_none_or(|_| {
-            tree.children(node)
+        DECLARATIONS.contains(&tree.nodes[node as usize].kind)
+            && tree
+                .children(node)
                 .all(|child| tree.nodes[child as usize].kind != "declaration_list")
-        })
     })
 }
 
