@@ -111,8 +111,10 @@ editable = false
 - The engine gains no terminal UI, argument parser, server, or async runtime.
 - A file with syntax errors does not abort the analysis; fragments containing
   an error node are not reported.
-- Type definitions are held to `duplicate_min_lines` alone, because a struct is
-  short in tokens by nature.
+- Type definitions are held to `duplicate_min_lines` instead of the token
+  minimum, because a struct is short in tokens by nature, and must name at least
+  two field types: an enum whose variants carry no data has the same blinded
+  shape as every other enum of its length.
 
 ## Acceptance criteria
 

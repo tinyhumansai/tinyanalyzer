@@ -156,7 +156,8 @@ pub struct Thresholds {
     /// Tokens rather than lines, so formatting cannot move a fragment across
     /// the line: `foo(a, b)` is six tokens however it is wrapped. Type
     /// definitions are exempt, since a struct is short in tokens by nature;
-    /// they are held to `duplicate_min_lines` alone.
+    /// they are held to `duplicate_min_lines` and must name at least two field
+    /// types.
     pub duplicate_min_tokens: usize,
     /// A copy spanning fewer lines than this is not reported as a clone.
     pub duplicate_min_lines: usize,
