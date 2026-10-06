@@ -443,13 +443,17 @@ impl<'s> Tree<'s> {
             index,
             &[
                 "function_item",
+                "function_signature_item",
                 "struct_item",
                 "enum_item",
+                "union_item",
                 "trait_item",
                 "impl_item",
                 "mod_item",
                 "const_item",
                 "static_item",
+                "type_item",
+                "macro_definition",
             ],
         )?;
         let own = if self.nodes[item as usize].kind == "impl_item" {
