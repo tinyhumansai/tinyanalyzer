@@ -280,6 +280,7 @@ fn every_start_view_maps_onto_a_pane() {
         View::Dependencies
     );
     assert_eq!(View::from_start(StartView::DeadCode), View::DeadCode);
+    assert_eq!(View::from_start(StartView::Clones), View::Clones);
     assert_eq!(View::from_start(StartView::Findings), View::Findings);
 }
 
@@ -1923,4 +1924,100 @@ fn every_view_of_a_report_with_a_graph_draws() {
         dashboard.apply(Action::SelectView(index));
         assert_ne!(rendered(&dashboard), "");
     }
+}
+
+/// A report with two copies of one function, one in production code and one
+/// in a test file, plus a test-only pair.
+fn clones_dashboard() -> (TempDir, Dashboard) {
+    let root = TempDir::new().expect("a temporary directory for the fixture");
+    let function = |name: &str| {
+        format!(
+            "pub fn {name}(source: &[u8], offset: usize) -> usize {{\n    let header = source[offset];\n    if header == 0 {{ return 0; }}\n    let mut total = 0;\n    for item in source.iter() {{ total += *item as usize; }}\n    let kind = match header {{ 1 => 10, 2 => 20, _ => 30 }};\n    total * kind\n}}\n"
+        )
+    };
+    write(root.path(), "src/a.rs", &function("load"));
+    write(root.path(), "src/b.rs", &function("fetch"));
+    let fixture = |name: &str| {
+        format!(
+            "#[test]\nfn {name}() {{\n    let mut parser = Parser::new(\"input\");\n    parser.advance(3);\n    let token = parser.peek().expect(\"a token\");\n    assert_eq!(token.kind, Kind::Word);\n    assert_eq!(token.text, \"put\");\n    assert!(parser.finished());\n}}\n"
+        )
+    };
+    write(root.path(), "tests/one.rs", &fixture("parses_one"));
+    write(root.path(), "tests/two.rs", &fixture("parses_two"));
+
+    let config = Config {
+        dependencies: DependencyConfig {
+            enabled: false,
+            ..DependencyConfig::default()
+        },
+        ..Config::default()
+    };
+    let report = analyze_with(root.path(), &config).expect("a walkable tree");
+    (root, Dashboard::new(report, StartView::Clones, false))
+}
+
+#[test]
+fn the_duplicates_view_lists_groups_and_spells_out_the_selected_one() {
+    let (_root, dashboard) = clones_dashboard();
+
+    assert_eq!(dashboard.view(), View::Clones);
+    assert_eq!(dashboard.row_count(), 2);
+    let text = rendered(&dashboard);
+    assert!(text.contains("Duplicates (2)"));
+    assert!(text.contains("src/a.rs:1-8"));
+    assert!(text.contains("What to do"));
+    assert!(dashboard.selected_clone().is_some());
+}
+
+#[test]
+fn the_duplicates_view_hides_test_only_groups_and_filters_by_path() {
+    let (_root, mut dashboard) = clones_dashboard();
+
+    dashboard.apply(Action::ToggleTests);
+    assert_eq!(dashboard.row_count(), 1);
+    dashboard.apply(Action::ToggleTests);
+
+    dashboard.apply(Action::StartFilter);
+    for c in "one.rs".chars() {
+        dashboard.apply(Action::FilterChar(c));
+    }
+    assert_eq!(dashboard.row_count(), 1);
+    assert!(dashboard.clones()[0].in_tests);
+}
+
+#[test]
+fn the_duplicates_view_sorts_three_ways() {
+    let (_root, mut dashboard) = clones_dashboard();
+    let mut labels = Vec::new();
+
+    for _ in 0..3 {
+        labels.push(dashboard.sort_label());
+        assert_eq!(dashboard.clones().len(), 2);
+        dashboard.apply(Action::CycleSort);
+    }
+
+    assert_eq!(labels, ["score", "lines saved", "copies"]);
+}
+
+#[test]
+fn the_duplicates_view_explains_when_there_is_nothing() {
+    let (_root, mut dashboard) = dashboard_empty_clones();
+
+    dashboard.apply(Action::SelectView(View::Clones.index()));
+
+    assert!(rendered(&dashboard).contains("No duplicate code"));
+}
+
+fn dashboard_empty_clones() -> (TempDir, Dashboard) {
+    let root = TempDir::new().expect("a temporary directory");
+    write(root.path(), "src/lib.rs", "pub fn only() {}\n");
+    let config = Config {
+        dependencies: DependencyConfig {
+            enabled: false,
+            ..DependencyConfig::default()
+        },
+        ..Config::default()
+    };
+    let report = analyze_with(root.path(), &config).expect("a walkable tree");
+    (root, Dashboard::new(report, StartView::Overview, false))
 }
