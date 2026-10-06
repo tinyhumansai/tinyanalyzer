@@ -48,6 +48,15 @@ use std::collections::BTreeSet;
 /// copied branch ships.
 const TEST_WEIGHT: f64 = 0.5;
 
+/// Parameters a sketch can take before its group's score starts to fall.
+///
+/// Every place the copies differ becomes a parameter, and a helper with thirty
+/// of them is not a saving anyone will take: two long `match` tables that map
+/// different variants to different strings have one shape and nothing to
+/// share. The score is divided by `1 + parameters / PARAMETER_BUDGET`, so a
+/// group needing eight parameters ranks at half the weight of one needing none.
+const PARAMETER_BUDGET: f64 = 8.0;
+
 /// Weight given to a group with a read-only copy: only the editable copies
 /// can move, so less of the group can be removed.
 const READ_ONLY_WEIGHT: f64 = 0.5;
@@ -209,7 +218,10 @@ fn build(
     // Counts here are copies and tokens in one repository, far below the range
     // where `f64` loses integer precision.
     #[allow(clippy::cast_precision_loss)]
-    let mut score = (copies - 1) as f64 * tokens as f64 * candidate.similarity;
+    let sketch = sketch::sketch(files, &candidate);
+    #[allow(clippy::cast_precision_loss)]
+    let mut score = (copies - 1) as f64 * tokens as f64 * candidate.similarity
+        / (1.0 + sketch.parameters.len() as f64 / PARAMETER_BUDGET);
     if in_tests {
         score *= TEST_WEIGHT;
     }
@@ -245,7 +257,7 @@ fn build(
         in_tests,
         editable,
         recursive: candidate.recursive,
-        sketch: sketch::sketch(files, &candidate),
+        sketch,
         instances,
     })
 }

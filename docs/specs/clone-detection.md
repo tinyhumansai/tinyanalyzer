@@ -67,8 +67,10 @@ same group is dropped and the group marked recursive. A group whose copies all
 sit inside the copies of a group with at least as many copies is dropped. In
 score order, a group most of whose copies overlap a better group is dropped.
 
-Score is `(copies − 1) × tokens × similarity`, halved when every copy is test
-code and halved when any copy is read-only. Groups with no editable copy are
+Score is `(copies − 1) × tokens × similarity / (1 + parameters / 8)`, halved
+when every copy is test code and halved when any copy is read-only. The
+parameter term ranks a group that needs a thirty-parameter helper below one
+that needs none, since only the latter is a saving anyone will take. Groups with no editable copy are
 not reported. Lines saved is `(copies − 1) × lines − copies`: every copy but one
 goes, and each leaves a call behind.
 
