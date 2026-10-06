@@ -69,7 +69,7 @@ pub(super) fn row_at(area: Rect, view: View, column: u16, row: u16) -> Option<us
             true,
         ),
         View::Directories | View::DeadCode => (body, true),
-        View::Dependencies => (
+        View::Dependencies | View::Clones => (
             Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)])
                 .split(body)[0],
             true,
@@ -78,11 +78,6 @@ pub(super) fn row_at(area: Rect, view: View, column: u16, row: u16) -> Option<us
             Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)])
                 .split(body)[0],
             false,
-        ),
-        View::Clones => (
-            Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)])
-                .split(body)[0],
-            true,
         ),
     };
 

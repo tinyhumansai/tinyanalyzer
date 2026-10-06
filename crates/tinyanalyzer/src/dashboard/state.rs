@@ -848,8 +848,8 @@ impl Dashboard {
             .collect();
         match self.sorts[View::Clones.index()] {
             0 => {}
-            1 => groups.sort_by(|left, right| right.lines_saved.cmp(&left.lines_saved)),
-            _ => groups.sort_by(|left, right| right.instances.len().cmp(&left.instances.len())),
+            1 => groups.sort_by_key(|group| Reverse(group.lines_saved)),
+            _ => groups.sort_by_key(|group| Reverse(group.instances.len())),
         }
         groups
     }
