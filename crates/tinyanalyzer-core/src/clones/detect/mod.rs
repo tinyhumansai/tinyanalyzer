@@ -520,37 +520,30 @@ fn near_misses(files: &[Parsed<'_>], fragments: &[Fragment], limits: &Limits) ->
         .collect();
 
     let mut parent: Vec<usize> = (0..eligible.len()).collect();
-    let mut weakest: BTreeMap<usize, (f64, bool)> = BTreeMap::new();
-    for &(left, right, similarity, edit) in &confirmed {
+    for &(left, right, _, _) in &confirmed {
         let (a, b) = (find(&mut parent, left), find(&mut parent, right));
         if a != b {
             parent[b] = a;
         }
-        let root = find(&mut parent, a);
-        let previous = weakest
-            .remove(&a)
-            .into_iter()
-            .chain(weakest.remove(&b))
-            .fold((similarity, edit), |(low, used), (other, other_used)| {
-                (low.min(other), used || other_used)
-            });
-        weakest.insert(root, previous);
     }
 
-    let mut groups: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
-    for &(left, right, _, _) in &confirmed {
+    // Per group: its members, its weakest confirmed pair, and whether edit
+    // distance confirmed any of them.
+    let mut groups: BTreeMap<usize, (Vec<usize>, f64, bool)> = BTreeMap::new();
+    for &(left, right, similarity, edit) in &confirmed {
         let root = find(&mut parent, left);
-        let members = groups.entry(root).or_default();
-        members.push(left);
-        members.push(right);
+        let entry = groups.entry(root).or_insert((Vec::new(), 1.0, false));
+        entry.0.push(left);
+        entry.0.push(right);
+        entry.1 = entry.1.min(similarity);
+        entry.2 |= edit;
     }
 
     groups
-        .into_iter()
-        .map(|(root, mut members)| {
+        .into_values()
+        .map(|(mut members, similarity, edit)| {
             members.sort_unstable();
             members.dedup();
-            let (similarity, edit) = weakest.get(&root).copied().unwrap_or((1.0, false));
             let mut detectors = BTreeSet::from([Detector::MinHash]);
             if edit {
                 detectors.insert(Detector::EditDistance);
@@ -678,16 +671,7 @@ fn merge(files: &[Parsed<'_>], found: Vec<Candidate>) -> Vec<Candidate> {
                 .filter(|&&(other, unit)| {
                     other != index && groups[other].units[unit].encloses(probe, files)
                 })
-                .any(|&(other, _)| {
-                    let larger = &groups[other];
-                    let strictly_larger = larger.units.len() > candidate.units.len()
-                        || larger.units != candidate.units;
-                    larger.units.len() >= candidate.units.len()
-                        && strictly_larger
-                        && candidate.units.iter().all(|unit| {
-                            larger.units.iter().any(|outer| outer.encloses(unit, files))
-                        })
-                })
+                .any(|&(other, _)| subsumes(files, &groups[other], other, candidate, index))
         })
         .collect();
 
@@ -697,6 +681,32 @@ fn merge(files: &[Parsed<'_>], found: Vec<Candidate>) -> Vec<Candidate> {
         .filter(|(index, _)| !subsumed.contains(index))
         .map(|(_, candidate)| candidate)
         .collect()
+}
+
+/// Whether group `outer` (at index `outer_index`) makes group `inner`
+/// redundant: it has at least as many copies, and each of `inner`'s copies
+/// lies inside one of its copies.
+///
+/// Two groups whose copies span exactly the same bytes — a node and its only
+/// child — subsume each other, so the tie goes to the earlier one.
+fn subsumes(
+    files: &[Parsed<'_>],
+    outer: &Candidate,
+    outer_index: usize,
+    inner: &Candidate,
+    inner_index: usize,
+) -> bool {
+    if outer.units.len() < inner.units.len() {
+        return false;
+    }
+    let mut identical = outer.units.len() == inner.units.len();
+    for unit in &inner.units {
+        let Some(host) = outer.units.iter().find(|host| host.encloses(unit, files)) else {
+            return false;
+        };
+        identical &= host.span(files) == unit.span(files);
+    }
+    !identical || outer_index < inner_index
 }
 
 /// Sorts a group's units, removes nested copies (marking the group recursive),
