@@ -502,16 +502,3 @@ fn edit_distance_counts_an_inserted_statement() {
     assert_eq!(edit_distance(b, 0, a, 0), added);
 }
 
-#[test]
-fn debug_run_dump() {
-    let shared = body("v", 8);
-    let a = format!("fn first() {{\n    setup_one();\n{shared}    finish_one(1, 2, 3);\n}}\n");
-    let b = format!(
-        "fn second(flag: bool) {{\n    if flag {{ return; }}\n    other_setup(9);\n{shared}    done();\n}}\n"
-    );
-    let files = parsed(&[("a.rs", &a), ("b.rs", &b)]);
-    for g in run(&files, &limits(40, 4)) {
-        eprintln!("{:?} {:?} {:?}", g.fragment, g.detectors, g.units.iter().map(|u| (u.file, u.nodes.len(), u.lines(&files))).collect::<Vec<_>>());
-    }
-    panic!();
-}
