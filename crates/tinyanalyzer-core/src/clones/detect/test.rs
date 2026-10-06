@@ -552,3 +552,12 @@ fn edit_distance_counts_an_inserted_statement() {
     assert_eq!(edit_distance(a, 0, b, 0), added);
     assert_eq!(edit_distance(b, 0, a, 0), added);
 }
+
+#[test]
+fn enums_without_data_are_not_type_shapes() {
+    let a = "enum Mode {\n    Fast,\n    Slow,\n    Off,\n    Auto,\n    Manual,\n}\n";
+    let b = "enum Color {\n    Red,\n    Green,\n    Blue,\n    Cyan,\n    Black,\n}\n";
+    let files = parsed(&[("a.rs", a), ("b.rs", b)]);
+
+    assert_eq!(run(&files, &limits(1000, 5)).len(), 0);
+}

@@ -215,7 +215,11 @@ fn fragments(file: u32, tree: &Tree<'_>, limits: &Limits) -> Vec<Fragment> {
             }
             let lines = data.end_line - data.start_line + 1;
             let big_enough = lines >= limits.min_lines
-                && (kind == FragmentKind::TypeShape || data.leaf_count >= limits.min_tokens);
+                && if kind == FragmentKind::TypeShape {
+                    typed_leaves(tree, node) >= MIN_TYPED_LEAVES
+                } else {
+                    data.leaf_count >= limits.min_tokens
+                };
             big_enough.then(|| Fragment {
                 file,
                 node,
@@ -228,6 +232,28 @@ fn fragments(file: u32, tree: &Tree<'_>, limits: &Limits) -> Vec<Fragment> {
             })
         })
         .collect()
+}
+
+/// Type names a struct or enum must mention to be compared by shape.
+///
+/// A type shape blinds every name, so an enum whose variants carry no data —
+/// `enum Mode { Fast, Slow, Off }` — has the same shape as every other
+/// three-variant enum, whatever it means. Two type mentions is the least that
+/// gives a shape something to agree on.
+const MIN_TYPED_LEAVES: usize = 2;
+
+/// Type names and primitive types mentioned in a definition, its own name
+/// excluded.
+fn typed_leaves(tree: &Tree<'_>, node: u32) -> usize {
+    let own_name = tree.field(node, Field::Name);
+    tree.leaves_of(node)
+        .iter()
+        .filter(|&&leaf| Some(leaf) != own_name)
+        .filter(|&&leaf| {
+            let data = &tree.nodes[leaf as usize];
+            data.class == Class::TypeIdent || data.kind == "primitive_type"
+        })
+        .count()
 }
 
 /// A type definition's shape: field types kept, every name blinded.
