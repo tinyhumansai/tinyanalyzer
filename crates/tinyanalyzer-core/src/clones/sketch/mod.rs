@@ -35,6 +35,9 @@ struct Hole {
     other: Option<u32>,
     /// What the difference is.
     kind: ParameterKind,
+    /// Whether `other` is present only in the other copy, inserted before
+    /// `first` (or after it, when `first` ends the run).
+    inserted: bool,
 }
 
 /// Builds the sketch for one group.
@@ -45,6 +48,8 @@ pub(crate) fn sketch(files: &[Parsed<'_>], candidate: &Candidate) -> Sketch {
 
     // node in the first copy -> (kind, value per copy)
     let mut holes: BTreeMap<u32, (ParameterKind, Vec<String>)> = BTreeMap::new();
+    // Statements only some copies have, keyed by where they would go.
+    let mut inserted: BTreeMap<u32, (ParameterKind, Vec<String>)> = BTreeMap::new();
     for (copy, unit) in candidate.units.iter().enumerate().skip(1) {
         let other_tree = &files[unit.file as usize].tree;
         let mut found = Vec::new();
@@ -56,15 +61,25 @@ pub(crate) fn sketch(files: &[Parsed<'_>], candidate: &Candidate) -> Sketch {
             &mut found,
         );
         for hole in found {
-            let entry = holes.entry(hole.first).or_insert_with(|| {
+            let target = if hole.inserted { &mut inserted } else { &mut holes };
+            let entry = target.entry(hole.first).or_insert_with(|| {
                 let mut values = vec![String::new(); candidate.units.len()];
-                values[0] = shorten(first_tree.text(hole.first));
+                if !hole.inserted {
+                    values[0] = shorten(first_tree.text(hole.first));
+                }
                 (hole.kind, values)
             });
-            entry.1[copy] = hole
+            let value = hole
                 .other
                 .map(|node| shorten(other_tree.text(node)))
                 .unwrap_or_default();
+            let slot = &mut entry.1[copy];
+            if slot.is_empty() {
+                *slot = value;
+            } else if !value.is_empty() {
+                slot.push_str(" ");
+                slot.push_str(&value);
+            }
         }
     }
 
@@ -84,6 +99,17 @@ pub(crate) fn sketch(files: &[Parsed<'_>], candidate: &Candidate) -> Sketch {
             .iter()
             .any(|&outer| outer != node && first_tree.contains(outer, node))
     });
+    inserted.retain(|&node, _| {
+        !positions
+            .iter()
+            .any(|&outer| outer != node && first_tree.contains(outer, node))
+    });
+    let mut differences: Vec<(u32, ParameterKind, Vec<String>)> = holes
+        .iter()
+        .chain(&inserted)
+        .map(|(&node, (kind, values))| (node, *kind, values.clone()))
+        .collect();
+    differences.sort_by_key(|(node, _, _)| *node);
 
     let parameters = parameters(first_tree, &holes);
     let kind = choose(files, candidate, first_tree, &holes);
@@ -99,6 +125,12 @@ pub(crate) fn sketch(files: &[Parsed<'_>], candidate: &Candidate) -> Sketch {
 }
 
 /// Aligns two sibling runs.
+///
+/// Runs of equal length are aligned position by position. Otherwise the
+/// longest common subsequence pairs what it can; inside each gap between
+/// pairs, leftover siblings are paired in order, an unpaired sibling of the
+/// first copy is missing from the other, and an unpaired sibling of the other
+/// copy is an insertion.
 fn align_runs(a: &Tree<'_>, left: &[u32], b: &Tree<'_>, right: &[u32], out: &mut Vec<Hole>) {
     if left.len() == right.len() {
         for (&x, &y) in left.iter().zip(right) {
@@ -107,32 +139,38 @@ fn align_runs(a: &Tree<'_>, left: &[u32], b: &Tree<'_>, right: &[u32], out: &mut
         return;
     }
 
-    let matched = lcs(a, left, b, right);
-    let mut next_right = 0;
-    let mut matched_iter = matched.iter().peekable();
-    for (index, &x) in left.iter().enumerate() {
-        if let Some(&&(i, j)) = matched_iter.peek()
-            && i == index
-        {
-            matched_iter.next();
-            next_right = j + 1;
-            align(a, x, b, right[j], out);
-            continue;
-        }
-        let other = right
-            .get(next_right)
-            .copied()
-            .filter(|_| matched_iter.peek().is_none_or(|&&(_, j)| next_right < j));
-        if other.is_some() {
-            next_right += 1;
-        }
-        if a.nodes[x as usize].named {
+    let mut matched = lcs(a, left, b, right);
+    matched.push((left.len(), right.len()));
+    let (mut i, mut j) = (0, 0);
+    for (next_i, next_j) in matched {
+        let gap_left = &left[i..next_i];
+        let gap_right = &right[j..next_j];
+        for (offset, &x) in gap_left.iter().enumerate() {
+            if !a.nodes[x as usize].named {
+                continue;
+            }
             out.push(Hole {
                 first: x,
-                other,
+                other: gap_right.get(offset).copied(),
                 kind: ParameterKind::Statements,
+                inserted: false,
             });
         }
+        let anchor = left.get(next_i).or_else(|| left.last()).copied();
+        for &y in gap_right.iter().skip(gap_left.len()) {
+            if let (Some(anchor), true) = (anchor, b.nodes[y as usize].named) {
+                out.push(Hole {
+                    first: anchor,
+                    other: Some(y),
+                    kind: ParameterKind::Statements,
+                    inserted: true,
+                });
+            }
+        }
+        if next_i < left.len() && next_j < right.len() {
+            align(a, left[next_i], b, right[next_j], out);
+        }
+        (i, j) = (next_i + 1, next_j + 1);
     }
 }
 
@@ -147,6 +185,7 @@ fn align(a: &Tree<'_>, x: u32, b: &Tree<'_>, y: u32, out: &mut Vec<Hole>) {
             first: x,
             other: Some(y),
             kind: kind_of(a, x),
+            inserted: false,
         });
         return;
     }
@@ -166,32 +205,45 @@ fn align(a: &Tree<'_>, x: u32, b: &Tree<'_>, y: u32, out: &mut Vec<Hole>) {
     align_runs(a, &left_children, b, &right_children, out);
 }
 
-/// Longest common subsequence of two sibling runs by shape, as index pairs.
+/// Longest common subsequence of two sibling runs, as index pairs.
+///
+/// Weighted: an exact pair counts twice and a same-shape pair once, so an
+/// identical statement is preferred over a merely similar one when both fit.
 fn lcs(
     left_tree: &Tree<'_>,
     left: &[u32],
     right_tree: &Tree<'_>,
     right: &[u32],
 ) -> Vec<(usize, usize)> {
-    let same = |row: usize, column: usize| {
-        left_tree.nodes[left[row] as usize].shape == right_tree.nodes[right[column] as usize].shape
+    let weight = |row: usize, column: usize| {
+        let (x, y) = (left[row], right[column]);
+        if left_tree.nodes[x as usize].shape != right_tree.nodes[y as usize].shape {
+            0
+        } else if left_tree.exact_hash(&[x]) == right_tree.exact_hash(&[y]) {
+            2
+        } else {
+            1
+        }
     };
     let width = right.len() + 1;
     let mut table = vec![0_u32; (left.len() + 1) * width];
     for row in (0..left.len()).rev() {
         for column in (0..right.len()).rev() {
-            table[row * width + column] = if same(row, column) {
-                table[(row + 1) * width + column + 1] + 1
-            } else {
-                table[(row + 1) * width + column].max(table[row * width + column + 1])
+            let skip = table[(row + 1) * width + column].max(table[row * width + column + 1]);
+            let take = match weight(row, column) {
+                0 => 0,
+                gain => table[(row + 1) * width + column + 1] + gain,
             };
+            table[row * width + column] = skip.max(take);
         }
     }
 
     let mut pairs = Vec::new();
     let (mut row, mut column) = (0, 0);
     while row < left.len() && column < right.len() {
-        if same(row, column) {
+        let gain = weight(row, column);
+        if gain > 0 && table[row * width + column] == table[(row + 1) * width + column + 1] + gain
+        {
             pairs.push((row, column));
             row += 1;
             column += 1;
