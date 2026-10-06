@@ -395,28 +395,6 @@ impl<'s> Tree<'s> {
             .fold(0, |hash, &leaf| mix(hash, hash_str(self.text(leaf))))
     }
 
-    /// The renaming pattern of a run: each identifier replaced by the index of
-    /// its first occurrence.
-    ///
-    /// Two runs with the same shape and the same pattern are consistent
-    /// renamings of each other — every `a` in one is a `b` in the other.
-    pub(crate) fn renaming(&self, nodes: &[u32]) -> Vec<u32> {
-        let mut seen: Vec<&str> = Vec::new();
-        let mut pattern = Vec::new();
-        for leaf in nodes.iter().flat_map(|&node| self.leaves_of(node).iter()) {
-            let node = &self.nodes[*leaf as usize];
-            if matches!(node.class, Class::Ident | Class::TypeIdent | Class::Literal) {
-                let text = self.text(*leaf);
-                let position = seen.iter().position(|name| *name == text).unwrap_or_else(|| {
-                    seen.push(text);
-                    seen.len().saturating_sub(1)
-                });
-                pattern.push(to_u32(position));
-            }
-        }
-        pattern
-    }
-
     /// The nearest ancestor-or-self of `index` whose kind is in `kinds`.
     pub(crate) fn enclosing(&self, index: u32, kinds: &[&str]) -> Option<u32> {
         let mut current = index;
