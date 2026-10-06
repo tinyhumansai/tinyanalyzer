@@ -215,10 +215,9 @@ fn build(
     let in_tests = instances.iter().all(|instance| instance.is_test);
     let editable = instances.iter().all(|instance| instance.editable);
 
-    // Counts here are copies and tokens in one repository, far below the range
-    // where `f64` loses integer precision.
-    #[allow(clippy::cast_precision_loss)]
     let sketch = sketch::sketch(files, &candidate);
+    // Counts here are copies, tokens, and parameters in one repository, far
+    // below the range where `f64` loses integer precision.
     #[allow(clippy::cast_precision_loss)]
     let mut score = (copies - 1) as f64 * tokens as f64 * candidate.similarity
         / (1.0 + sketch.parameters.len() as f64 / PARAMETER_BUDGET);

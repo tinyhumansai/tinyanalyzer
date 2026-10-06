@@ -202,3 +202,41 @@ fn every_kind_has_a_distinct_label() {
     assert_eq!(clones.len(), 3);
     assert_eq!(sketches.len(), 6);
 }
+
+#[test]
+fn a_group_needing_many_parameters_ranks_below_a_clean_one() {
+    let clean_a = function("load");
+    let clean_b = function("fetch");
+    // Same shape as `function`, with every literal and name changed.
+    let noisy_a = function("parse")
+        .replace("header", "head")
+        .replace("total", "sum")
+        .replace("1 =>", "7 =>")
+        .replace("2 =>", "8 =>");
+    let noisy_b = function("scan")
+        .replace("header", "top")
+        .replace("total", "acc")
+        .replace("1 =>", "5 =>")
+        .replace("2 =>", "6 =>")
+        .replace("Kind::A", "Mode::X")
+        .replace("Kind::B", "Mode::Y");
+    let groups = analyze(
+        &[
+            input("src/a.rs", &clean_a, false, true),
+            input("src/b.rs", &clean_b, false, true),
+        ],
+        &CloneConfig::default(),
+        &Thresholds::default(),
+    );
+    let noisy = analyze(
+        &[
+            input("src/c.rs", &noisy_a, false, true),
+            input("src/d.rs", &noisy_b, false, true),
+        ],
+        &CloneConfig::default(),
+        &Thresholds::default(),
+    );
+
+    assert!(noisy[0].sketch.parameters.len() > groups[0].sketch.parameters.len());
+    assert!(noisy[0].score < groups[0].score);
+}
