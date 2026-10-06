@@ -343,3 +343,64 @@ fn a_write_target_that_cannot_be_written_fails_loudly() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("cannot write"));
 }
+
+fn duplicated_fixture() -> TempDir {
+    let root = fixture();
+    for name in ["load", "fetch"] {
+        let text = format!(
+            "pub fn {name}(source: &[u8], offset: usize) -> usize {{\n    let header = source[offset];\n    if header == 0 {{ return 0; }}\n    let mut total = 0;\n    for item in source.iter() {{ total += *item as usize; }}\n    let kind = match header {{ 1 => 10, 2 => 20, _ => 30 }};\n    total * kind\n}}\n"
+        );
+        write(root.path(), &format!("src/{name}.rs"), &text);
+    }
+    root
+}
+
+#[test]
+fn json_output_carries_clone_groups_unless_switched_off() {
+    let root = duplicated_fixture();
+
+    let with: serde_json::Value =
+        serde_json::from_str(&stdout(&run(root.path(), &["--output", "json"]))).unwrap();
+    let without: serde_json::Value = serde_json::from_str(&stdout(&run(
+        root.path(),
+        &["--output", "json", "--no-clones"],
+    )))
+    .unwrap();
+
+    assert_eq!(with["clones"].as_array().unwrap().len(), 1);
+    assert_eq!(without["clones"].as_array().unwrap().len(), 0);
+}
+
+#[test]
+fn symbols_output_is_one_json_object_per_item() {
+    let root = duplicated_fixture();
+    let output = run(root.path(), &["--output", "symbols"]);
+
+    assert!(output.status.success());
+    let records: Vec<serde_json::Value> = stdout(&output)
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| serde_json::from_str(line).expect("each line is JSON"))
+        .collect();
+    let names: Vec<&str> = records
+        .iter()
+        .map(|record| record["qualified_name"].as_str().unwrap())
+        .collect();
+    assert!(names.contains(&"load"));
+    assert!(names.contains(&"never_called"));
+    assert_eq!(records[0]["shape"].as_str().unwrap().len(), 16);
+}
+
+#[test]
+fn symbols_output_can_be_written_to_a_file() {
+    let root = duplicated_fixture();
+    let target = root.path().join("symbols.jsonl");
+
+    let output = run(
+        root.path(),
+        &["--output", "symbols", "--write", target.to_str().unwrap()],
+    );
+
+    assert!(output.status.success());
+    assert!(std::fs::read_to_string(target).unwrap().contains("\"fetch\""));
+}
