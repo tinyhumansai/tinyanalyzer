@@ -82,7 +82,7 @@ items, split along the seams already in it" is.
 │ high    crates/…/deps/mod.rs allocates 20 times inside loops            │
 │ high    Dashboard::apply has 19 paths through it                        │
 └─────────────────────────────────────────────────────────────────────────┘
- q quit · tab/1-6 view · ↑↓ move · t tests · / filter · tests shown
+ q quit · tab/1-7 view · ↑↓ move · t tests · / filter · tests shown
 ```
 
 | Key | What it does |
