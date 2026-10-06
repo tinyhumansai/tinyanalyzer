@@ -39,11 +39,34 @@ fn naive_suffix_array(text: &[u32]) -> Vec<u32> {
     positions
 }
 
-/// A function body of `count` distinct statements, so it is long enough to
-/// report but not repetitive inside itself.
+/// Statement shapes that do not repeat each other, so a body built from them
+/// is long enough to report without being repetitive inside itself.
+const SHAPES: [&str; 12] = [
+    "let {v} = source.read(offset)?;",
+    "if {v}.is_empty() {{ return Err(Error::Empty); }}",
+    "for item in {v}.iter() {{ total += item.len(); }}",
+    "let {v} = match kind {{ Kind::A => 1, Kind::B => 2, _ => 0 }};",
+    "while let Some(next) = queue.pop() {{ seen.insert(next); }}",
+    "{v}.sort_by(|a, b| b.cmp(a));",
+    "let {v}: Vec<String> = names.iter().map(ToString::to_string).collect();",
+    "assert!({v} > limit, \"too small\");",
+    "out.push_str(&format!(\"{{}}\", {v}));",
+    "let {v} = Config {{ depth: 3, wide: true }};",
+    "loop {{ if tick() {{ break; }} }}",
+    "{v} = {v}.wrapping_mul(31) ^ salt;",
+];
+
+/// A function body of `count` distinct statements, binding names from `seed`.
 fn body(seed: &str, count: usize) -> String {
     (0..count)
-        .map(|index| format!("    let {seed}{index} = source.read({index}) + offset;\n"))
+        .map(|index| {
+            format!(
+                "    {}\n",
+                SHAPES[index % SHAPES.len()].replace("{v}", &format!("{seed}{index}"))
+            )
+            .replace("{{", "{")
+            .replace("}}", "}")
+        })
         .collect()
 }
 
@@ -203,8 +226,8 @@ fn identical_functions_are_exact() {
 
 #[test]
 fn reordered_independent_statements_still_match() {
-    let a = "fn first() {\n    alpha.push(1);\n    beta.push(2);\n    gamma.push(3);\n    delta.push(4);\n    epsilon.push(5);\n}\n";
-    let b = "fn second() {\n    beta.push(2);\n    alpha.push(1);\n    gamma.push(3);\n    epsilon.push(5);\n    delta.push(4);\n}\n";
+    let a = "fn first() {\n    alpha.push(1);\n    beta.insert(2, 3);\n    gamma.extend([4, 5]);\n    delta.clear();\n    epsilon.sort();\n}\n";
+    let b = "fn second() {\n    beta.insert(2, 3);\n    alpha.push(1);\n    gamma.extend([4, 5]);\n    epsilon.sort();\n    delta.clear();\n}\n";
     let files = parsed(&[("a.rs", a), ("b.rs", b)]);
     let groups = run(&files, &limits(20, 4));
 
