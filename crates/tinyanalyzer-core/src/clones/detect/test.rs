@@ -567,14 +567,16 @@ fn runs_of_module_declarations_are_not_clones() {
     let mods: String = (0..20)
         .map(|index| format!("pub mod module_{index};\n"))
         .collect();
+    let other_mods = mods.replace("module", "other");
     let uses: String = (0..20)
         .map(|index| format!("use crate::part_{index}::Item;\n"))
         .collect();
+    let other_uses = uses.replace("part", "piece");
     let files = parsed(&[
         ("a.rs", &mods),
-        ("b.rs", &mods.replace("module", "other")),
+        ("b.rs", &other_mods),
         ("c.rs", &uses),
-        ("d.rs", &uses.replace("part", "piece")),
+        ("d.rs", &other_uses),
     ]);
 
     assert_eq!(run(&files, &limits(20, 3)).len(), 0);
