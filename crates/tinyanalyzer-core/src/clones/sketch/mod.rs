@@ -81,7 +81,7 @@ pub(crate) fn sketch(files: &[Parsed<'_>], candidate: &Candidate) -> Sketch {
             if slot.is_empty() {
                 *slot = value;
             } else if !value.is_empty() {
-                slot.push_str(" ");
+                slot.push(' ');
                 slot.push_str(&value);
             }
         }

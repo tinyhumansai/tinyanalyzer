@@ -2,7 +2,7 @@
 //!
 //! Every file is parsed with tree-sitter into a normalized tree — comments and
 //! attributes gone, identifiers blinded, literals collapsed to their kind —
-//! and three detection layers run over the result ([`detect`]): subtree
+//! and three detection layers run over the result (`detect`): subtree
 //! hashing for whole repeated fragments, a suffix array for repeated runs of
 //! statements, and `MinHash` with tree edit distance for near-misses. Each
 //! surviving group is then anti-unified into a [`Sketch`] of the shared code

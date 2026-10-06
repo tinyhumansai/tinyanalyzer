@@ -7,7 +7,7 @@ use crate::clones::detect::Parsed;
 use crate::clones::syntax::parse;
 use crate::clones::types::CloneInput;
 
-fn files<'s>(text: &'s str, editable: bool, is_test_path: bool) -> Vec<Parsed<'s>> {
+fn files(text: &str, editable: bool, is_test_path: bool) -> Vec<Parsed<'_>> {
     vec![Parsed {
         input: CloneInput {
             path: "src/lib.rs",
