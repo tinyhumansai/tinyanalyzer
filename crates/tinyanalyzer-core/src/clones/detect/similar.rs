@@ -104,51 +104,30 @@ impl Postorder {
     fn new(tree: &Tree<'_>, root: u32) -> Self {
         let mut labels = Vec::new();
         let mut leftmost = Vec::new();
-        // (node, children visited?) — iterative so deep trees cannot overflow.
-        let mut stack: Vec<(u32, bool, usize)> = vec![(root, false, 0)];
-        while let Some((node, expanded, first)) = stack.pop() {
+        // Iterative so a deep tree cannot overflow the stack.
+        let mut stack: Vec<(u32, bool)> = vec![(root, false)];
+        while let Some((node, expanded)) = stack.pop() {
+            let data = &tree.nodes[node as usize];
             if expanded {
-                let data = &tree.nodes[node as usize];
                 labels.push(if data.class == Class::Inner {
                     hash_str(data.kind)
                 } else {
                     data.shape
                 });
-                let own = labels.len() - 1;
-                leftmost.push(if first == usize::MAX { own } else { first });
+                // In postorder a subtree's first node is its leftmost leaf.
+                let size = (data.end - node) as usize;
+                leftmost.push(labels.len() - size);
                 continue;
             }
-            stack.push((node, true, usize::MAX));
+            stack.push((node, true));
             let children: Vec<u32> = tree.children(node).collect();
-            for &child in children.iter().rev() {
-                stack.push((child, false, 0));
-            }
-            // The first child's leftmost leaf is the parent's; it is the next
-            // node to complete after its own subtree, so it is resolved when the
-            // parent pops by looking it up below.
-            if !children.is_empty() {
-                let parent_slot = stack.len() - children.len() - 1;
-                stack[parent_slot].2 = usize::MAX - 1;
-            }
-        }
-
-        // Second pass: resolve each inner node's leftmost leaf from its first
-        // child, which in postorder is the node `size_of_first_child` before
-        // the end of the parent's descendants.
-        let mut keyed = leftmost.clone();
-        let sizes = subtree_sizes(tree, root);
-        for index in 0..keyed.len() {
-            let size = sizes[index];
-            if size > 1 {
-                let first_descendant = index + 1 - size;
-                keyed[index] = keyed[first_descendant];
-            }
+            stack.extend(children.iter().rev().map(|&child| (child, false)));
         }
 
         let mut keyroots = Vec::new();
         let mut seen = std::collections::BTreeSet::new();
-        for index in (0..keyed.len()).rev() {
-            if seen.insert(keyed[index]) {
+        for index in (0..leftmost.len()).rev() {
+            if seen.insert(leftmost[index]) {
                 keyroots.push(index);
             }
         }
@@ -156,29 +135,10 @@ impl Postorder {
 
         Self {
             labels,
-            leftmost: keyed,
+            leftmost,
             keyroots,
         }
     }
-}
-
-/// Subtree sizes in postorder.
-fn subtree_sizes(tree: &Tree<'_>, root: u32) -> Vec<usize> {
-    let mut sizes = Vec::new();
-    let mut stack: Vec<(u32, bool)> = vec![(root, false)];
-    while let Some((node, expanded)) = stack.pop() {
-        if expanded {
-            let data = &tree.nodes[node as usize];
-            sizes.push((data.end - node) as usize);
-            continue;
-        }
-        stack.push((node, true));
-        let children: Vec<u32> = tree.children(node).collect();
-        for &child in children.iter().rev() {
-            stack.push((child, false));
-        }
-    }
-    sizes
 }
 
 /// Zhang–Shasha tree edit distance with unit costs.
