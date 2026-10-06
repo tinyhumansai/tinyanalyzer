@@ -183,7 +183,8 @@ fn push(
     test: bool,
 ) -> u32 {
     let kind = node.kind();
-    let is_leaf = node.child_count() == 0 || LITERALS.contains(&kind);
+    // The root is a container even when the file is empty.
+    let is_leaf = LITERALS.contains(&kind) || (node.child_count() == 0 && !stack.is_empty());
     let class = if !is_leaf {
         Class::Inner
     } else if LITERALS.contains(&kind) {
