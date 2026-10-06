@@ -220,7 +220,7 @@ fn every_language_has_a_label() {
         Language::Sql,
         Language::Other,
     ] {
-        assert!(!language.label().is_empty());
+        assert_ne!(language.label().len(), 0);
     }
 }
 

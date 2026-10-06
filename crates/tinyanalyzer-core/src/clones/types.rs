@@ -135,7 +135,9 @@ impl CloneInstance {
     /// Lines the copy spans.
     #[must_use]
     pub const fn lines(&self) -> usize {
-        self.end_line.saturating_sub(self.start_line).saturating_add(1)
+        self.end_line
+            .saturating_sub(self.start_line)
+            .saturating_add(1)
     }
 }
 

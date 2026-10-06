@@ -65,8 +65,8 @@ fn an_empty_directory_produces_an_empty_report() {
 
     assert_eq!(report.schema_version, SCHEMA_VERSION);
     assert_eq!(report.totals.files, 0);
-    assert!(report.files.is_empty());
-    assert!(report.findings.is_empty());
+    assert_eq!(report.files.len(), 0);
+    assert_eq!(report.findings.len(), 0);
 }
 
 #[test]
@@ -407,7 +407,7 @@ fn notes_from_the_configuration_are_attached_to_matching_files() {
 
     assert_eq!(legacy.notes.len(), 1);
     assert_eq!(legacy.notes[0].level, NoteLevel::Warning);
-    assert!(fresh.notes.is_empty());
+    assert_eq!(fresh.notes.len(), 0);
 }
 
 #[test]
@@ -433,7 +433,7 @@ fn a_disabled_dependency_pass_leaves_the_graph_empty() {
 
     let report = analyze_with(root.path(), &config_without_cargo()).expect("a walkable tree");
 
-    assert!(report.dependencies.packages.is_empty());
+    assert_eq!(report.dependencies.packages.len(), 0);
     assert_eq!(report.totals.packages, 0);
 }
 
@@ -445,7 +445,7 @@ fn a_tree_cargo_cannot_resolve_still_produces_a_file_report() {
 
     let report = analyze(root.path()).expect("the file half of the analysis still runs");
 
-    assert!(report.dependencies.packages.is_empty());
+    assert_eq!(report.dependencies.packages.len(), 0);
     assert!(report.files.iter().any(|file| file.path == "src/lib.rs"));
 }
 

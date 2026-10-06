@@ -1114,7 +1114,13 @@ fn clones(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         frame,
         panes[0],
         Table::new(rows, widths)
-            .header(header_row(&["saved", "copies", "kind", "fix", "first copy"]))
+            .header(header_row(&[
+                "saved",
+                "copies",
+                "kind",
+                "fix",
+                "first copy",
+            ]))
             .block(panel(&format!("Duplicates ({})", dashboard.row_count()))),
         dashboard.cursor(),
     );
@@ -1155,7 +1161,10 @@ fn clone_lines(group: &tinyanalyzer_core::CloneGroup) -> Vec<Line<'_>> {
 
     for instance in &group.instances {
         let mut spans = vec![Span::styled(
-            format!("  {}:{}-{}", instance.file, instance.start_line, instance.end_line),
+            format!(
+                "  {}:{}-{}",
+                instance.file, instance.start_line, instance.end_line
+            ),
             Style::default().fg(DIRECTORY),
         )];
         if let Some(item) = &instance.item {
@@ -1188,7 +1197,13 @@ fn clone_lines(group: &tinyanalyzer_core::CloneGroup) -> Vec<Line<'_>> {
             let values = parameter
                 .values
                 .iter()
-                .map(|value| if value.is_empty() { "—" } else { value.as_str() })
+                .map(|value| {
+                    if value.is_empty() {
+                        "—"
+                    } else {
+                        value.as_str()
+                    }
+                })
                 .collect::<Vec<_>>()
                 .join(" | ");
             lines.push(Line::from(vec![

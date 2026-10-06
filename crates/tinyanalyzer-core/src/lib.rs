@@ -72,9 +72,8 @@ pub use clones::{
     ParameterKind, Sketch, SketchKind, SymbolRecord, symbols_to_json_lines,
 };
 pub use config::{
-    CONFIG_FILE_NAME, CONFIG_FILE_NAME_ALT, CloneConfig, Config, DeadCodeConfig,
-    DependencyConfig, ExtraRoot, Note, NoteLevel, ProjectConfig, ScanConfig, StartView,
-    Thresholds, UiConfig,
+    CONFIG_FILE_NAME, CONFIG_FILE_NAME_ALT, CloneConfig, Config, DeadCodeConfig, DependencyConfig,
+    ExtraRoot, Note, NoteLevel, ProjectConfig, ScanConfig, StartView, Thresholds, UiConfig,
 };
 pub use dead_code::{Confidence, DeadCodeCandidate};
 pub use deps::{

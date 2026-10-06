@@ -15,8 +15,8 @@ use std::cell::{Cell, RefCell};
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use tinyanalyzer_core::{
-    CloneGroup, DeadCodeCandidate, DirectoryMetrics, FileMetrics, Finding, LineCounts,
-    PackageNode, Report, StartView, Totals,
+    CloneGroup, DeadCodeCandidate, DirectoryMetrics, FileMetrics, Finding, LineCounts, PackageNode,
+    Report, StartView, Totals,
 };
 
 /// A pane of the dashboard.
@@ -842,7 +842,10 @@ impl Dashboard {
                 self.matches(group.sketch.signature.as_str())
                     || group.instances.iter().any(|instance| {
                         self.matches(&instance.file)
-                            || instance.item.as_deref().is_some_and(|item| self.matches(item))
+                            || instance
+                                .item
+                                .as_deref()
+                                .is_some_and(|item| self.matches(item))
                     })
             })
             .collect();

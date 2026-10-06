@@ -62,7 +62,7 @@ fn rules(findings: &[super::Finding]) -> Vec<Rule> {
 
 #[test]
 fn nothing_measured_produces_nothing() {
-    assert!(run(&[], &Thresholds::default()).is_empty());
+    assert_eq!(run(&[], &Thresholds::default()).len(), 0);
 }
 
 #[test]
@@ -90,7 +90,7 @@ fn a_file_at_the_threshold_is_reported() {
 
     assert_eq!(large.severity, Severity::Medium);
     assert!(large.detail.contains("400"));
-    assert!(!large.suggestion.is_empty());
+    assert_ne!(large.suggestion.len(), 0);
     assert_eq!(
         large.location.as_ref().map(|at| at.file.as_str()),
         Some("src/lib.rs")
@@ -472,8 +472,8 @@ fn every_rule_has_an_identifier_and_a_description() {
         Rule::UnfinishedWork,
         Rule::ParseFailure,
     ] {
-        assert!(!rule.id().is_empty());
-        assert!(!rule.description().is_empty());
+        assert_ne!(rule.id().len(), 0);
+        assert_ne!(rule.description().len(), 0);
     }
 }
 
@@ -485,7 +485,7 @@ fn every_severity_has_a_label() {
         Severity::Medium,
         Severity::Low,
     ] {
-        assert!(!severity.label().is_empty());
+        assert_ne!(severity.label().len(), 0);
     }
 }
 

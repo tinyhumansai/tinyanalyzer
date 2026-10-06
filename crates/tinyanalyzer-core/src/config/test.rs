@@ -157,11 +157,9 @@ fn notes_match_by_glob_and_default_to_info() {
     assert_eq!(legacy.len(), 1);
     assert_eq!(legacy[0].level, NoteLevel::Critical);
 
-    assert!(
-        config
-            .notes_for("src/main.rs")
-            .expect("valid globs")
-            .is_empty()
+    assert_eq!(
+        config.notes_for("src/main.rs").expect("valid globs").len(),
+        0
     );
 }
 

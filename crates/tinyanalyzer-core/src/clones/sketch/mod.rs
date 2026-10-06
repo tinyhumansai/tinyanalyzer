@@ -48,7 +48,13 @@ pub(crate) fn sketch(files: &[Parsed<'_>], candidate: &Candidate) -> Sketch {
     for (copy, unit) in candidate.units.iter().enumerate().skip(1) {
         let other_tree = &files[unit.file as usize].tree;
         let mut found = Vec::new();
-        align_runs(first_tree, &first.nodes, other_tree, &unit.nodes, &mut found);
+        align_runs(
+            first_tree,
+            &first.nodes,
+            other_tree,
+            &unit.nodes,
+            &mut found,
+        );
         for hole in found {
             let entry = holes.entry(hole.first).or_insert_with(|| {
                 let mut values = vec![String::new(); candidate.units.len()];
@@ -113,11 +119,10 @@ fn align_runs(a: &Tree<'_>, left: &[u32], b: &Tree<'_>, right: &[u32], out: &mut
             align(a, x, b, right[j], out);
             continue;
         }
-        let other = right.get(next_right).copied().filter(|_| {
-            matched_iter
-                .peek()
-                .is_none_or(|&&(_, j)| next_right < j)
-        });
+        let other = right
+            .get(next_right)
+            .copied()
+            .filter(|_| matched_iter.peek().is_none_or(|&&(_, j)| next_right < j));
         if other.is_some() {
             next_right += 1;
         }
@@ -206,9 +211,7 @@ fn kind_of(tree: &Tree<'_>, node: u32) -> ParameterKind {
         Class::Literal => ParameterKind::Literal,
         Class::TypeIdent => ParameterKind::Type,
         Class::Ident => ParameterKind::Identifier,
-        _ if data.kind.ends_with("_type") || data.kind == "type_identifier" => {
-            ParameterKind::Type
-        }
+        _ if data.kind.ends_with("_type") || data.kind == "type_identifier" => ParameterKind::Type,
         _ if data.parent != crate::clones::syntax::NONE
             && tree.nodes[data.parent as usize].kind == "block" =>
         {
@@ -220,14 +223,18 @@ fn kind_of(tree: &Tree<'_>, node: u32) -> ParameterKind {
 
 /// Turns holes into parameters, folding a consistently renamed identifier into
 /// one parameter however many times it appears.
-fn parameters(tree: &Tree<'_>, holes: &BTreeMap<u32, (ParameterKind, Vec<String>)>) -> Vec<Parameter> {
+fn parameters(
+    tree: &Tree<'_>,
+    holes: &BTreeMap<u32, (ParameterKind, Vec<String>)>,
+) -> Vec<Parameter> {
     let mut seen: BTreeMap<(ParameterKind, Vec<String>), usize> = BTreeMap::new();
     let mut parameters: Vec<Parameter> = Vec::new();
     let mut types = 0;
 
     for (&node, (kind, values)) in holes {
         let key = (*kind, values.clone());
-        if matches!(kind, ParameterKind::Identifier | ParameterKind::Type) && seen.contains_key(&key)
+        if matches!(kind, ParameterKind::Identifier | ParameterKind::Type)
+            && seen.contains_key(&key)
         {
             continue;
         }
@@ -293,7 +300,10 @@ fn needs_macro(tree: &Tree<'_>, node: u32) -> bool {
     }
     let parent = tree.nodes[data.parent as usize].kind;
     parent.ends_with("_item")
-        || matches!(parent, "field_declaration" | "enum_variant" | "macro_definition")
+        || matches!(
+            parent,
+            "field_declaration" | "enum_variant" | "macro_definition"
+        )
 }
 
 /// Whether the copies are at least [`LOOP_MIN_COPIES`] consecutive siblings in
@@ -396,7 +406,11 @@ fn signature(
                 })
                 .take(4)
                 .collect::<Vec<_>>();
-            let more = if candidate.units.len() > 4 { ", …" } else { "" };
+            let more = if candidate.units.len() > 4 {
+                ", …"
+            } else {
+                ""
+            };
             let binding = if values.len() == 1 {
                 values[0].name.clone()
             } else {
@@ -411,9 +425,7 @@ fn signature(
             };
             format!("for {binding} in [{}{more}] {{ … }}", rows.join(", "))
         }
-        SketchKind::Function
-        | SketchKind::Generic
-        | SketchKind::Recursive => {
+        SketchKind::Function | SketchKind::Generic | SketchKind::Recursive => {
             format!("fn {base}{generic_list}({arguments}){returns}")
         }
     }

@@ -49,7 +49,11 @@ const LITERALS: &[&str] = &[
 ];
 
 /// Leaf kinds that name a value or a field.
-const IDENTS: &[&str] = &["identifier", "field_identifier", "shorthand_field_identifier"];
+const IDENTS: &[&str] = &[
+    "identifier",
+    "field_identifier",
+    "shorthand_field_identifier",
+];
 
 /// Mixes two 64-bit values into one, well distributed.
 ///

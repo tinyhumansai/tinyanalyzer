@@ -178,7 +178,9 @@ pub(crate) fn edit_distance(
                     let insert = forest[x * cols + y - 1] + 1;
                     let value = if a.leftmost[i1] == li && b.leftmost[j1] == lj {
                         let rename = usize::from(a.labels[i1] != b.labels[j1]);
-                        let value = delete.min(insert).min(forest[(x - 1) * cols + y - 1] + rename);
+                        let value = delete
+                            .min(insert)
+                            .min(forest[(x - 1) * cols + y - 1] + rename);
                         distance[i1 * m + j1] = value;
                         value
                     } else {

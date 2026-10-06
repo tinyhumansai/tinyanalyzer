@@ -206,7 +206,10 @@ fn it_analyzes_a_real_workspace_end_to_end() {
     assert_eq!(report.schema_version, SCHEMA_VERSION);
     assert!(report.totals.files >= 4);
     assert!(report.totals.functions >= 3);
-    assert_eq!(report.parse_failures, [] as [tinyanalyzer_core::ParseFailureReport; 0]);
+    assert_eq!(
+        report.parse_failures,
+        [] as [tinyanalyzer_core::ParseFailureReport; 0]
+    );
     assert!(
         report
             .languages
@@ -609,7 +612,10 @@ fn a_configuration_file_changes_what_the_analysis_reports() {
     let report = analyze(root.path()).expect("a walkable tree");
 
     assert_eq!(report.project.name, "Fixture");
-    assert_eq!(report.dependencies.packages, [] as [tinyanalyzer_core::PackageNode; 0]);
+    assert_eq!(
+        report.dependencies.packages,
+        [] as [tinyanalyzer_core::PackageNode; 0]
+    );
     assert!(
         report
             .findings

@@ -84,7 +84,11 @@ pub fn analyze(
             .partial_cmp(&left.score)
             .unwrap_or(std::cmp::Ordering::Equal)
             .then_with(|| left.instances[0].file.cmp(&right.instances[0].file))
-            .then_with(|| left.instances[0].start_line.cmp(&right.instances[0].start_line))
+            .then_with(|| {
+                left.instances[0]
+                    .start_line
+                    .cmp(&right.instances[0].start_line)
+            })
             .then_with(|| left.id.cmp(&right.id))
     });
     let mut groups = suppress_overlaps(groups);
@@ -158,7 +162,11 @@ fn parse_all<'s>(inputs: &[CloneInput<'s>]) -> Vec<Parsed<'s>> {
 }
 
 /// Turns a candidate into a reported group, or drops it.
-fn build(files: &[Parsed<'_>], mut candidate: Candidate, include_tests: bool) -> Option<CloneGroup> {
+fn build(
+    files: &[Parsed<'_>],
+    mut candidate: Candidate,
+    include_tests: bool,
+) -> Option<CloneGroup> {
     let is_test = |unit: &detect::Unit| {
         let parsed = &files[unit.file as usize];
         parsed.input.is_test_path || parsed.tree.nodes[unit.first() as usize].test

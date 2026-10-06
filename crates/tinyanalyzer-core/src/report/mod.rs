@@ -506,11 +506,7 @@ fn clone_inputs<'a>(
     config: &CloneConfig,
 ) -> Result<Vec<CloneInput<'a>>> {
     let read_only = compile_glob_set(&config.read_only)?;
-    let writable = |path: &str| {
-        read_only
-            .as_ref()
-            .is_none_or(|globs| !globs.is_match(path))
-    };
+    let writable = |path: &str| read_only.as_ref().is_none_or(|globs| !globs.is_match(path));
 
     let own = discovered.iter().map(|file| (true, file));
     let extra = extra.iter().map(|(editable, file)| (*editable, file));
