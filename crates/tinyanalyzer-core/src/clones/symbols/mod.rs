@@ -44,7 +44,7 @@ pub(crate) fn index(files: &[Parsed<'_>]) -> Vec<SymbolRecord> {
 }
 
 /// One item's record.
-fn record(parsed: &Parsed<'_>, node: u32) -> SymbolRecord {
+fn record(parsed: &Parsed<'_>, node: u32) -> Option<SymbolRecord> {
     let tree = &parsed.tree;
     let data = &tree.nodes[node as usize];
     let qualified_name = tree.qualified_name(node)?;
