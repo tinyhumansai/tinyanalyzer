@@ -565,12 +565,14 @@ fn enums_without_data_are_not_type_shapes() {
 #[test]
 fn runs_of_module_declarations_are_not_clones() {
     let mods: String = (0..20)
-        .map(|index| format!("pub mod module_{index};\n"))
-        .collect();
+        .map(|index| format!("pub mod module_{index};"))
+        .collect::<Vec<_>>()
+        .join("\n");
     let other_mods = mods.replace("module", "other");
     let uses: String = (0..20)
-        .map(|index| format!("use crate::part_{index}::Item;\n"))
-        .collect();
+        .map(|index| format!("use crate::part_{index}::Item;"))
+        .collect::<Vec<_>>()
+        .join("\n");
     let other_uses = uses.replace("part", "piece");
     let files = parsed(&[
         ("a.rs", &mods),
