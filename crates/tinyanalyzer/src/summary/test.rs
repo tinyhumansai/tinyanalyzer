@@ -349,21 +349,10 @@ fn test_only_duplicates_disappear_when_tests_are_hidden() {
 
 #[test]
 fn a_long_duplicate_list_says_how_much_more_there_is() {
-    let names: Vec<String> = (0..12).map(|index| format!("f{index}")).collect();
-    let root = TempDir::new().expect("a temporary directory for the fixture");
-    for (index, name) in names.iter().enumerate() {
-        // Each pair shares a body unique to it, so there are twelve groups of
-        // two rather than one group of twenty-four.
-        let text = format!(
-            "pub fn {name}(source: &[u8]) -> usize {{\n    let header = source[{index}];\n    if header == {index} {{ return {index}; }}\n    let mut total = {index};\n    for item in source.iter().skip({index}) {{ total += *item as usize; }}\n    let kind = match header {{ {index} => 10, 2 => 20, _ => 30 }};\n    total * kind\n}}\n"
-        )
-        .replace(&format!(" {index}"), &format!(" {}", "x".repeat(index + 1)));
-        write(root.path(), &format!("src/a{index}.rs"), &text);
-        write(root.path(), &format!("src/b{index}.rs"), &text.replace(name.as_str(), "other"));
-    }
-    let report = analyze_with(root.path(), &config()).expect("a walkable tree");
+    let (_root, mut report) = clones_report(&["load", "fetch"], "src");
+    let group = report.clones[0].clone();
+    report.clones = vec![group; 12];
     let text = render(&report, false);
 
-    assert!(report.clones.len() > 10, "{} groups", report.clones.len());
-    assert!(text.contains("more;"));
+    assert!(text.contains("… and 2 more; 72 lines could go across all 12"));
 }
