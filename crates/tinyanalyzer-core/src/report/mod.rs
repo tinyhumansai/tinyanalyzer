@@ -26,7 +26,8 @@ pub use types::{
     SCHEMA_VERSION, Totals,
 };
 
-use crate::config::Config;
+use crate::clones::{self, CloneGroup, CloneInput, SymbolRecord};
+use crate::config::{CloneConfig, Config, compile_glob_set};
 use crate::dead_code::DeadCodeInput;
 use crate::deps::{self, CrateReferences, DependencyReport};
 use crate::error::{Error, Result};
@@ -119,6 +120,14 @@ pub fn analyze_with(root: impl AsRef<Path>, config: &Config) -> Result<Report> {
         .collect();
     let dead_code = crate::dead_code::analyze(&dead_inputs, &config.dead_code);
 
+    let clones = if config.clones.enabled {
+        let extra = extra_sources(root, config)?;
+        let inputs = clone_inputs(&discovered, &extra, &config.clones)?;
+        clones::analyze(&inputs, &config.clones, &config.thresholds)
+    } else {
+        Vec::new()
+    };
+
     let parse_failures: Vec<ParseFailureReport> = parsed
         .iter()
         .filter_map(|file| file.failure.clone())
@@ -135,6 +144,7 @@ pub fn analyze_with(root: impl AsRef<Path>, config: &Config) -> Result<Report> {
             dependencies: &dependencies,
             dead_code: &dead_code,
             parse_failures: &parse_failures,
+            clones: &clones,
         },
         &config.thresholds,
     );
@@ -154,9 +164,91 @@ pub fn analyze_with(root: impl AsRef<Path>, config: &Config) -> Result<Report> {
         languages,
         dependencies,
         dead_code,
+        clones,
         findings,
         parse_failures,
     })
+}
+
+/// The symbol index for the repository rooted at `root`: every item in every
+/// Rust file the analysis would cover, including the configured extra roots.
+///
+/// # Errors
+///
+/// Returns [`Error::RootNotADirectory`] if `root` is not a directory, and
+/// [`Error::Glob`] or [`Error::Walk`] if a walk fails or a `read_only` pattern
+/// is not a valid glob.
+pub fn symbol_index(root: impl AsRef<Path>, config: &Config) -> Result<Vec<SymbolRecord>> {
+    let root = root.as_ref();
+    if !root.is_dir() {
+        return Err(Error::RootNotADirectory {
+            path: root.to_path_buf(),
+        });
+    }
+    let discovered = walk::discover(root, &config.scan)?;
+    let extra = extra_sources(root, config)?;
+    let inputs = clone_inputs(&discovered, &extra, &config.clones)?;
+    Ok(clones::symbols(&inputs))
+}
+
+/// Files under the configured extra roots, with their reported path prefix
+/// and whether they are editable.
+fn extra_sources(root: &Path, config: &Config) -> Result<Vec<(String, bool, SourceFile)>> {
+    let mut sources = Vec::new();
+    for extra in &config.clones.extra_roots {
+        let directory = root.join(&extra.path);
+        let prefix = extra.path.trim_end_matches('/').replace('\\', "/");
+        for file in walk::discover(&directory, &ScanConfig::default())? {
+            sources.push((prefix.clone(), extra.editable, file));
+        }
+    }
+    Ok(sources)
+}
+
+/// The Rust files clone detection reads, with their editability resolved.
+fn clone_inputs<'a>(
+    discovered: &'a [SourceFile],
+    extra: &'a [(String, bool, SourceFile)],
+    config: &CloneConfig,
+) -> Result<Vec<CloneInput<'a>>> {
+    let read_only = compile_glob_set(&config.read_only)?;
+    let editable = |path: &str| {
+        read_only
+            .as_ref()
+            .is_none_or(|globs| !globs.is_match(path))
+    };
+
+    let mut inputs: Vec<CloneInput<'a>> = discovered
+        .iter()
+        .filter(|file| file.language == Language::Rust)
+        .filter_map(|file| {
+            Some(CloneInput {
+                path: file.relative_path.as_str(),
+                text: file.text.as_deref()?,
+                is_test_path: file.is_test_path,
+                editable: editable(&file.relative_path),
+            })
+        })
+        .collect();
+
+    for (prefix, root_editable, file) in extra {
+        if file.language != Language::Rust {
+            continue;
+        }
+        let Some(text) = file.text.as_deref() else {
+            continue;
+        };
+        // The prefixed path has to outlive this function, so it is leaked
+        // into the input slice's lifetime by storing it on the heap once.
+        inputs.push(CloneInput {
+            path: file.relative_path.as_str(),
+            text,
+            is_test_path: file.is_test_path,
+            editable: *root_editable && editable(&format!("{prefix}/{}", file.relative_path)),
+        });
+    }
+
+    Ok(inputs)
 }
 
 /// Seconds since the Unix epoch, or zero if the clock is unreadable.

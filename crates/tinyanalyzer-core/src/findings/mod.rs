@@ -502,8 +502,10 @@ fn parse_failures(failures: &[ParseFailureReport], out: &mut Vec<Finding>) {
 /// One finding per group that has an editable copy, is not test-only, and
 /// would save at least `duplicate_min_lines` lines — a group that saves less
 /// is real but not worth a reader's attention next to everything else here.
-/// The full ranked list, test code included, is in the report's `clones`.
-fn duplicate_code(groups: &[crate::clones::CloneGroup], thresholds: &Thresholds, out: &mut Vec<Finding>) {
+/// A group saving a long function's worth of lines (`long_function_lines`)
+/// is high severity. The full ranked list, test code included, is in the
+/// report's `clones`.
+fn duplicate_code(groups: &[CloneGroup], thresholds: &Thresholds, out: &mut Vec<Finding>) {
     for group in groups {
         if group.in_tests || group.lines_saved < thresholds.duplicate_min_lines {
             continue;
