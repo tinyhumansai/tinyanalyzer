@@ -247,7 +247,11 @@ fn a_run_of_statements_inside_larger_functions_is_found() {
         "fn second(flag: bool) {{\n    if flag {{ return; }}\n    other_setup(9);\n{shared}    done();\n}}\n"
     );
     let files = parsed(&[("a.rs", &a), ("b.rs", &b)]);
-    let groups = run(&files, &limits(40, 4));
+    // Strict enough that the two functions are not near-copies of each other,
+    // which would otherwise swallow the shared run.
+    let mut limits = limits(40, 4);
+    limits.similarity = 0.99;
+    let groups = run(&files, &limits);
 
     let run_group = groups
         .iter()
