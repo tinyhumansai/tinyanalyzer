@@ -79,7 +79,7 @@ items, split along the seams already in it" is.
 
 ```
  tinyanalyzer   58 files · 8339 loc · 508 functions · 216 crates · 382.0 KiB
- 1·Overview  2·Files  3·Directories  4·Dependencies  5·Dead code  6·Findings
+ 1·Overview  2·Files  3·Directories  4·Dependencies  5·Dead code  6·Duplicates  7·Findings
 ┌ Totals ───────────────────────┐┌ Languages by lines of code ─────────────┐
 │ files                  58     ││ ██████████                              │
 │ lines of code        8339     ││ ██████████                              │
@@ -97,7 +97,7 @@ items, split along the seams already in it" is.
 | Key | What it does |
 |---|---|
 | `q`, `Esc`, `Ctrl-C` | Leave; in the focused dependency sidebar, `Esc` backs out first |
-| `Tab`, `Shift-Tab`, `1`–`6` | Change view |
+| `Tab`, `Shift-Tab`, `1`–`7` | Change view |
 | `↑` `↓`, `j` `k` | Move the cursor |
 | `PgUp` `PgDn`, `u` `d` | Move a screenful |
 | `Home` `End`, `g` `G` | First and last row |
