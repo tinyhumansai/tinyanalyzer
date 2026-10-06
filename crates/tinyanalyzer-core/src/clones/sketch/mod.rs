@@ -111,8 +111,8 @@ pub(crate) fn sketch(files: &[Parsed<'_>], candidate: &Candidate) -> Sketch {
         .collect();
     differences.sort_by_key(|(node, _, _)| *node);
 
-    let parameters = parameters(first_tree, &holes);
-    let kind = choose(files, candidate, first_tree, &holes);
+    let parameters = parameters(first_tree, &differences);
+    let kind = choose(files, candidate, first_tree, &differences);
     let signature = signature(kind, first_tree, first, candidate, &parameters);
     let summary = summary(kind, candidate, &parameters);
 
@@ -277,13 +277,13 @@ fn kind_of(tree: &Tree<'_>, node: u32) -> ParameterKind {
 /// one parameter however many times it appears.
 fn parameters(
     tree: &Tree<'_>,
-    holes: &BTreeMap<u32, (ParameterKind, Vec<String>)>,
+    differences: &[(u32, ParameterKind, Vec<String>)],
 ) -> Vec<Parameter> {
     let mut seen: BTreeMap<(ParameterKind, Vec<String>), usize> = BTreeMap::new();
     let mut parameters: Vec<Parameter> = Vec::new();
     let mut types = 0;
 
-    for (&node, (kind, values)) in holes {
+    for (node, kind, values) in differences {
         let key = (*kind, values.clone());
         if matches!(kind, ParameterKind::Identifier | ParameterKind::Type)
             && seen.contains_key(&key)
@@ -300,7 +300,7 @@ fn parameters(
         parameters.push(Parameter {
             name,
             kind: *kind,
-            line: tree.nodes[node as usize].start_line as usize,
+            line: tree.nodes[*node as usize].start_line as usize,
             values: values.clone(),
         });
     }
@@ -313,7 +313,7 @@ fn choose(
     files: &[Parsed<'_>],
     candidate: &Candidate,
     tree: &Tree<'_>,
-    holes: &BTreeMap<u32, (ParameterKind, Vec<String>)>,
+    differences: &[(u32, ParameterKind, Vec<String>)],
 ) -> SketchKind {
     if candidate.recursive {
         return SketchKind::Recursive;
@@ -322,18 +322,25 @@ fn choose(
         return SketchKind::SharedType;
     }
 
-    let values_only = holes
-        .values()
-        .all(|(kind, _)| matches!(kind, ParameterKind::Literal | ParameterKind::Identifier));
-    if values_only && !holes.is_empty() && adjacent(files, &candidate.units) {
+    let values_only = differences
+        .iter()
+        .all(|(_, kind, _)| matches!(kind, ParameterKind::Literal | ParameterKind::Identifier));
+    if values_only && !differences.is_empty() && adjacent(files, &candidate.units) {
         return SketchKind::Loop;
     }
 
-    if holes.keys().any(|&node| needs_macro(tree, node)) {
+    if differences
+        .iter()
+        .any(|(node, kind, _)| *kind != ParameterKind::Statements && needs_macro(tree, *node))
+    {
         return SketchKind::Macro;
     }
 
-    if !holes.is_empty() && holes.values().all(|(kind, _)| *kind == ParameterKind::Type) {
+    if !differences.is_empty()
+        && differences
+            .iter()
+            .all(|(_, kind, _)| *kind == ParameterKind::Type)
+    {
         return SketchKind::Generic;
     }
 
