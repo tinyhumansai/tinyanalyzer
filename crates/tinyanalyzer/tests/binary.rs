@@ -105,7 +105,7 @@ fn it_writes_to_a_file_when_asked_and_prints_nothing() {
     );
 
     assert!(output.status.success());
-    assert!(stdout(&output).trim().is_empty());
+    assert_eq!(stdout(&output).trim(), "");
 
     let written = std::fs::read_to_string(&target).expect("the report was written");
     let report: serde_json::Value = serde_json::from_str(&written).expect("the file is JSON");

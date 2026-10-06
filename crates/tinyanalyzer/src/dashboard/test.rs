@@ -260,7 +260,7 @@ fn it_opens_on_the_configured_view() {
 #[test]
 fn every_view_has_a_title_and_a_stable_position() {
     for (index, view) in View::ALL.iter().enumerate() {
-        assert!(!view.title().is_empty());
+        assert_ne!(view.title(), "");
         assert_eq!(view.index(), index);
         assert_eq!(View::from_index(index), *view);
     }
@@ -488,7 +488,7 @@ fn filters_are_scoped_to_the_tab_where_they_were_entered() {
 
     dashboard.apply(Action::SelectView(View::Findings.index()));
     assert_eq!(dashboard.filter(), "");
-    assert!(!dashboard.findings().is_empty());
+    assert_ne!(dashboard.findings(), [] as [&tinyanalyzer_core::Finding; 0]);
 
     dashboard.apply(Action::SelectView(View::Files.index()));
     assert_eq!(dashboard.filter(), "small", "the Files filter is preserved");
@@ -502,7 +502,7 @@ fn an_incomplete_regex_is_treated_as_literal_until_it_becomes_valid() {
     dashboard.apply(Action::FilterPush('['));
 
     assert!(!dashboard.filter_regex_valid());
-    assert!(dashboard.files().is_empty());
+    assert_eq!(dashboard.files(), [] as [&tinyanalyzer_core::FileMetrics; 0]);
 
     dashboard.apply(Action::FilterPush('s'));
     dashboard.apply(Action::FilterPush(']'));
@@ -597,7 +597,7 @@ fn cancelling_a_filter_discards_it() {
     dashboard.apply(Action::CancelFilter);
 
     assert!(!dashboard.editing_filter());
-    assert!(dashboard.filter().is_empty());
+    assert_eq!(dashboard.filter(), "");
     assert_eq!(dashboard.row_count(), unfiltered);
 }
 
@@ -677,7 +677,7 @@ fn findings_can_be_filtered_by_rule_identifier() {
 fn a_subtree_of_an_empty_graph_is_empty() {
     let (_root, dashboard) = dashboard();
 
-    assert!(dashboard.subtree("anything", 3).is_empty());
+    assert_eq!(dashboard.subtree("anything", 3), [] as [(usize, &tinyanalyzer_core::PackageNode); 0]);
 }
 
 #[test]
@@ -1119,7 +1119,7 @@ fn the_dependency_view_ranks_direct_dependencies_and_shows_the_subtree() {
     let selected = dashboard
         .selected_package()
         .expect("the cursor is on a package");
-    assert!(!selected.name.is_empty());
+    assert_ne!(selected.name, "");
 
     assert_eq!(
         selected.name, "heavy",
@@ -1298,7 +1298,7 @@ fn dependency_counts_recompute_when_another_direct_dependency_is_toggled() {
         (2, 1),
         "deep becomes exclusive to heavy once leaf is disabled"
     );
-    assert!(dashboard.subtree("leaf@0.1.0", 3).is_empty());
+    assert_eq!(dashboard.subtree("leaf@0.1.0", 3), [] as [(usize, &tinyanalyzer_core::PackageNode); 0]);
 
     dashboard.apply(Action::SimulateRemoveDependency);
     assert_eq!(dashboard.dependency_counts("heavy@1.2.3"), (1, 1));
@@ -1468,7 +1468,7 @@ fn feature_controls_are_inert_without_a_dependency_graph() {
     dashboard.apply(Action::NextFeature);
     dashboard.apply(Action::ToggleFeature);
 
-    assert!(dashboard.simulated_features().is_empty());
+    assert_eq!(dashboard.simulated_features(), [] as [(&str, bool); 0]);
     assert_eq!(dashboard.feature_cursor(), 0);
 }
 
@@ -1500,7 +1500,7 @@ fn a_subtree_walks_the_resolved_graph() {
         .filter(|package| package.is_workspace_member)
         .map(|package| package.id.as_str())
         .collect();
-    assert!(!members.is_empty());
+    assert_ne!(members, [] as [&str; 0]);
 
     let reached: usize = members
         .iter()
@@ -1912,6 +1912,6 @@ fn every_view_of_a_report_with_a_graph_draws() {
 
     for index in 0..View::ALL.len() {
         dashboard.apply(Action::SelectView(index));
-        assert!(!rendered(&dashboard).is_empty());
+        assert_ne!(rendered(&dashboard), "");
     }
 }

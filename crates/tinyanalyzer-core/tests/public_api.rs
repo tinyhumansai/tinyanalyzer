@@ -206,7 +206,7 @@ fn it_analyzes_a_real_workspace_end_to_end() {
     assert_eq!(report.schema_version, SCHEMA_VERSION);
     assert!(report.totals.files >= 4);
     assert!(report.totals.functions >= 3);
-    assert!(report.parse_failures.is_empty());
+    assert_eq!(report.parse_failures, [] as [tinyanalyzer_core::ParseFailureReport; 0]);
     assert!(
         report
             .languages
@@ -250,7 +250,7 @@ fn it_resolves_the_dependency_graph_of_a_real_workspace() {
         .find(|package| package.name == "engine")
         .expect("engine is in the graph");
     assert!(engine.is_direct, "`app` names it in its own manifest");
-    assert!(!engine.kinds.is_empty());
+    assert_ne!(engine.kinds, [] as [tinyanalyzer_core::DependencyKind; 0]);
     assert_eq!(engine.depth, 0, "a workspace member is its own root");
 
     let packages: Vec<&str> = report
@@ -540,10 +540,10 @@ fn every_finding_carries_a_remedy() {
     assert!(!report.findings.is_empty(), "the fixture provokes findings");
 
     for finding in &report.findings {
-        assert!(!finding.title.is_empty());
-        assert!(!finding.detail.is_empty());
-        assert!(!finding.suggestion.is_empty());
-        assert!(!finding.rule.id().is_empty());
+        assert_ne!(finding.title, "");
+        assert_ne!(finding.detail, "");
+        assert_ne!(finding.suggestion, "");
+        assert_ne!(finding.rule.id(), "");
     }
 }
 
@@ -609,7 +609,7 @@ fn a_configuration_file_changes_what_the_analysis_reports() {
     let report = analyze(root.path()).expect("a walkable tree");
 
     assert_eq!(report.project.name, "Fixture");
-    assert!(report.dependencies.packages.is_empty());
+    assert_eq!(report.dependencies.packages, [] as [tinyanalyzer_core::PackageNode; 0]);
     assert!(
         report
             .findings
