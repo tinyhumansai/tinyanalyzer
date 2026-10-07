@@ -510,3 +510,18 @@ fn a_manifest_path_above_the_root_is_ignored() {
 
     assert_eq!(fixture.orphans(), ["src/x.rs"]);
 }
+
+#[test]
+fn a_file_another_package_reaches_is_not_an_orphan() {
+    let fixture = Fixture::new()
+        .package("a", "a", "[package]\nname = \"a\"\n")
+        .package("b", "b", "[package]\nname = \"b\"\n")
+        .file("a/src/lib.rs", "fn a() {}\n")
+        .file("a/src/shared.rs", "pub fn s() {}\n")
+        .file(
+            "b/src/lib.rs",
+            "#[path = \"../../a/src/shared.rs\"]\nmod shared;\n",
+        );
+
+    assert_eq!(fixture.orphans(), Vec::<String>::new());
+}

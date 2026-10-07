@@ -84,7 +84,11 @@ pub(crate) fn resolve(
 
     let mut reached_anyhow = BTreeSet::new();
     let mut reached_in_production = BTreeSet::new();
-    let mut orphans = Vec::new();
+    // Packages whose whole tree was seen, with the names their macros might
+    // declare. Candidates are judged only after every package has been walked:
+    // a test target of one package can reach another's `src/` through
+    // `#[path]`.
+    let mut searchable = Vec::new();
 
     for package in packages {
         let roots = roots::roots(package.directory, package.manifest, &rust_files);
@@ -99,17 +103,18 @@ pub(crate) fn resolve(
                 .map(|root| root.path.as_str()),
             false,
         );
+
         reached_in_production.extend(production.reached);
-
-        if !everything.searchable() {
-            reached_anyhow.extend(everything.reached);
-            continue;
+        if everything.searchable()
+            && let Some(source) = join(package.directory, "src")
+        {
+            searchable.push((package, source, everything.macro_identifiers));
         }
+        reached_anyhow.extend(everything.reached);
+    }
 
-        let Some(source) = join(package.directory, "src") else {
-            reached_anyhow.extend(everything.reached);
-            continue;
-        };
+    let mut orphans = Vec::new();
+    for (package, source, macro_identifiers) in &searchable {
         for file in files {
             let Some(declarations) = file.declarations else {
                 continue;
@@ -119,11 +124,9 @@ pub(crate) fn resolve(
                 .strip_prefix(source.as_str())
                 .is_some_and(|rest| rest.starts_with('/'))
                 && owner(file.path, &directories) == Some(package.directory)
-                && !everything.reached.contains(file.path)
+                && !reached_anyhow.contains(file.path)
                 && declarations.items > 0
-                && !everything
-                    .macro_identifiers
-                    .contains(module_name(file.path));
+                && !macro_identifiers.contains(module_name(file.path));
             if is_candidate {
                 orphans.push(OrphanFile {
                     path: file.path.to_owned(),
@@ -131,7 +134,6 @@ pub(crate) fn resolve(
                 });
             }
         }
-        reached_anyhow.extend(everything.reached);
     }
 
     orphans.sort();
