@@ -104,6 +104,8 @@ pub enum Rule {
     ParseFailure,
     /// Code written more than once.
     DuplicateCode,
+    /// A source file no crate root reaches, so it is never compiled.
+    OrphanFile,
 }
 
 impl Rule {
@@ -128,6 +130,7 @@ impl Rule {
             Self::UnfinishedWork => "unfinished_work",
             Self::ParseFailure => "parse_failure",
             Self::DuplicateCode => "duplicate_code",
+            Self::OrphanFile => "orphan_file",
         }
     }
 
@@ -152,6 +155,9 @@ impl Rule {
             Self::UnfinishedWork => "unfinished-work markers left in comments",
             Self::ParseFailure => "files the Rust parser refused",
             Self::DuplicateCode => "code written more than once that one helper could replace",
+            Self::OrphanFile => {
+                "source files no `mod` declaration reaches, so nothing compiles them"
+            }
         }
     }
 }

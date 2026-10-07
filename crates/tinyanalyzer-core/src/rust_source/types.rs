@@ -222,6 +222,11 @@ pub enum DefinitionKind {
     Macro,
     /// A `mod` declaration.
     Module,
+    /// A whole source file no `mod` declaration reaches.
+    ///
+    /// Never produced by parsing; dead-code analysis reports an orphaned file
+    /// with this kind, named after the module it would be.
+    File,
 }
 
 impl DefinitionKind {
@@ -238,6 +243,7 @@ impl DefinitionKind {
             Self::TypeAlias => "type alias",
             Self::Macro => "macro",
             Self::Module => "module",
+            Self::File => "file",
         }
     }
 }

@@ -23,4 +23,5 @@ the contract; production code still belongs under `src/`.
 See [`analysis-contract.md`](analysis-contract.md) for the accepted contract
 the analyzer's output has to satisfy, and
 [`clone-detection.md`](clone-detection.md) for duplicate-code detection and the
-symbol index.
+symbol index, and [`module-tree.md`](module-tree.md) for orphaned files and
+test files found by following `mod` declarations.

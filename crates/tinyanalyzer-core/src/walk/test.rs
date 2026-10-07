@@ -338,3 +338,24 @@ fn an_empty_directory_yields_no_files() {
 
     assert!(files.is_empty());
 }
+
+#[test]
+fn sibling_test_files_are_test_code_by_default() {
+    let root = TempDir::new().expect("a temporary directory");
+    write(root.path(), "src/engine.rs", "pub fn run() {}\n");
+    write(
+        root.path(),
+        "src/engine_tests.rs",
+        "#[test]\nfn runs() {}\n",
+    );
+    write(root.path(), "src/engine_test.rs", "#[test]\nfn runs() {}\n");
+
+    let files = discover(root.path(), &ScanConfig::default()).expect("a walkable tree");
+    let tests: Vec<&str> = files
+        .iter()
+        .filter(|file| file.is_test_path)
+        .map(|file| file.relative_path.as_str())
+        .collect();
+
+    assert_eq!(tests, ["src/engine_test.rs", "src/engine_tests.rs"]);
+}

@@ -41,6 +41,7 @@ pub use types::{
     Definition, DefinitionKind, Function, ItemCounts, PerformanceSignals, RustFile, SourceRange,
 };
 
+use crate::module_tree::{self, FileDeclarations};
 use proc_macro2::TokenTree;
 use std::collections::BTreeMap;
 use syn::spanned::Spanned;
@@ -75,6 +76,17 @@ const PANICKING_METHODS: [&str; 2] = ["unwrap", "expect"];
 ///
 /// Returns [`ParseFailure`] if `text` is not valid Rust.
 pub fn analyze(text: &str) -> std::result::Result<RustFile, ParseFailure> {
+    analyze_with_declarations(text).map(|(file, _)| file)
+}
+
+/// Parses one Rust file, measures it, and reads its module declarations.
+///
+/// The declarations feed [`crate::module_tree`]; they are returned beside the
+/// [`RustFile`] rather than inside it because they are an input to the
+/// analysis, not part of the report.
+pub(crate) fn analyze_with_declarations(
+    text: &str,
+) -> std::result::Result<(RustFile, FileDeclarations), ParseFailure> {
     let parsed = syn::parse_file(text).map_err(|error| ParseFailure {
         line: error.span().start().line,
         message: error.to_string(),
@@ -98,7 +110,7 @@ pub fn analyze(text: &str) -> std::result::Result<RustFile, ParseFailure> {
         file.is_test_module = file.definitions.iter().all(|item| item.is_test);
     }
 
-    Ok(file)
+    Ok((file, module_tree::collect(&parsed)))
 }
 
 /// Counts unfinished-work markers in `text`.
@@ -145,7 +157,7 @@ fn count_identifiers(text: &str) -> BTreeMap<String, usize> {
 }
 
 /// Whether an attribute list contains `#[cfg(test)]`.
-fn has_cfg_test(attrs: &[syn::Attribute]) -> bool {
+pub(crate) fn has_cfg_test(attrs: &[syn::Attribute]) -> bool {
     attrs.iter().any(|attr| {
         if !attr.path().is_ident("cfg") {
             return false;

@@ -91,6 +91,20 @@ going to act on by deleting things.
   other than Rust, whose caller the census cannot see.
 - Anything in the configured `ignore` list.
 
+**Orphaned files** are the one thing reported as a whole: a file under a
+package's `src/` that no `mod` declaration reachable from a target root loads
+is never compiled, so it comes back as a single `file` candidate at `high`
+confidence and an `orphan_file` finding, and is left out of the census. The
+resolver refuses to call a file an orphan when it cannot see the whole tree —
+a computed `include!`, an unreadable reachable file, or a macro whose body names
+the module — so this too **under-reports**. See
+[`module-tree.md`](module-tree.md).
+
+**Test code** is decided by path globs (`**/tests/**`, `**/test.rs`,
+`**/tests.rs`, `**/*_test.rs`, `**/*_tests.rs`, `**/benches/**` by default), by
+the file's own attributes, and by the module tree: a file reached only through
+`#[cfg(test)]` declarations or test targets is test code, whatever its name.
+
 **Confidence** is reported per item. A private item comes back `high`: every
 possible caller was in scope. A `pub` item comes back `medium`: a library's
 callers may not be in this repository at all.
@@ -136,6 +150,9 @@ rather than a patch.
 
 Lines saved is an estimate: every copy but one goes, and each leaves a call
 behind. It ignores the lines the shared code's signature adds.
+
+Orphaned files are not clone inputs: a file nothing compiles is not a second
+copy of anything, and `orphan_file` already says to delete it.
 
 ### File weight
 

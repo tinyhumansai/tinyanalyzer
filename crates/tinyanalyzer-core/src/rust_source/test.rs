@@ -320,6 +320,7 @@ fn every_definition_kind_has_a_label() {
         DefinitionKind::TypeAlias,
         DefinitionKind::Macro,
         DefinitionKind::Module,
+        DefinitionKind::File,
     ] {
         assert_ne!(kind.label().len(), 0);
     }

@@ -23,3 +23,5 @@ Plans:
 
 - [`clone-detection.md`](clone-detection.md) — clone detection and the symbol
   index (complete).
+- [`module-tree.md`](module-tree.md) — orphaned files and test-only files
+  (complete).

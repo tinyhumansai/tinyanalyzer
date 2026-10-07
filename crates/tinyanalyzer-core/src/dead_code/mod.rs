@@ -28,12 +28,17 @@
 //! namespace, not a symbol: it compiles its contents whether or not anything
 //! names the module itself, so "unreferenced module" would be true of almost
 //! every module in a well-organized crate and would mean nothing.
+//!
+//! What *is* reported is a file no `mod` declaration reaches at all: it is not
+//! compiled, so everything in it is dead. [`crate::report`] adds each one as a
+//! single [`DefinitionKind::File`] candidate rather than one per item inside.
 
 mod types;
 
 pub use types::{Confidence, DeadCodeCandidate, DeadCodeInput};
 
 use crate::config::DeadCodeConfig;
+use crate::module_tree::OrphanFile;
 use crate::rust_source::DefinitionKind;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -118,6 +123,48 @@ pub fn analyze(files: &[DeadCodeInput<'_>], config: &DeadCodeConfig) -> Vec<Dead
         }
     }
 
+    rank(&mut candidates);
+    candidates
+}
+
+/// Adds one candidate per orphaned file to `candidates`, keeping the ranking.
+///
+/// An orphan is reported as a whole, at [`Confidence::High`]: no `mod`
+/// declaration reachable from a crate root loads it, so nothing compiles it.
+/// The caller leaves orphaned files out of the census, so their items neither
+/// vouch for anything nor appear one by one.
+pub(crate) fn add_orphans(
+    candidates: &mut Vec<DeadCodeCandidate>,
+    orphans: &[OrphanFile],
+    is_test: impl Fn(&str) -> bool,
+) {
+    for orphan in orphans {
+        let name = orphan
+            .path
+            .rsplit('/')
+            .find(|part| *part != "mod.rs")
+            .unwrap_or(&orphan.path)
+            .trim_end_matches(".rs")
+            .to_owned();
+        candidates.push(DeadCodeCandidate {
+            reason: format!(
+                "no `mod` declaration reachable from a target root of `{}` loads this file, so it is never compiled",
+                orphan.crate_name
+            ),
+            name,
+            kind: DefinitionKind::File,
+            file: orphan.path.clone(),
+            line: 1,
+            is_public: false,
+            is_test: is_test(&orphan.path),
+            confidence: Confidence::High,
+        });
+    }
+    rank(candidates);
+}
+
+/// Sorts by confidence, then by file, line, and name.
+fn rank(candidates: &mut [DeadCodeCandidate]) {
     candidates.sort_by(|left, right| {
         left.confidence
             .cmp(&right.confidence)
@@ -125,8 +172,6 @@ pub fn analyze(files: &[DeadCodeInput<'_>], config: &DeadCodeConfig) -> Vec<Dead
             .then_with(|| left.line.cmp(&right.line))
             .then_with(|| left.name.cmp(&right.name))
     });
-
-    candidates
 }
 
 /// Total identifier occurrences across every counted file.

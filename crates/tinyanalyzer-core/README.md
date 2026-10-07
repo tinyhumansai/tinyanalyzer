@@ -31,6 +31,7 @@ conversion at every call site that nothing checks.
 | `walk` | Which files are in scope? |
 | `loc` | How much of each file is code, comment, and blank? |
 | `rust_source` | What does each Rust file define, and how tangled is it? |
+| `module_tree` | Which files does no crate root reach, and which only tests? |
 | `deps` | What does the dependency graph actually cost? |
 | `dead_code` | What does nothing reference? |
 | `findings` | What should somebody do about all this? |
@@ -55,7 +56,10 @@ name resolution. That is what lets it see through macro invocations, which an AS
 walk cannot. The cost is that two unrelated items sharing a name vouch for each
 other, so it under-reports rather than over-reports — the right direction for a
 list a human will act on. Public items come back at medium confidence because
-their callers may not be in this workspace at all.
+their callers may not be in this workspace at all. A file no `mod` declaration
+reaches from a target root (`module_tree`) is reported whole, as one `file`
+candidate and an `orphan_file` finding, and only when the package's tree could
+be followed completely.
 
 **Unused dependencies** (`deps`) are dependencies no source file *names*. A crate
 reached only through a derive macro or a linker side effect has no `use` naming

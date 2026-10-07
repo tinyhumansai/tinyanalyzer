@@ -33,10 +33,11 @@ use crate::deps::{self, CrateReferences, DependencyReport};
 use crate::error::{Error, Result};
 use crate::findings::{self, FindingInputs};
 use crate::loc::{Language, LineCounts, count_lines};
+use crate::module_tree::{self, FileDeclarations, ModuleInput, ModuleTree, PackageManifest};
 use crate::rust_source::{self, RustFile};
 use crate::walk::{self, SourceFile};
 use rayon::prelude::*;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -84,9 +85,17 @@ pub fn analyze_with(root: impl AsRef<Path>, config: &Config) -> Result<Report> {
     let discovered = walk::discover(root, &config.scan)?;
     let manifests = manifest_map(&discovered);
 
-    let parsed: Vec<ParsedFile<'_>> = discovered
+    let mut parsed: Vec<ParsedFile<'_>> = discovered
         .par_iter()
         .map(|file| parse_one(file, &manifests))
+        .collect();
+
+    let tree = resolve_modules(root, &parsed, &manifests);
+    mark_test_only(&mut parsed, &tree.test_only);
+    let orphaned: BTreeSet<&str> = tree
+        .orphans
+        .iter()
+        .map(|orphan| orphan.path.as_str())
         .collect();
 
     let dependencies = if config.dependencies.enabled {
@@ -108,8 +117,10 @@ pub fn analyze_with(root: impl AsRef<Path>, config: &Config) -> Result<Report> {
             .then_with(|| left.path.cmp(&right.path))
     });
 
+    // An orphaned file is not compiled, so nothing in it is a use of anything.
     let dead_inputs: Vec<DeadCodeInput<'_>> = parsed
         .iter()
+        .filter(|file| !orphaned.contains(file.source.relative_path.as_str()))
         .filter_map(|file| {
             file.rust.as_ref().map(|rust| DeadCodeInput {
                 path: file.source.relative_path.as_str(),
@@ -118,11 +129,18 @@ pub fn analyze_with(root: impl AsRef<Path>, config: &Config) -> Result<Report> {
             })
         })
         .collect();
-    let dead_code = crate::dead_code::analyze(&dead_inputs, &config.dead_code);
+    let mut dead_code = crate::dead_code::analyze(&dead_inputs, &config.dead_code);
+    if config.dead_code.enabled {
+        crate::dead_code::add_orphans(&mut dead_code, &tree.orphans, |path| {
+            parsed
+                .iter()
+                .any(|file| file.is_test && file.source.relative_path == path)
+        });
+    }
 
     let clones = if config.clones.enabled {
         let extra = extra_sources(root, config)?;
-        let inputs = clone_inputs(&discovered, &extra, &config.clones)?;
+        let inputs = clone_inputs(&discovered, &extra, &config.clones, &tree)?;
         clones::analyze(&inputs, &config.clones, &config.thresholds)
     } else {
         Vec::new()
@@ -186,28 +204,31 @@ struct ParsedFile<'a> {
     failure: Option<ParseFailureReport>,
     crate_name: Option<String>,
     is_test: bool,
+    declarations: Option<FileDeclarations>,
 }
 
 /// Counts and parses one file.
-fn parse_one<'a>(source: &'a SourceFile, manifests: &BTreeMap<String, String>) -> ParsedFile<'a> {
+fn parse_one<'a>(source: &'a SourceFile, manifests: &BTreeMap<String, Manifest>) -> ParsedFile<'a> {
     let text = source.text.as_deref().unwrap_or_default();
     let lines = count_lines(source.language, text);
 
-    let (rust, failure) = if source.language == Language::Rust && source.text.is_some() {
-        match rust_source::analyze(text) {
-            Ok(parsed) => (Some(parsed), None),
-            Err(error) => (
-                None,
-                Some(ParseFailureReport {
-                    path: source.relative_path.clone(),
-                    line: error.line,
-                    message: error.message,
-                }),
-            ),
-        }
-    } else {
-        (None, None)
-    };
+    let (rust, declarations, failure) =
+        if source.language == Language::Rust && source.text.is_some() {
+            match rust_source::analyze_with_declarations(text) {
+                Ok((parsed, declarations)) => (Some(parsed), Some(declarations), None),
+                Err(error) => (
+                    None,
+                    None,
+                    Some(ParseFailureReport {
+                        path: source.relative_path.clone(),
+                        line: error.line,
+                        message: error.message,
+                    }),
+                ),
+            }
+        } else {
+            (None, None, None)
+        };
 
     let is_test = source.is_test_path || rust.as_ref().is_some_and(|file| file.is_test_module);
     let test_lines = if is_test {
@@ -226,6 +247,43 @@ fn parse_one<'a>(source: &'a SourceFile, manifests: &BTreeMap<String, String>) -
         rust,
         failure,
         is_test,
+        declarations,
+    }
+}
+
+/// Resolves every package's module tree over the parsed files.
+fn resolve_modules(
+    root: &Path,
+    parsed: &[ParsedFile<'_>],
+    manifests: &BTreeMap<String, Manifest>,
+) -> ModuleTree {
+    let packages: Vec<PackageManifest<'_>> = manifests
+        .iter()
+        .map(|(directory, manifest)| PackageManifest {
+            directory,
+            name: &manifest.name,
+            manifest: &manifest.value,
+        })
+        .collect();
+    let files: Vec<ModuleInput<'_>> = parsed
+        .iter()
+        .filter(|file| file.source.language == Language::Rust)
+        .map(|file| ModuleInput {
+            path: &file.source.relative_path,
+            declarations: file.declarations.as_ref(),
+        })
+        .collect();
+
+    module_tree::resolve(&packages, &files, &|path| root.join(path).is_file())
+}
+
+/// Marks every file only test code reaches as test code, whole.
+fn mark_test_only(parsed: &mut [ParsedFile<'_>], test_only: &BTreeSet<String>) {
+    for file in parsed {
+        if !file.is_test && test_only.contains(&file.source.relative_path) {
+            file.is_test = true;
+            file.test_lines = file.lines;
+        }
     }
 }
 
@@ -309,13 +367,21 @@ pub fn weight(lines: LineCounts, rust: Option<&RustFile>) -> f64 {
     }
 }
 
-/// Maps every manifest directory in the tree to the crate it declares.
+/// A package manifest the walk loaded.
+struct Manifest {
+    /// The package's name.
+    name: String,
+    /// The whole parsed manifest, for its target paths.
+    value: toml::Value,
+}
+
+/// Maps every manifest directory in the tree to the package it declares.
 ///
 /// Reads the `name` out of each `Cargo.toml` the walk already loaded. A
 /// manifest that is a virtual workspace root declares no package and is skipped,
 /// which is what makes files at the repository root come back with no owning
 /// crate rather than with the workspace's name.
-fn manifest_map(files: &[SourceFile]) -> BTreeMap<String, String> {
+fn manifest_map(files: &[SourceFile]) -> BTreeMap<String, Manifest> {
     let mut manifests = BTreeMap::new();
 
     for file in files {
@@ -337,22 +403,28 @@ fn manifest_map(files: &[SourceFile]) -> BTreeMap<String, String> {
             continue;
         };
 
-        manifests.insert(file.directory().to_owned(), name.to_owned());
+        manifests.insert(
+            file.directory().to_owned(),
+            Manifest {
+                name: name.to_owned(),
+                value: parsed.clone(),
+            },
+        );
     }
 
     manifests
 }
 
 /// The crate that owns `path`: the nearest manifest at or above it.
-fn owning_crate(path: &str, manifests: &BTreeMap<String, String>) -> Option<String> {
+fn owning_crate(path: &str, manifests: &BTreeMap<String, Manifest>) -> Option<String> {
     let mut directory = match path.rsplit_once('/') {
         Some((parent, _)) => parent,
         None => ".",
     };
 
     loop {
-        if let Some(name) = manifests.get(directory) {
-            return Some(name.clone());
+        if let Some(manifest) = manifests.get(directory) {
+            return Some(manifest.name.clone());
         }
 
         match directory.rsplit_once('/') {
@@ -481,7 +553,7 @@ pub fn symbol_index(root: impl AsRef<Path>, config: &Config) -> Result<Vec<Symbo
     }
     let discovered = walk::discover(root, &config.scan)?;
     let extra = extra_sources(root, config)?;
-    let inputs = clone_inputs(&discovered, &extra, &config.clones)?;
+    let inputs = clone_inputs(&discovered, &extra, &config.clones, &ModuleTree::default())?;
     Ok(clones::symbols(&inputs))
 }
 
@@ -500,10 +572,15 @@ fn extra_sources(root: &Path, config: &Config) -> Result<Vec<(bool, SourceFile)>
 }
 
 /// The Rust files clone detection reads, with their editability resolved.
+///
+/// Orphaned files are left out: a file nothing compiles is not a second copy
+/// of anything, it is a file to delete, and the `orphan_file` finding says so.
+/// A file the module tree found only test code reaching is passed as test code.
 fn clone_inputs<'a>(
     discovered: &'a [SourceFile],
     extra: &'a [(bool, SourceFile)],
     config: &CloneConfig,
+    tree: &ModuleTree,
 ) -> Result<Vec<CloneInput<'a>>> {
     let read_only = compile_glob_set(&config.read_only)?;
     let writable = |path: &str| read_only.as_ref().is_none_or(|globs| !globs.is_match(path));
@@ -513,11 +590,17 @@ fn clone_inputs<'a>(
     Ok(own
         .chain(extra)
         .filter(|(_, file)| file.language == Language::Rust)
+        .filter(|(_, file)| {
+            !tree
+                .orphans
+                .iter()
+                .any(|orphan| orphan.path == file.relative_path)
+        })
         .filter_map(|(editable, file)| {
             Some(CloneInput {
                 path: file.relative_path.as_str(),
                 text: file.text.as_deref()?,
-                is_test_path: file.is_test_path,
+                is_test_path: file.is_test_path || tree.test_only.contains(&file.relative_path),
                 editable: editable && writable(&file.relative_path),
             })
         })

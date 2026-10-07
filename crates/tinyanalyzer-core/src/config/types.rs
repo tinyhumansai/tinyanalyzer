@@ -115,6 +115,9 @@ impl Default for ScanConfig {
                 "**/test.rs".to_owned(),
                 "**/tests.rs".to_owned(),
                 "**/*_test.rs".to_owned(),
+                // The sibling-file convention:
+                // `#[cfg(test)] #[path = "foo_tests.rs"] mod tests;`.
+                "**/*_tests.rs".to_owned(),
                 "**/benches/**".to_owned(),
             ],
             respect_gitignore: true,

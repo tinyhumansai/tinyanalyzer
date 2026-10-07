@@ -647,3 +647,104 @@ fn the_symbol_index_rejects_a_root_that_is_not_a_directory() {
         Err(Error::RootNotADirectory { .. })
     ));
 }
+
+/// A one-package tree with a `#[cfg(test)]` sibling test file, a test-only
+/// helper reached through an inline `#[cfg(test)]` module, and an orphaned
+/// copy of a live file.
+fn module_fixture() -> TempDir {
+    let root = TempDir::new().unwrap();
+    write(root.path(), "Cargo.toml", "[package]\nname = \"demo\"\n");
+    write(
+        root.path(),
+        "src/lib.rs",
+        "//! Demo.\n\npub mod engine;\n\n#[cfg(test)]\nmod checks {\n    mod support;\n}\n",
+    );
+    write(
+        root.path(),
+        "src/engine.rs",
+        &format!(
+            "{}\n#[cfg(test)]\n#[path = \"engine_checks.rs\"]\nmod checks;\n",
+            cloneable("load")
+        ),
+    );
+    write(
+        root.path(),
+        "src/engine_checks.rs",
+        "use super::*;\n\nfn fixture() -> Vec<u8> {\n    vec![1, 2, 3]\n}\n\n#[test]\nfn loads() {\n    assert_eq!(load(&fixture(), 0), 60);\n}\n",
+    );
+    write(
+        root.path(),
+        "src/checks/support.rs",
+        "pub fn helper() -> u8 {\n    1\n}\n",
+    );
+    write(root.path(), "src/engine/stale.rs", &cloneable("fetch"));
+    root
+}
+
+#[test]
+fn files_only_cfg_test_declarations_reach_are_test_code() {
+    let root = module_fixture();
+
+    let report = analyze_with(root.path(), &config_without_cargo()).unwrap();
+    let file = |path: &str| report.files.iter().find(|file| file.path == path).unwrap();
+
+    for path in ["src/engine_checks.rs", "src/checks/support.rs"] {
+        assert!(file(path).is_test, "{path} is reached only by test code");
+        assert_eq!(file(path).test_lines, file(path).lines);
+    }
+    assert!(!file("src/engine.rs").is_test);
+    // A test-only file no longer feeds the census, nor is it a candidate.
+    assert!(
+        report
+            .dead_code
+            .iter()
+            .all(|candidate| candidate.name != "fixture" && candidate.name != "helper")
+    );
+}
+
+#[test]
+fn an_orphaned_file_is_dead_code_with_a_finding_and_no_clone() {
+    let root = module_fixture();
+
+    let report = analyze_with(root.path(), &config_without_cargo()).unwrap();
+
+    let orphan = report
+        .dead_code
+        .iter()
+        .find(|candidate| candidate.kind == crate::rust_source::DefinitionKind::File)
+        .expect("the stale copy is reported");
+    assert_eq!(orphan.file, "src/engine/stale.rs");
+    assert_eq!(orphan.name, "stale");
+    assert!(
+        report
+            .dead_code
+            .iter()
+            .all(|candidate| candidate.name != "fetch"),
+        "items inside an orphan are not listed one by one"
+    );
+    assert!(report.findings.iter().any(|finding| {
+        finding.rule == crate::findings::Rule::OrphanFile
+            && finding.location.as_ref().map(|at| at.file.as_str()) == Some("src/engine/stale.rs")
+    }));
+    assert!(
+        report.clones.is_empty(),
+        "an orphaned copy is not a clone of the live file"
+    );
+}
+
+#[test]
+fn turning_dead_code_off_also_drops_orphans() {
+    let root = module_fixture();
+    let mut config = config_without_cargo();
+    config.dead_code.enabled = false;
+
+    let report = analyze_with(root.path(), &config).unwrap();
+
+    assert_eq!(report.dead_code, []);
+    assert!(
+        report
+            .findings
+            .iter()
+            .all(|finding| finding.rule != crate::findings::Rule::OrphanFile)
+    );
+}

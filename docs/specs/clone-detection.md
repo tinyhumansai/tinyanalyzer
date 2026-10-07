@@ -52,6 +52,10 @@ renamed, near-miss), the granularity (`FragmentKind`), which detectors found
 it, the lowest pairwise similarity, size, estimated lines saved, a score, and a
 `Sketch`.
 
+Files no crate root reaches (see [`module-tree.md`](module-tree.md)) are left
+out of the inputs, and files reached only through `#[cfg(test)]` declarations
+are passed as test code.
+
 Detection layers, cheapest first:
 
 1. **Subtree hashes**: whole fragments whose identifier-blind shapes match.
