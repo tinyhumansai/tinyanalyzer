@@ -253,7 +253,7 @@ see what a refactor actually did.
 ## What it approximates, and how
 
 Every measurement here is either exact or documented as an approximation. The
-four that are worth knowing about before you act on them:
+five that are worth knowing about before you act on them:
 
 - **Cyclomatic complexity** counts branches, not paths: `if`, `match` arms,
   loops, `&&`, `||`, `?`. A `match` whose arms all name constants is a lookup
