@@ -26,7 +26,7 @@ use crate::config::Thresholds;
 use crate::dead_code::{Confidence, DeadCodeCandidate};
 use crate::deps::DependencyReport;
 use crate::report::{DirectoryMetrics, FileMetrics, ParseFailureReport};
-use crate::rust_source::{Function, RustFile};
+use crate::rust_source::{DefinitionKind, Function, RustFile};
 
 /// Block nesting at or beyond which a function is worth flattening.
 ///
@@ -69,6 +69,7 @@ pub fn analyze(inputs: FindingInputs<'_>, thresholds: &Thresholds) -> Vec<Findin
     directories(inputs.directories, thresholds, &mut findings);
     dependencies(inputs.dependencies, thresholds, &mut findings);
     dead_code(inputs.dead_code, &mut findings);
+    orphan_files(inputs.dead_code, inputs.files, &mut findings);
     parse_failures(inputs.parse_failures, &mut findings);
     duplicate_code(inputs.clones, thresholds, &mut findings);
 
@@ -450,8 +451,15 @@ fn dependencies(report: &DependencyReport, thresholds: &Thresholds, out: &mut Ve
 /// One finding for the whole list rather than one per item: a hundred separate
 /// findings would bury every other rule, and the action — read the list, delete
 /// what is genuinely dead — is the same for all of them.
+///
+/// Orphaned files are left to [`orphan_files`], which reports each one: a
+/// whole file nothing compiles is a different action from a stray function.
 fn dead_code(candidates: &[DeadCodeCandidate], out: &mut Vec<Finding>) {
-    let certain = candidates
+    let items: Vec<&DeadCodeCandidate> = candidates
+        .iter()
+        .filter(|candidate| candidate.kind != DefinitionKind::File)
+        .collect();
+    let certain = items
         .iter()
         .filter(|candidate| candidate.confidence == Confidence::High)
         .count();
@@ -460,7 +468,7 @@ fn dead_code(candidates: &[DeadCodeCandidate], out: &mut Vec<Finding>) {
         return;
     }
 
-    let example = candidates
+    let example = items
         .iter()
         .find(|candidate| candidate.confidence == Confidence::High);
 
@@ -470,12 +478,45 @@ fn dead_code(candidates: &[DeadCodeCandidate], out: &mut Vec<Finding>) {
         format!("{certain} items are referenced by nothing"),
         format!(
             "{certain} private items have no reference anywhere in the workspace, out of {} candidates in total.",
-            candidates.len()
+            items.len()
         ),
         "Delete them. Anything worth keeping for later is in the history; anything reached only through a macro belongs in the dead-code `ignore` list so the report stays worth reading.".to_owned(),
         example.map(|candidate| at_line(&candidate.file, candidate.line)),
         metric(certain),
     ));
+}
+
+/// Flags every source file no crate root reaches.
+///
+/// One finding per file, unlike [`dead_code`]: orphans are rare, each one is a
+/// whole file, and the remedy names the file and the module it would be.
+fn orphan_files(candidates: &[DeadCodeCandidate], files: &[FileMetrics], out: &mut Vec<Finding>) {
+    for candidate in candidates
+        .iter()
+        .filter(|candidate| candidate.kind == DefinitionKind::File)
+    {
+        let lines = files
+            .iter()
+            .find(|file| file.path == candidate.file)
+            .map_or(0, |file| file.lines.code);
+
+        out.push(finding(
+            Rule::OrphanFile,
+            Severity::High,
+            format!("{} is compiled by nothing", candidate.file),
+            format!(
+                "{lines} line{} of code that no `mod` declaration reachable from a target root loads, so the compiler never builds, tests, or lints {}.",
+                plural(lines),
+                if lines == 1 { "it" } else { "them" }
+            ),
+            format!(
+                "Delete it if it is left over from a move or a rename; if it is meant to be live, declare it with `mod {};` in its parent module so the compiler checks it again.",
+                candidate.name
+            ),
+            Some(at_file(&candidate.file)),
+            metric(lines),
+        ));
+    }
 }
 
 /// Flags files the parser refused.

@@ -471,6 +471,8 @@ fn every_rule_has_an_identifier_and_a_description() {
         Rule::PanicPath,
         Rule::UnfinishedWork,
         Rule::ParseFailure,
+        Rule::DuplicateCode,
+        Rule::OrphanFile,
     ] {
         assert_ne!(rule.id().len(), 0);
         assert_ne!(rule.description().len(), 0);
