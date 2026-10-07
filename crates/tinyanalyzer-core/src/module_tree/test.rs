@@ -202,7 +202,7 @@ fn includes_are_read_when_literal_and_flagged_when_not() {
 fn other_macros_are_not_includes() {
     let found = declarations("fn f() { println!(\"x\"); }\n");
 
-    assert!(found.includes.is_empty());
+    assert_eq!(found.includes, []);
     assert_eq!(found.items, 1);
 }
 
@@ -300,7 +300,7 @@ fn path_attributes_and_inline_nesting_are_followed() {
         .file("src/outer/inner.rs", "fn i() {}\n")
         .file("src/outer/moved.rs", "fn m() {}\n");
 
-    assert!(fixture.orphans().is_empty());
+    assert_eq!(fixture.orphans(), Vec::<String>::new());
 }
 
 #[test]
@@ -310,7 +310,7 @@ fn a_path_inside_an_inline_module_of_a_named_file_resolves_under_its_stem() {
         .file("src/a.rs", "mod inline { mod leaf; }\n")
         .file("src/a/inline/leaf.rs", "fn l() {}\n");
 
-    assert!(fixture.orphans().is_empty());
+    assert_eq!(fixture.orphans(), Vec::<String>::new());
 }
 
 #[test]
@@ -323,7 +323,7 @@ fn both_targets_of_a_conditional_path_are_reachable() {
         .file("src/imp.rs", "fn unix() {}\n")
         .file("src/imp_windows.rs", "fn windows() {}\n");
 
-    assert!(fixture.orphans().is_empty());
+    assert_eq!(fixture.orphans(), Vec::<String>::new());
 }
 
 #[test]
@@ -346,7 +346,7 @@ fn files_reached_only_through_cfg_test_are_test_only() {
 
     let tree = fixture.resolve();
 
-    assert!(tree.orphans.is_empty());
+    assert_eq!(tree.orphans, []);
     let test_only: Vec<&str> = tree.test_only.iter().map(String::as_str).collect();
     assert_eq!(
         test_only,
@@ -386,7 +386,7 @@ fn a_file_a_test_target_reaches_through_a_path_is_not_an_orphan() {
         );
 
     let tree = fixture.resolve();
-    assert!(tree.orphans.is_empty());
+    assert_eq!(tree.orphans, []);
     assert!(tree.test_only.contains("src/fixtures.rs"));
 }
 
@@ -411,7 +411,7 @@ fn an_included_source_file_is_reached_and_its_declarations_followed() {
             "const T: &str = include_str!(\"template.rs\");\n",
         )
         .file("src/template.rs", "fn t() {}\n");
-    assert!(with_data.orphans().is_empty());
+    assert_eq!(with_data.orphans(), Vec::<String>::new());
 }
 
 #[test]
@@ -423,7 +423,7 @@ fn a_package_with_a_computed_include_is_not_searched() {
         )
         .file("src/x.rs", "fn x() {}\n");
 
-    assert!(fixture.orphans().is_empty());
+    assert_eq!(fixture.orphans(), Vec::<String>::new());
 }
 
 #[test]
@@ -443,7 +443,7 @@ fn a_package_with_an_unreadable_reachable_file_is_not_searched() {
         .unparsed("src/huge.rs")
         .file("src/x.rs", "fn x() {}\n");
 
-    assert!(fixture.orphans().is_empty());
+    assert_eq!(fixture.orphans(), Vec::<String>::new());
 }
 
 #[test]
@@ -452,14 +452,14 @@ fn a_package_whose_root_the_walk_excluded_is_not_searched() {
         .excluded("src/lib.rs")
         .file("src/x.rs", "fn x() {}\n");
 
-    assert!(fixture.orphans().is_empty());
+    assert_eq!(fixture.orphans(), Vec::<String>::new());
 }
 
 #[test]
 fn a_package_with_no_root_at_all_is_not_searched() {
     let fixture = demo().file("src/x.rs", "fn x() {}\n");
 
-    assert!(fixture.orphans().is_empty());
+    assert_eq!(fixture.orphans(), Vec::<String>::new());
 }
 
 #[test]
@@ -470,7 +470,7 @@ fn files_without_items_or_outside_src_are_not_reported() {
         .file("tools/script.rs", "fn s() {}\n")
         .unparsed("src/broken.rs");
 
-    assert!(fixture.orphans().is_empty());
+    assert_eq!(fixture.orphans(), Vec::<String>::new());
 }
 
 #[test]

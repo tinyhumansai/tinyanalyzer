@@ -740,7 +740,7 @@ fn turning_dead_code_off_also_drops_orphans() {
 
     let report = analyze_with(root.path(), &config).unwrap();
 
-    assert!(report.dead_code.is_empty());
+    assert_eq!(report.dead_code, []);
     assert!(
         report
             .findings

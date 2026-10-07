@@ -102,7 +102,9 @@ fn is_auto_target(file: &str, prefix: &str) -> bool {
         return false;
     };
     match rest.split_once('/') {
-        None => rest.ends_with(".rs"),
+        None => std::path::Path::new(rest)
+            .extension()
+            .is_some_and(|extension| extension == "rs"),
         Some((_, inner)) => inner == "main.rs",
     }
 }
