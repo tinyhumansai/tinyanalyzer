@@ -12,8 +12,8 @@ at a time and never asked which `mod` declaration loads them.
 1. **Test files with an ordinary name.** The sibling-file convention
    `#[cfg(test)] #[path = "foo_tests.rs"] mod tests;` puts unit tests in a file
    no default path glob matched. Its contents carry no `#[cfg(test)]` of their
-   own, so the AST check missed it too. On one large repository 1,365 clone
-   instances in `*_tests.rs` files were counted as production code, test
+   own, so the AST check missed it too. On one large repository more than a
+   thousand clone instances in `*_tests.rs` files were counted as production code, test
    helpers flooded the dead-code list, and production items used only by tests
    were hidden because those files fed the census.
 2. **Orphaned files.** A `.rs` file no `mod` declaration reaches is never

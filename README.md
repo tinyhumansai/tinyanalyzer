@@ -263,6 +263,11 @@ four that are worth knowing about before you act on them:
   with the same name vouch for each other, so it under-reports rather than
   over-reports — the right direction for a list somebody is going to act on.
   Read `crates/tinyanalyzer-core/src/dead_code/mod.rs` before deleting anything.
+- **Orphaned files** are `.rs` files under a crate's `src/` that no `mod`
+  declaration reachable from a target root loads. A package whose tree cannot
+  be seen whole — a computed `include!`, an unreadable file, a macro that may
+  declare the module — is not searched. Following the same declarations is how
+  a file reached only through `#[cfg(test)]` is recognized as test code.
 - **Unused dependencies** are dependencies no source file *names*. A crate
   reached through a macro expansion, a build script, or a linker side effect has
   no `use` naming it. Remove and build; if the build fails, add it to
@@ -301,6 +306,7 @@ crates/
 │   ├── walk/            # which files are in scope
 │   ├── loc/             # code, comment, and blank lines
 │   ├── rust_source/     # syn-based items, complexity, cost signals
+│   ├── module_tree/     # mod declarations: orphaned and test-only files
 │   ├── deps/            # the resolved dependency graph and its real cost
 │   ├── dead_code/       # the workspace-wide identifier census
 │   ├── clones/          # tree-sitter clone detection and the symbol index
