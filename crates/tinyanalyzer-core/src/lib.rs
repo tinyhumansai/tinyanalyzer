@@ -32,6 +32,7 @@
 //! | [`loc`] | How much of each file is code, comment, and blank? |
 //! | [`rust_source`] | What does each Rust file define, and how tangled is it? |
 //! | [`deps`] | What does the dependency graph actually cost? |
+//! | `module_tree` | Which files does no crate root reach, and which only tests? |
 //! | [`dead_code`] | What does nothing reference? |
 //! | [`clones`] | What is written more than once, and what would replace it? |
 //! | [`findings`] | What should somebody do about all this? |
@@ -60,6 +61,7 @@ pub mod deps;
 pub mod error;
 pub mod findings;
 pub mod loc;
+mod module_tree;
 pub mod report;
 pub mod rust_source;
 pub mod walk;
