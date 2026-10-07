@@ -38,7 +38,10 @@ fn a_disabled_detector_reports_nothing() {
         ..DeadCodeConfig::default()
     };
 
-    assert!(candidates(&[("src/lib.rs", &file, false)], &config).is_empty());
+    assert_eq!(
+        candidates(&[("src/lib.rs", &file, false)], &config).len(),
+        0
+    );
 }
 
 #[test]
@@ -67,7 +70,10 @@ fn an_unreferenced_private_function_is_reported_with_high_confidence() {
 fn a_referenced_item_is_not_reported() {
     let file = parsed("fn used() {} fn caller() { used(); } fn main() { caller(); }");
 
-    assert!(candidates(&[("src/lib.rs", &file, false)], &DeadCodeConfig::default()).is_empty());
+    assert_eq!(
+        candidates(&[("src/lib.rs", &file, false)], &DeadCodeConfig::default()).len(),
+        0
+    );
 }
 
 #[test]
@@ -177,21 +183,30 @@ fn ignored_names_are_never_reported() {
         ..DeadCodeConfig::default()
     };
 
-    assert!(candidates(&[("src/main.rs", &file, false)], &config).is_empty());
+    assert_eq!(
+        candidates(&[("src/main.rs", &file, false)], &config).len(),
+        0
+    );
 }
 
 #[test]
 fn an_abi_export_is_never_reported() {
     let file = parsed("#[no_mangle] pub extern \"C\" fn entry() {}");
 
-    assert!(candidates(&[("src/lib.rs", &file, false)], &DeadCodeConfig::default()).is_empty());
+    assert_eq!(
+        candidates(&[("src/lib.rs", &file, false)], &DeadCodeConfig::default()).len(),
+        0
+    );
 }
 
 #[test]
 fn a_test_function_is_never_reported() {
     let file = parsed("#[cfg(test)] mod test { #[test] fn checks_something() {} }");
 
-    assert!(candidates(&[("src/lib.rs", &file, false)], &DeadCodeConfig::default()).is_empty());
+    assert_eq!(
+        candidates(&[("src/lib.rs", &file, false)], &DeadCodeConfig::default()).len(),
+        0
+    );
 }
 
 #[test]

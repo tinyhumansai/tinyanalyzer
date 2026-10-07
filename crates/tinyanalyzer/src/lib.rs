@@ -54,7 +54,8 @@ pub use error::{Error, Result};
 // types; nothing here redefines them.
 pub use tinyanalyzer_core;
 pub use tinyanalyzer_core::{
-    CONFIG_FILE_NAME, CONFIG_FILE_NAME_ALT, Confidence, Config, DeadCodeCandidate,
+    CONFIG_FILE_NAME, CONFIG_FILE_NAME_ALT, CloneGroup, Confidence, Config, DeadCodeCandidate,
     DependencyReport, DirectoryMetrics, FileMetrics, Finding, Language, LineCounts, PackageNode,
-    Report, Rule, Severity, StartView, Thresholds, Totals, analyze, analyze_with,
+    Report, Rule, Severity, StartView, SymbolRecord, Thresholds, Totals, analyze, analyze_with,
+    symbol_index, symbols_to_json_lines,
 };

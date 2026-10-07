@@ -50,6 +50,7 @@ fn run(files: &[FileMetrics], thresholds: &Thresholds) -> Vec<super::Finding> {
             dependencies: &DependencyReport::default(),
             dead_code: &[],
             parse_failures: &[],
+            clones: &[],
         },
         thresholds,
     )
@@ -61,7 +62,7 @@ fn rules(findings: &[super::Finding]) -> Vec<Rule> {
 
 #[test]
 fn nothing_measured_produces_nothing() {
-    assert!(run(&[], &Thresholds::default()).is_empty());
+    assert_eq!(run(&[], &Thresholds::default()).len(), 0);
 }
 
 #[test]
@@ -89,7 +90,7 @@ fn a_file_at_the_threshold_is_reported() {
 
     assert_eq!(large.severity, Severity::Medium);
     assert!(large.detail.contains("400"));
-    assert!(!large.suggestion.is_empty());
+    assert_ne!(large.suggestion.len(), 0);
     assert_eq!(
         large.location.as_ref().map(|at| at.file.as_str()),
         Some("src/lib.rs")
@@ -259,6 +260,7 @@ fn a_large_directory_is_reported() {
             dependencies: &DependencyReport::default(),
             dead_code: &[],
             parse_failures: &[],
+            clones: &[],
         },
         &Thresholds::default(),
     );
@@ -283,6 +285,7 @@ fn a_duplicated_dependency_is_reported_with_both_versions() {
             dependencies: &dependencies,
             dead_code: &[],
             parse_failures: &[],
+            clones: &[],
         },
         &Thresholds::default(),
     );
@@ -315,6 +318,7 @@ fn an_unused_dependency_is_reported() {
             dependencies: &dependencies,
             dead_code: &[],
             parse_failures: &[],
+            clones: &[],
         },
         &Thresholds::default(),
     );
@@ -344,6 +348,7 @@ fn dead_code_is_summarized_once_rather_than_item_by_item() {
             dependencies: &DependencyReport::default(),
             dead_code: &candidates,
             parse_failures: &[],
+            clones: &[],
         },
         &Thresholds::default(),
     );
@@ -378,6 +383,7 @@ fn only_medium_confidence_dead_code_produces_no_finding() {
             dependencies: &DependencyReport::default(),
             dead_code: &candidates,
             parse_failures: &[],
+            clones: &[],
         },
         &Thresholds::default(),
     );
@@ -400,6 +406,7 @@ fn a_parse_failure_is_surfaced_rather_than_swallowed() {
             dependencies: &DependencyReport::default(),
             dead_code: &[],
             parse_failures: &failures,
+            clones: &[],
         },
         &Thresholds::default(),
     );
@@ -465,8 +472,8 @@ fn every_rule_has_an_identifier_and_a_description() {
         Rule::UnfinishedWork,
         Rule::ParseFailure,
     ] {
-        assert!(!rule.id().is_empty());
-        assert!(!rule.description().is_empty());
+        assert_ne!(rule.id().len(), 0);
+        assert_ne!(rule.description().len(), 0);
     }
 }
 
@@ -478,7 +485,7 @@ fn every_severity_has_a_label() {
         Severity::Medium,
         Severity::Low,
     ] {
-        assert!(!severity.label().is_empty());
+        assert_ne!(severity.label().len(), 0);
     }
 }
 
@@ -507,4 +514,104 @@ fn every_finding_names_a_measurement_and_a_remedy() {
             finding.rule
         );
     }
+}
+
+fn clone_group(
+    lines: usize,
+    copies: usize,
+    in_tests: bool,
+    editable: bool,
+) -> crate::clones::CloneGroup {
+    use crate::clones::{CloneGroup, CloneInstance, CloneKind, FragmentKind, Sketch, SketchKind};
+    CloneGroup {
+        id: "0".to_owned(),
+        kind: CloneKind::Renamed,
+        fragment: FragmentKind::Function,
+        detectors: Vec::new(),
+        similarity: 1.0,
+        tokens: 100,
+        lines,
+        lines_saved: (copies - 1) * lines - copies,
+        score: 1.0,
+        in_tests,
+        editable,
+        recursive: false,
+        instances: (0..copies)
+            .map(|copy| CloneInstance {
+                file: format!("src/{copy}.rs"),
+                start_line: 3,
+                end_line: 2 + lines,
+                item: None,
+                editable,
+                is_test: in_tests,
+            })
+            .collect(),
+        sketch: Sketch {
+            kind: SketchKind::Function,
+            signature: "fn shared()".to_owned(),
+            summary: "Extract one function.".to_owned(),
+            parameters: Vec::new(),
+        },
+    }
+}
+
+fn duplicate_findings(
+    groups: &[crate::clones::CloneGroup],
+    thresholds: &Thresholds,
+) -> Vec<super::Finding> {
+    analyze(
+        FindingInputs {
+            files: &[],
+            directories: &[],
+            dependencies: &DependencyReport::default(),
+            dead_code: &[],
+            parse_failures: &[],
+            clones: groups,
+        },
+        thresholds,
+    )
+}
+
+#[test]
+fn duplicate_code_is_reported_at_the_saved_lines_threshold() {
+    let thresholds = Thresholds {
+        duplicate_min_lines: 6,
+        ..Thresholds::default()
+    };
+    // Two copies of eight lines save 8 - 2 = 6; of seven lines, 5.
+    let at = duplicate_findings(&[clone_group(8, 2, false, true)], &thresholds);
+    let below = duplicate_findings(&[clone_group(7, 2, false, true)], &thresholds);
+
+    assert_eq!(rules(&at), [Rule::DuplicateCode]);
+    assert_eq!(below.len(), 0);
+    let finding = &at[0];
+    assert_eq!(finding.severity, Severity::Medium);
+    assert!(finding.title.contains("8 lines are written 2 times"));
+    assert!(finding.detail.contains("src/1.rs:3"));
+    assert!(finding.suggestion.contains("fn shared()"));
+    assert_eq!(finding.location.as_ref().unwrap().file, "src/0.rs");
+}
+
+#[test]
+fn duplicate_code_saving_a_long_function_is_high_severity() {
+    let thresholds = Thresholds::default();
+    let group = clone_group(thresholds.long_function_lines, 6, false, true);
+    let findings = duplicate_findings(&[group], &thresholds);
+
+    assert_eq!(findings[0].severity, Severity::High);
+    assert!(findings[0].detail.contains("and 2 more"));
+}
+
+#[test]
+fn test_only_or_read_only_duplicates_are_not_findings() {
+    let thresholds = Thresholds::default();
+
+    assert_eq!(
+        duplicate_findings(&[clone_group(20, 3, true, true)], &thresholds).len(),
+        0
+    );
+    assert_eq!(
+        duplicate_findings(&[clone_group(20, 3, false, false)], &thresholds).len(),
+        0
+    );
 }

@@ -116,6 +116,27 @@ was costing compile time for nothing; if it fails, the crate belongs in
 No conclusion is drawn about a package whose source files were not analyzed —
 silence beats a page of false positives.
 
+### Duplicate code
+
+Structural, not semantic: fragments are compared after comments and
+attributes are dropped, identifiers blinded, and literals collapsed to their
+kind (see [`clone-detection.md`](clone-detection.md)). Similarity for
+near-misses is tree edit distance on fragments of up to 300 nodes and node-kind
+Dice similarity, with a `MinHash` estimate, above that.
+
+**Which direction it fails:** both, in known places. It **over-reports** code
+with the same shape and a different meaning — two unrelated `match` blocks of
+the same size over different enums are one shape — and treats adjacent
+statements that share no variable name as reorderable even when they have side
+effects on different receivers. It **under-reports** inside macro invocations,
+whose bodies are token trees rather than syntax, and does not see code that
+does the same thing written differently. A group is a candidate for a human to
+judge, which is why each one comes with the copies side by side and a sketch
+rather than a patch.
+
+Lines saved is an estimate: every copy but one goes, and each leaves a call
+behind. It ignores the lines the shared code's signature adds.
+
 ### File weight
 
 A single number used only to order the file list. Lines of code, plus three per

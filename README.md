@@ -58,6 +58,15 @@ no caller anywhere. It sees through macro invocations, which an AST walk cannot,
 and it tells you how sure it is: private items come back at high confidence,
 public ones at medium, because a library's callers may not be in this repository.
 
+**What is written twice.** Clone detection parses every file with tree-sitter
+and finds repeated code at every scale — a run of statements, a match arm, a
+closure, a whole function or impl, a struct shape — whether it is an exact copy,
+a renamed one, or a near-miss with a statement added or reordered. Each group is
+ranked by the lines folding it would save and comes with a sketch of the shared
+code: a function, a generic, a macro, a loop over a table, or a shared type, with
+the differences between the copies as its parameters. `--output symbols` writes
+the same parse as an index of every item's signature, shape, and names.
+
 **What is costing you at runtime.** Allocations inside loop bodies, loops nested
 inside loops, `dyn` dispatch sites, monomorphized generics, `unwrap` and `expect`
 outside test code.
@@ -70,7 +79,7 @@ items, split along the seams already in it" is.
 
 ```
  tinyanalyzer   58 files · 8339 loc · 508 functions · 216 crates · 382.0 KiB
- 1·Overview  2·Files  3·Directories  4·Dependencies  5·Dead code  6·Findings
+ 1·Overview  2·Files  3·Directories  4·Dependencies  5·Dead code  6·Duplicates  7·Findings
 ┌ Totals ───────────────────────┐┌ Languages by lines of code ─────────────┐
 │ files                  58     ││ ██████████                              │
 │ lines of code        8339     ││ ██████████                              │
@@ -82,13 +91,13 @@ items, split along the seams already in it" is.
 │ high    crates/…/deps/mod.rs allocates 20 times inside loops            │
 │ high    Dashboard::apply has 19 paths through it                        │
 └─────────────────────────────────────────────────────────────────────────┘
- q quit · tab/1-6 view · ↑↓ move · t tests · / filter · tests shown
+ q quit · tab/1-7 view · ↑↓ move · t tests · / filter · tests shown
 ```
 
 | Key | What it does |
 |---|---|
 | `q`, `Esc`, `Ctrl-C` | Leave; in the focused dependency sidebar, `Esc` backs out first |
-| `Tab`, `Shift-Tab`, `1`–`6` | Change view |
+| `Tab`, `Shift-Tab`, `1`–`7` | Change view |
 | `↑` `↓`, `j` `k` | Move the cursor |
 | `PgUp` `PgDn`, `u` `d` | Move a screenful |
 | `Home` `End`, `g` `G` | First and last row |
@@ -163,6 +172,9 @@ long_function_lines = 60
 high_complexity = 15
 heavy_dependency_crates = 20
 min_comment_ratio = 0.05
+duplicate_min_tokens = 50          # shortest copy worth reporting
+duplicate_min_lines = 6
+duplicate_similarity = 0.85        # lowest near-miss similarity
 
 [dead_code]
 ignore = ["main", "some_macro_target"]
@@ -171,6 +183,15 @@ tests_count_as_uses = false       # an item only its tests call is dead weight
 [dependencies]
 include_dev = true                  # opt in to test/benchmark-only dependency cost
 ignore_unused = ["thiserror"]     # reached only through a derive macro
+
+[clones]
+read_only = ["vendor/**"]          # indexed, but never asked to change
+include_tests = true               # test-only groups rank at half weight
+max_groups = 500
+
+[[clones.extra_roots]]             # scan more crates for clones
+path = "vendor/shared"
+editable = true
 
 [ui]
 start_view = "findings"
@@ -193,13 +214,14 @@ example.
 | Flag | What it does |
 |---|---|
 | `<PATH>` | Repository to analyze. Defaults to `.` |
-| `-o, --output <dashboard\|summary\|json>` | What to do with the report |
+| `-o, --output <dashboard\|summary\|json\|symbols>` | What to do with the report; `symbols` prints the symbol index as JSON lines |
 | `--write <FILE>` | Write the output to a file instead of stdout |
 | `-c, --config <FILE>` | Use this configuration instead of looking for one |
-| `--view <VIEW>` | Open the dashboard on `overview`, `files`, `dependencies`, `dead-code`, or `findings` |
+| `--view <VIEW>` | Open the dashboard on `overview`, `files`, `dependencies`, `dead-code`, `clones`, or `findings` |
 | `--hide-tests` | Exclude test code from every total on startup |
 | `--no-deps` | Skip the dependency graph — pure filesystem work |
 | `--no-dead-code` | Skip dead-code detection |
+| `--no-clones` | Skip duplicate-code detection |
 | `--hidden` | Include dotfiles and dot-directories |
 | `--no-ignore` | Analyze files `.gitignore` would exclude |
 
@@ -231,7 +253,7 @@ see what a refactor actually did.
 ## What it approximates, and how
 
 Every measurement here is either exact or documented as an approximation. The
-three that are worth knowing about before you act on them:
+four that are worth knowing about before you act on them:
 
 - **Cyclomatic complexity** counts branches, not paths: `if`, `match` arms,
   loops, `&&`, `||`, `?`. A `match` whose arms all name constants is a lookup
@@ -245,6 +267,10 @@ three that are worth knowing about before you act on them:
   reached through a macro expansion, a build script, or a linker side effect has
   no `use` naming it. Remove and build; if the build fails, add it to
   `ignore_unused`.
+- **Duplicate code** is structural, not semantic. Two unrelated blocks of the
+  same shape are reported as copies, macro bodies are not looked inside, and
+  code that does the same thing written differently is not found. The sketch is
+  a starting point for a human, not a patch.
 
 Files that do not parse are reported as findings rather than silently dropped,
 because a file missing from the Rust-level measurements reads as a clean one.
@@ -277,6 +303,7 @@ crates/
 │   ├── rust_source/     # syn-based items, complexity, cost signals
 │   ├── deps/            # the resolved dependency graph and its real cost
 │   ├── dead_code/       # the workspace-wide identifier census
+│   ├── clones/          # tree-sitter clone detection and the symbol index
 │   ├── findings/        # the rules that turn measurements into advice
 │   └── report/          # all of it, joined and ranked
 └── tinyanalyzer/        # the binary: command line, text output, dashboard

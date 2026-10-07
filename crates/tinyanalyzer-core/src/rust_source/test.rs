@@ -18,7 +18,7 @@ fn reports_a_parse_failure_with_its_line() {
     let failure = analyze("fn a() {\nfn b(( {}\n").expect_err("invalid Rust");
 
     assert!(failure.line >= 1);
-    assert!(!failure.message.is_empty());
+    assert_ne!(failure.message.len(), 0);
     assert!(failure.to_string().starts_with("line "));
 }
 
@@ -321,7 +321,7 @@ fn every_definition_kind_has_a_label() {
         DefinitionKind::Macro,
         DefinitionKind::Module,
     ] {
-        assert!(!kind.label().is_empty());
+        assert_ne!(kind.label().len(), 0);
     }
 }
 

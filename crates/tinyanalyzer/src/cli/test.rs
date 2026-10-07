@@ -37,6 +37,7 @@ fn the_default_output_is_the_dashboard() {
 fn the_output_mode_can_be_chosen() {
     assert_eq!(parse(&["--output", "json"]).output, Output::Json);
     assert_eq!(parse(&["-o", "summary"]).output, Output::Summary);
+    assert_eq!(parse(&["-o", "symbols"]).output, Output::Symbols);
 }
 
 #[test]
@@ -55,6 +56,7 @@ fn every_view_maps_onto_a_start_view() {
     assert_eq!(StartView::from(View::Files), StartView::Files);
     assert_eq!(StartView::from(View::Dependencies), StartView::Dependencies);
     assert_eq!(StartView::from(View::DeadCode), StartView::DeadCode);
+    assert_eq!(StartView::from(View::Clones), StartView::Clones);
     assert_eq!(StartView::from(View::Findings), StartView::Findings);
 }
 
@@ -177,4 +179,19 @@ fn the_command_line_definition_is_internally_consistent() {
     use clap::CommandFactory;
 
     Cli::command().debug_assert();
+}
+
+#[test]
+fn no_clones_turns_clone_detection_off() {
+    let root = TempDir::new().unwrap();
+    let path = root.path().to_str().unwrap();
+
+    assert!(parse(&[path]).config().unwrap().clones.enabled);
+    assert!(
+        !parse(&[path, "--no-clones"])
+            .config()
+            .unwrap()
+            .clones
+            .enabled
+    );
 }

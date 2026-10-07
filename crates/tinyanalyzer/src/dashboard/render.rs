@@ -69,7 +69,7 @@ pub(super) fn row_at(area: Rect, view: View, column: u16, row: u16) -> Option<us
             true,
         ),
         View::Directories | View::DeadCode => (body, true),
-        View::Dependencies => (
+        View::Dependencies | View::Clones => (
             Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)])
                 .split(body)[0],
             true,
@@ -100,7 +100,7 @@ pub(super) fn detail_contains(area: Rect, view: View, column: u16, row: u16) -> 
     .split(area)[2];
     let percentage = match view {
         View::Files => 62,
-        View::Dependencies | View::Findings => 55,
+        View::Dependencies | View::Findings | View::Clones => 55,
         View::Overview | View::Directories | View::DeadCode => return false,
     };
     let detail = Layout::horizontal([
@@ -221,7 +221,7 @@ fn status(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         let mut spans = vec![
             Span::styled(" q", Style::default().fg(ACCENT)),
             Span::raw(" quit · "),
-            Span::styled("tab/1-6", Style::default().fg(ACCENT)),
+            Span::styled("tab/1-7", Style::default().fg(ACCENT)),
             Span::raw(" view · "),
             Span::styled("↑↓", Style::default().fg(ACCENT)),
             Span::raw(" move · "),
@@ -297,6 +297,7 @@ fn body(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
         View::Directories => directories(frame, area, dashboard),
         View::Dependencies => dependencies(frame, area, dashboard),
         View::DeadCode => dead_code(frame, area, dashboard),
+        View::Clones => clones(frame, area, dashboard),
         View::Findings => findings(frame, area, dashboard),
     }
 }
@@ -1057,6 +1058,165 @@ fn dead_code(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
             ))),
         dashboard.cursor(),
     );
+}
+
+/// Duplicate code, with the selected group's copies and sketch spelled out.
+fn clones(frame: &mut Frame<'_>, area: Rect, dashboard: &Dashboard) {
+    let panes =
+        Layout::horizontal([Constraint::Percentage(55), Constraint::Percentage(45)]).split(area);
+    let groups = dashboard.clones();
+
+    if groups.is_empty() {
+        frame.render_widget(
+            Paragraph::new("No duplicate code above the configured thresholds.")
+                .block(panel("Duplicates")),
+            area,
+        );
+        return;
+    }
+
+    let rows: Vec<Row<'_>> = groups
+        .iter()
+        .map(|group| {
+            let first = &group.instances[0];
+            Row::new(vec![
+                metric_cell(&group.lines_saved, METRIC),
+                metric_cell(&group.instances.len(), Color::LightMagenta),
+                Cell::from(Span::styled(
+                    group.kind.label(),
+                    Style::default().fg(match group.kind {
+                        tinyanalyzer_core::CloneKind::Exact => Color::LightRed,
+                        tinyanalyzer_core::CloneKind::Renamed => Color::Yellow,
+                        tinyanalyzer_core::CloneKind::NearMiss => Color::LightBlue,
+                    }),
+                )),
+                Cell::from(Span::styled(
+                    group.sketch.kind.label(),
+                    Style::default().fg(Color::LightGreen),
+                )),
+                Cell::from(Span::styled(
+                    format!("{}:{}", truncate_path(&first.file, 34), first.start_line),
+                    Style::default().fg(DIRECTORY),
+                )),
+            ])
+        })
+        .collect();
+
+    let widths = [
+        Constraint::Length(6),
+        Constraint::Length(6),
+        Constraint::Length(10),
+        Constraint::Length(12),
+        Constraint::Min(16),
+    ];
+
+    table(
+        frame,
+        panes[0],
+        Table::new(rows, widths)
+            .header(header_row(&[
+                "saved",
+                "copies",
+                "kind",
+                "fix",
+                "first copy",
+            ]))
+            .block(panel(&format!("Duplicates ({})", dashboard.row_count()))),
+        dashboard.cursor(),
+    );
+
+    let Some(group) = dashboard.selected_clone() else {
+        return;
+    };
+    frame.render_widget(
+        Paragraph::new(clone_lines(group))
+            .block(panel("Detail"))
+            .scroll((dashboard.detail_scroll(), 0))
+            .wrap(Wrap { trim: false }),
+        panes[1],
+    );
+}
+
+/// The body of a clone group's detail pane.
+fn clone_lines(group: &tinyanalyzer_core::CloneGroup) -> Vec<Line<'_>> {
+    let mut lines = vec![
+        Line::from(Span::styled(
+            format!(
+                "{} copies of {} lines · {} {} · {:.0}% similar",
+                group.instances.len(),
+                group.lines,
+                group.kind.label(),
+                group.fragment.label(),
+                group.similarity * 100.0
+            ),
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Line::from(Span::styled(
+            format!("saves about {} lines", group.lines_saved),
+            Style::default().fg(METRIC),
+        )),
+        Line::from(""),
+        Line::from(Span::styled("Copies", Style::default().fg(ACCENT))),
+    ];
+
+    for instance in &group.instances {
+        let mut spans = vec![Span::styled(
+            format!(
+                "  {}:{}-{}",
+                instance.file, instance.start_line, instance.end_line
+            ),
+            Style::default().fg(DIRECTORY),
+        )];
+        if let Some(item) = &instance.item {
+            spans.push(Span::raw(format!("  {item}")));
+        }
+        if !instance.editable {
+            spans.push(Span::styled("  read-only", Style::default().fg(WARNING)));
+        }
+        lines.push(Line::from(spans));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "What to do",
+        Style::default().fg(ACCENT),
+    )));
+    lines.push(Line::from(group.sketch.summary.clone()));
+    lines.push(Line::from(Span::styled(
+        group.sketch.signature.clone(),
+        Style::default().fg(Color::LightGreen),
+    )));
+
+    if !group.sketch.parameters.is_empty() {
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "Parameters",
+            Style::default().fg(ACCENT),
+        )));
+        for parameter in &group.sketch.parameters {
+            let values = parameter
+                .values
+                .iter()
+                .map(|value| {
+                    if value.is_empty() {
+                        "—"
+                    } else {
+                        value.as_str()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" | ");
+            lines.push(Line::from(vec![
+                Span::styled(
+                    format!("  {} ", parameter.name),
+                    Style::default().fg(Color::LightMagenta),
+                ),
+                Span::raw(format!("line {}: {values}", parameter.line)),
+            ]));
+        }
+    }
+
+    lines
 }
 
 /// Every finding, with the selected one spelled out.

@@ -15,6 +15,17 @@ description = "Analyze a Rust codebase and explore it in a terminal dashboard"
 large_file_lines = 300
 huge_file_lines = 550
 
+# Duplicate-code detection runs with its defaults here. A workspace that
+# vendors crates it also maintains would scan them too, and mark the ones it
+# may not change:
+#
+# [clones]
+# read_only = ["vendor/upstream/**"]
+#
+# [[clones.extra_roots]]
+# path = "vendor/shared"
+# editable = true
+
 [dead_code]
 # `main` is called by the runtime, not by this workspace.
 ignore = ["main"]

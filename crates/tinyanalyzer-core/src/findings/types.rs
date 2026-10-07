@@ -102,6 +102,8 @@ pub enum Rule {
     UnfinishedWork,
     /// A file the Rust parser refused.
     ParseFailure,
+    /// Code written more than once.
+    DuplicateCode,
 }
 
 impl Rule {
@@ -125,6 +127,7 @@ impl Rule {
             Self::PanicPath => "panic_path",
             Self::UnfinishedWork => "unfinished_work",
             Self::ParseFailure => "parse_failure",
+            Self::DuplicateCode => "duplicate_code",
         }
     }
 
@@ -148,6 +151,7 @@ impl Rule {
             Self::PanicPath => "panic paths outside test code",
             Self::UnfinishedWork => "unfinished-work markers left in comments",
             Self::ParseFailure => "files the Rust parser refused",
+            Self::DuplicateCode => "code written more than once that one helper could replace",
         }
     }
 }

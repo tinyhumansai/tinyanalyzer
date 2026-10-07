@@ -260,7 +260,7 @@ fn it_opens_on_the_configured_view() {
 #[test]
 fn every_view_has_a_title_and_a_stable_position() {
     for (index, view) in View::ALL.iter().enumerate() {
-        assert!(!view.title().is_empty());
+        assert_ne!(view.title(), "");
         assert_eq!(view.index(), index);
         assert_eq!(View::from_index(index), *view);
     }
@@ -280,6 +280,7 @@ fn every_start_view_maps_onto_a_pane() {
         View::Dependencies
     );
     assert_eq!(View::from_start(StartView::DeadCode), View::DeadCode);
+    assert_eq!(View::from_start(StartView::Clones), View::Clones);
     assert_eq!(View::from_start(StartView::Findings), View::Findings);
 }
 
@@ -488,7 +489,7 @@ fn filters_are_scoped_to_the_tab_where_they_were_entered() {
 
     dashboard.apply(Action::SelectView(View::Findings.index()));
     assert_eq!(dashboard.filter(), "");
-    assert!(!dashboard.findings().is_empty());
+    assert_ne!(dashboard.findings(), [] as [&tinyanalyzer_core::Finding; 0]);
 
     dashboard.apply(Action::SelectView(View::Files.index()));
     assert_eq!(dashboard.filter(), "small", "the Files filter is preserved");
@@ -502,7 +503,10 @@ fn an_incomplete_regex_is_treated_as_literal_until_it_becomes_valid() {
     dashboard.apply(Action::FilterPush('['));
 
     assert!(!dashboard.filter_regex_valid());
-    assert!(dashboard.files().is_empty());
+    assert_eq!(
+        dashboard.files(),
+        [] as [&tinyanalyzer_core::FileMetrics; 0]
+    );
 
     dashboard.apply(Action::FilterPush('s'));
     dashboard.apply(Action::FilterPush(']'));
@@ -597,7 +601,7 @@ fn cancelling_a_filter_discards_it() {
     dashboard.apply(Action::CancelFilter);
 
     assert!(!dashboard.editing_filter());
-    assert!(dashboard.filter().is_empty());
+    assert_eq!(dashboard.filter(), "");
     assert_eq!(dashboard.row_count(), unfiltered);
 }
 
@@ -677,7 +681,10 @@ fn findings_can_be_filtered_by_rule_identifier() {
 fn a_subtree_of_an_empty_graph_is_empty() {
     let (_root, dashboard) = dashboard();
 
-    assert!(dashboard.subtree("anything", 3).is_empty());
+    assert_eq!(
+        dashboard.subtree("anything", 3),
+        [] as [(usize, &tinyanalyzer_core::PackageNode); 0]
+    );
 }
 
 #[test]
@@ -1119,7 +1126,7 @@ fn the_dependency_view_ranks_direct_dependencies_and_shows_the_subtree() {
     let selected = dashboard
         .selected_package()
         .expect("the cursor is on a package");
-    assert!(!selected.name.is_empty());
+    assert_ne!(selected.name, "");
 
     assert_eq!(
         selected.name, "heavy",
@@ -1298,7 +1305,10 @@ fn dependency_counts_recompute_when_another_direct_dependency_is_toggled() {
         (2, 1),
         "deep becomes exclusive to heavy once leaf is disabled"
     );
-    assert!(dashboard.subtree("leaf@0.1.0", 3).is_empty());
+    assert_eq!(
+        dashboard.subtree("leaf@0.1.0", 3),
+        [] as [(usize, &tinyanalyzer_core::PackageNode); 0]
+    );
 
     dashboard.apply(Action::SimulateRemoveDependency);
     assert_eq!(dashboard.dependency_counts("heavy@1.2.3"), (1, 1));
@@ -1468,7 +1478,7 @@ fn feature_controls_are_inert_without_a_dependency_graph() {
     dashboard.apply(Action::NextFeature);
     dashboard.apply(Action::ToggleFeature);
 
-    assert!(dashboard.simulated_features().is_empty());
+    assert_eq!(dashboard.simulated_features(), [] as [(&str, bool); 0]);
     assert_eq!(dashboard.feature_cursor(), 0);
 }
 
@@ -1500,7 +1510,7 @@ fn a_subtree_walks_the_resolved_graph() {
         .filter(|package| package.is_workspace_member)
         .map(|package| package.id.as_str())
         .collect();
-    assert!(!members.is_empty());
+    assert_ne!(members, [] as [&str; 0]);
 
     let reached: usize = members
         .iter()
@@ -1912,6 +1922,102 @@ fn every_view_of_a_report_with_a_graph_draws() {
 
     for index in 0..View::ALL.len() {
         dashboard.apply(Action::SelectView(index));
-        assert!(!rendered(&dashboard).is_empty());
+        assert_ne!(rendered(&dashboard), "");
     }
+}
+
+/// A report with two copies of one function, one in production code and one
+/// in a test file, plus a test-only pair.
+fn clones_dashboard() -> (TempDir, Dashboard) {
+    let root = TempDir::new().expect("a temporary directory for the fixture");
+    let function = |name: &str| {
+        format!(
+            "pub fn {name}(source: &[u8], offset: usize) -> usize {{\n    let header = source[offset];\n    if header == 0 {{ return 0; }}\n    let mut total = 0;\n    for item in source.iter() {{ total += *item as usize; }}\n    let kind = match header {{ 1 => 10, 2 => 20, _ => 30 }};\n    total * kind\n}}\n"
+        )
+    };
+    write(root.path(), "src/a.rs", &function("load"));
+    write(root.path(), "src/b.rs", &function("fetch"));
+    let fixture = |name: &str| {
+        format!(
+            "#[test]\nfn {name}() {{\n    let mut parser = Parser::new(\"input\");\n    parser.advance(3);\n    let token = parser.peek().expect(\"a token\");\n    assert_eq!(token.kind, Kind::Word);\n    assert_eq!(token.text, \"put\");\n    assert!(parser.finished());\n}}\n"
+        )
+    };
+    write(root.path(), "tests/one.rs", &fixture("parses_one"));
+    write(root.path(), "tests/two.rs", &fixture("parses_two"));
+
+    let config = Config {
+        dependencies: DependencyConfig {
+            enabled: false,
+            ..DependencyConfig::default()
+        },
+        ..Config::default()
+    };
+    let report = analyze_with(root.path(), &config).expect("a walkable tree");
+    (root, Dashboard::new(report, StartView::Clones, false))
+}
+
+#[test]
+fn the_duplicates_view_lists_groups_and_spells_out_the_selected_one() {
+    let (_root, dashboard) = clones_dashboard();
+
+    assert_eq!(dashboard.view(), View::Clones);
+    assert_eq!(dashboard.row_count(), 2);
+    let text = rendered(&dashboard);
+    assert!(text.contains("Duplicates (2)"));
+    assert!(text.contains("src/a.rs:1-8"));
+    assert!(text.contains("What to do"));
+    assert!(dashboard.selected_clone().is_some());
+}
+
+#[test]
+fn the_duplicates_view_hides_test_only_groups_and_filters_by_path() {
+    let (_root, mut dashboard) = clones_dashboard();
+
+    dashboard.apply(Action::ToggleTests);
+    assert_eq!(dashboard.row_count(), 1);
+    dashboard.apply(Action::ToggleTests);
+
+    dashboard.apply(Action::StartFilter);
+    for c in "one.rs".chars() {
+        dashboard.apply(Action::FilterPush(c));
+    }
+    assert_eq!(dashboard.row_count(), 1);
+    assert!(dashboard.clones()[0].in_tests);
+}
+
+#[test]
+fn the_duplicates_view_sorts_three_ways() {
+    let (_root, mut dashboard) = clones_dashboard();
+    let mut labels = Vec::new();
+
+    for _ in 0..3 {
+        labels.push(dashboard.sort_label());
+        assert_eq!(dashboard.clones().len(), 2);
+        dashboard.apply(Action::NextSort);
+    }
+
+    assert_eq!(labels, ["score", "lines saved", "copies"]);
+}
+
+#[test]
+fn the_duplicates_view_explains_when_there_is_nothing() {
+    let (_root, mut dashboard) = dashboard_empty_clones();
+
+    dashboard.apply(Action::SelectView(View::Clones.index()));
+
+    assert!(rendered(&dashboard).contains("No duplicate code"));
+}
+
+fn dashboard_empty_clones() -> (TempDir, Dashboard) {
+    let root = TempDir::new().expect("a temporary directory");
+    write(root.path(), "src/lib.rs", "pub fn only() {}\n");
+    let config = Config {
+        dependencies: DependencyConfig {
+            enabled: false,
+            ..DependencyConfig::default()
+        },
+        ..Config::default()
+    };
+    let report = analyze_with(root.path(), &config).expect("a walkable tree");
+    (root, Dashboard::new(report, StartView::Overview, false))
 }

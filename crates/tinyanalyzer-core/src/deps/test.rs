@@ -178,7 +178,7 @@ fn a_workspace_member_is_weighed_by_everything_it_reaches() {
 fn a_single_version_is_not_a_duplicate() {
     let packages = vec![package("serde", "1.0.0", true, 1)];
 
-    assert!(find_duplicates(&packages).is_empty());
+    assert_eq!(find_duplicates(&packages).len(), 0);
 }
 
 #[test]
@@ -245,6 +245,6 @@ fn every_dependency_kind_has_a_label() {
         DependencyKind::Development,
         DependencyKind::Build,
     ] {
-        assert!(!kind.label().is_empty());
+        assert_ne!(kind.label().len(), 0);
     }
 }

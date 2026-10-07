@@ -316,3 +316,43 @@ fn a_short_label_is_left_alone() {
 fn a_width_of_one_leaves_the_path_alone_rather_than_erasing_it() {
     assert_eq!(truncate_path("src/lib.rs", 1), "src/lib.rs");
 }
+
+fn clones_report(names: &[&str], directory: &str) -> (TempDir, Report) {
+    let root = TempDir::new().expect("a temporary directory for the fixture");
+    for name in names {
+        let text = format!(
+            "pub fn {name}(source: &[u8], offset: usize) -> usize {{\n    let header = source[offset];\n    if header == 0 {{ return 0; }}\n    let mut total = 0;\n    for item in source.iter() {{ total += *item as usize; }}\n    let kind = match header {{ 1 => 10, 2 => 20, _ => 30 }};\n    total * kind\n}}\n"
+        );
+        write(root.path(), &format!("{directory}/{name}.rs"), &text);
+    }
+    let report = analyze_with(root.path(), &config()).expect("a walkable tree");
+    (root, report)
+}
+
+#[test]
+fn duplicate_code_is_listed_with_its_sketch() {
+    let (_root, report) = clones_report(&["load", "fetch"], "src");
+    let text = render(&report, false);
+
+    assert!(text.contains("Duplicate code"));
+    assert!(text.contains("lines saved  2×8"));
+    assert!(text.contains("→ fn shared_fetch"));
+}
+
+#[test]
+fn test_only_duplicates_disappear_when_tests_are_hidden() {
+    let (_root, report) = clones_report(&["load", "fetch"], "tests");
+
+    assert!(render(&report, false).contains("Duplicate code"));
+    assert!(!render(&report, true).contains("Duplicate code"));
+}
+
+#[test]
+fn a_long_duplicate_list_says_how_much_more_there_is() {
+    let (_root, mut report) = clones_report(&["load", "fetch"], "src");
+    let group = report.clones[0].clone();
+    report.clones = vec![group; 12];
+    let text = render(&report, false);
+
+    assert!(text.contains("… and 2 more; 72 lines could go across all 12"));
+}

@@ -6,6 +6,7 @@
 //! configuration, and a configuration file should only ever be a set of
 //! deviations from that baseline.
 
+use crate::clones::FragmentKind;
 use serde::{Deserialize, Serialize};
 
 /// The whole of `tinyanalyzer.toml`.
@@ -26,6 +27,8 @@ pub struct Config {
     pub dead_code: DeadCodeConfig,
     /// Dependency analysis settings.
     pub dependencies: DependencyConfig,
+    /// Duplicate-code detection settings.
+    pub clones: CloneConfig,
     /// How the terminal dashboard behaves.
     pub ui: UiConfig,
     /// Operator annotations carried through to the dashboard.
@@ -147,6 +150,22 @@ pub struct Thresholds {
     /// Expressed as a fraction of code lines, so `0.05` means one comment line
     /// per twenty lines of code.
     pub min_comment_ratio: f64,
+    /// A copy shorter than this many normalized tokens is not reported as a
+    /// clone.
+    ///
+    /// Tokens rather than lines, so formatting cannot move a fragment across
+    /// the line: `foo(a, b)` is six tokens however it is wrapped. Type
+    /// definitions are exempt, since a struct is short in tokens by nature;
+    /// they are held to `duplicate_min_lines` and must name at least two field
+    /// types.
+    pub duplicate_min_tokens: usize,
+    /// A copy spanning fewer lines than this is not reported as a clone.
+    pub duplicate_min_lines: usize,
+    /// Two fragments less similar than this are not near-miss clones.
+    ///
+    /// A fraction from `0.0` to `1.0`, compared against tree edit distance
+    /// for small fragments and node-kind Dice similarity for large ones.
+    pub duplicate_similarity: f64,
 }
 
 impl Default for Thresholds {
@@ -159,6 +178,9 @@ impl Default for Thresholds {
             large_directory_files: 20,
             heavy_dependency_crates: 20,
             min_comment_ratio: 0.05,
+            duplicate_min_tokens: 50,
+            duplicate_min_lines: 6,
+            duplicate_similarity: 0.85,
         }
     }
 }
@@ -190,6 +212,62 @@ impl Default for DeadCodeConfig {
             tests_count_as_uses: false,
         }
     }
+}
+
+/// Duplicate-code detection settings.
+///
+/// How large and how alike two copies must be is in [`Thresholds`]; this
+/// section says where to look and what may be changed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct CloneConfig {
+    /// Whether duplicate code is looked for at all.
+    pub enabled: bool,
+    /// Globs, relative to the analysis root, marking code no suggestion may
+    /// ask to change.
+    ///
+    /// Read-only code is still indexed: a group with one read-only copy shows
+    /// editable code re-implementing something that already exists there.
+    pub read_only: Vec<String>,
+    /// Further directories to scan for clones alongside the analysis root,
+    /// such as vendored crates the default scan excludes.
+    pub extra_roots: Vec<ExtraRoot>,
+    /// Which granularities to look at.
+    pub fragment_kinds: Vec<FragmentKind>,
+    /// Whether test code takes part.
+    ///
+    /// On by default — duplicated fixtures are real weight — but a group made
+    /// only of test code ranks at half the weight of the same group in
+    /// production code.
+    pub include_tests: bool,
+    /// Most groups reported, best first.
+    pub max_groups: usize,
+}
+
+impl Default for CloneConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            read_only: Vec::new(),
+            extra_roots: Vec::new(),
+            fragment_kinds: FragmentKind::ALL.to_vec(),
+            include_tests: true,
+            max_groups: 500,
+        }
+    }
+}
+
+/// A directory scanned for clones in addition to the analysis root.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ExtraRoot {
+    /// The directory, relative to the analysis root or absolute.
+    ///
+    /// Its files are reported under this prefix.
+    pub path: String,
+    /// Whether suggestions may ask for its code to change.
+    #[serde(default)]
+    pub editable: bool,
 }
 
 /// Dependency analysis settings.
@@ -267,6 +345,8 @@ pub enum StartView {
     Dependencies,
     /// Unreferenced items.
     DeadCode,
+    /// Duplicate code, ranked by what folding it would save.
+    Clones,
     /// Every finding, ranked by severity.
     Findings,
 }

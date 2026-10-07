@@ -65,8 +65,8 @@ fn an_empty_directory_produces_an_empty_report() {
 
     assert_eq!(report.schema_version, SCHEMA_VERSION);
     assert_eq!(report.totals.files, 0);
-    assert!(report.files.is_empty());
-    assert!(report.findings.is_empty());
+    assert_eq!(report.files.len(), 0);
+    assert_eq!(report.findings.len(), 0);
 }
 
 #[test]
@@ -407,7 +407,7 @@ fn notes_from_the_configuration_are_attached_to_matching_files() {
 
     assert_eq!(legacy.notes.len(), 1);
     assert_eq!(legacy.notes[0].level, NoteLevel::Warning);
-    assert!(fresh.notes.is_empty());
+    assert_eq!(fresh.notes.len(), 0);
 }
 
 #[test]
@@ -433,7 +433,7 @@ fn a_disabled_dependency_pass_leaves_the_graph_empty() {
 
     let report = analyze_with(root.path(), &config_without_cargo()).expect("a walkable tree");
 
-    assert!(report.dependencies.packages.is_empty());
+    assert_eq!(report.dependencies.packages.len(), 0);
     assert_eq!(report.totals.packages, 0);
 }
 
@@ -445,7 +445,7 @@ fn a_tree_cargo_cannot_resolve_still_produces_a_file_report() {
 
     let report = analyze(root.path()).expect("the file half of the analysis still runs");
 
-    assert!(report.dependencies.packages.is_empty());
+    assert_eq!(report.dependencies.packages.len(), 0);
     assert!(report.files.iter().any(|file| file.path == "src/lib.rs"));
 }
 
@@ -528,4 +528,122 @@ fn weight_penalizes_allocation_inside_a_loop() {
         parse("fn a(s: &str) { for _ in 0..3 { let _ = s.to_string(); } }").expect("valid Rust");
 
     assert!(weight(counts, Some(&inside)) > weight(counts, Some(&hoisted)));
+}
+
+/// A function long enough to be reported as a clone.
+fn cloneable(name: &str) -> String {
+    format!(
+        "pub fn {name}(source: &[u8], offset: usize) -> usize {{\n    let header = source[offset];\n    if header == 0 {{ return 0; }}\n    let mut total = 0;\n    for item in source.iter() {{ total += *item as usize; }}\n    let kind = match header {{ 1 => 10, 2 => 20, _ => 30 }};\n    total * kind\n}}\n"
+    )
+}
+
+#[test]
+fn duplicated_functions_are_reported_as_clones() {
+    let root = TempDir::new().unwrap();
+    write(root.path(), "src/a.rs", &cloneable("load"));
+    write(root.path(), "src/b.rs", &cloneable("fetch"));
+
+    let report = analyze_with(root.path(), &config_without_cargo()).unwrap();
+
+    assert_eq!(report.clones.len(), 1);
+    assert_eq!(report.clones[0].instances.len(), 2);
+    assert!(
+        report
+            .findings
+            .iter()
+            .any(|finding| finding.rule == crate::findings::Rule::DuplicateCode)
+    );
+}
+
+#[test]
+fn clone_detection_can_be_turned_off() {
+    let root = TempDir::new().unwrap();
+    write(root.path(), "src/a.rs", &cloneable("load"));
+    write(root.path(), "src/b.rs", &cloneable("fetch"));
+    let mut config = config_without_cargo();
+    config.clones.enabled = false;
+
+    assert_eq!(analyze_with(root.path(), &config).unwrap().clones.len(), 0);
+}
+
+#[test]
+fn extra_roots_and_read_only_globs_set_what_may_change() {
+    let root = TempDir::new().unwrap();
+    write(root.path(), "src/a.rs", &cloneable("load"));
+    // `vendor/**` is excluded by the default scan; the extra root brings it back.
+    write(root.path(), "vendor/lib/src/b.rs", &cloneable("fetch"));
+    write(root.path(), "vendor/lib/src/c.rs", &cloneable("read"));
+    let mut config = config_without_cargo();
+    config.clones.extra_roots = vec![crate::config::ExtraRoot {
+        path: "vendor/lib/".to_owned(),
+        editable: true,
+    }];
+    config.clones.read_only = vec!["vendor/lib/src/c.rs".to_owned()];
+
+    let report = analyze_with(root.path(), &config).unwrap();
+    let group = &report.clones[0];
+    let files: Vec<(&str, bool)> = group
+        .instances
+        .iter()
+        .map(|instance| (instance.file.as_str(), instance.editable))
+        .collect();
+
+    assert_eq!(
+        files,
+        [
+            ("src/a.rs", true),
+            ("vendor/lib/src/b.rs", true),
+            ("vendor/lib/src/c.rs", false),
+        ]
+    );
+    // The extra root's files are clone inputs only, not report files.
+    assert!(
+        report
+            .files
+            .iter()
+            .all(|file| !file.path.starts_with("vendor"))
+    );
+}
+
+#[test]
+fn an_invalid_read_only_glob_is_an_error() {
+    let root = plain_fixture();
+    let mut config = config_without_cargo();
+    config.clones.read_only = vec!["[".to_owned()];
+
+    assert!(matches!(
+        analyze_with(root.path(), &config),
+        Err(Error::Glob { .. })
+    ));
+    assert!(matches!(
+        super::symbol_index(root.path(), &config),
+        Err(Error::Glob { .. })
+    ));
+}
+
+#[test]
+fn the_symbol_index_covers_every_rust_item() {
+    let root = plain_fixture();
+    let records = super::symbol_index(root.path(), &config_without_cargo()).unwrap();
+    let names: Vec<&str> = records.iter().map(|record| record.name.as_str()).collect();
+
+    // File order is path order: `src/deep/inner.rs` sorts before `src/lib.rs`.
+    assert_eq!(names, ["hidden", "a", "b", "t"]);
+    assert!(
+        records
+            .iter()
+            .find(|record| record.name == "t")
+            .unwrap()
+            .is_test
+    );
+}
+
+#[test]
+fn the_symbol_index_rejects_a_root_that_is_not_a_directory() {
+    let root = plain_fixture();
+
+    assert!(matches!(
+        super::symbol_index(root.path().join("README.md"), &Config::default()),
+        Err(Error::RootNotADirectory { .. })
+    ));
 }

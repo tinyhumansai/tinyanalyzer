@@ -15,8 +15,8 @@ use std::cell::{Cell, RefCell};
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use tinyanalyzer_core::{
-    DeadCodeCandidate, DirectoryMetrics, FileMetrics, Finding, LineCounts, PackageNode, Report,
-    StartView, Totals,
+    CloneGroup, DeadCodeCandidate, DirectoryMetrics, FileMetrics, Finding, LineCounts, PackageNode,
+    Report, StartView, Totals,
 };
 
 /// A pane of the dashboard.
@@ -32,18 +32,21 @@ pub enum View {
     Dependencies,
     /// Unreferenced items.
     DeadCode,
+    /// Duplicate code, ranked by what folding it would save.
+    Clones,
     /// Every finding, ranked by severity.
     Findings,
 }
 
 impl View {
     /// Every view, in the order the tab bar shows them.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Overview,
         Self::Files,
         Self::Directories,
         Self::Dependencies,
         Self::DeadCode,
+        Self::Clones,
         Self::Findings,
     ];
 
@@ -56,6 +59,7 @@ impl View {
             Self::Directories => "Directories",
             Self::Dependencies => "Dependencies",
             Self::DeadCode => "Dead code",
+            Self::Clones => "Duplicates",
             Self::Findings => "Findings",
         }
     }
@@ -83,6 +87,7 @@ impl View {
             StartView::Files => Self::Files,
             StartView::Dependencies => Self::Dependencies,
             StartView::DeadCode => Self::DeadCode,
+            StartView::Clones => Self::Clones,
             StartView::Findings => Self::Findings,
         }
     }
@@ -170,7 +175,7 @@ pub enum Action {
 const PAGE: usize = 10;
 
 /// Initial ordering for each tab; data panes with byte metrics start by size.
-const DEFAULT_SORTS: [usize; View::ALL.len()] = [0, 3, 0, 3, 0, 0];
+const DEFAULT_SORTS: [usize; View::ALL.len()] = [0, 3, 0, 3, 0, 0, 0];
 
 /// One row in the ncdu-style directory browser.
 #[derive(Debug)]
@@ -371,6 +376,9 @@ impl Dashboard {
             (View::Dependencies, _) => "source size",
             (View::DeadCode, 0) => "confidence",
             (View::DeadCode, _) => "file",
+            (View::Clones, 0) => "score",
+            (View::Clones, 1) => "lines saved",
+            (View::Clones, _) => "copies",
         }
     }
 
@@ -819,6 +827,42 @@ impl Dashboard {
         entries
     }
 
+    /// Clone groups matching the current filters.
+    ///
+    /// Hiding tests removes groups made only of test code; a group with one
+    /// production copy stays, since that copy is what would change.
+    #[must_use]
+    pub fn clones(&self) -> Vec<&CloneGroup> {
+        let mut groups: Vec<_> = self
+            .report
+            .clones
+            .iter()
+            .filter(|group| !(self.hide_tests && group.in_tests))
+            .filter(|group| {
+                self.matches(group.sketch.signature.as_str())
+                    || group.instances.iter().any(|instance| {
+                        self.matches(&instance.file)
+                            || instance
+                                .item
+                                .as_deref()
+                                .is_some_and(|item| self.matches(item))
+                    })
+            })
+            .collect();
+        match self.sorts[View::Clones.index()] {
+            0 => {}
+            1 => groups.sort_by_key(|group| Reverse(group.lines_saved)),
+            _ => groups.sort_by_key(|group| Reverse(group.instances.len())),
+        }
+        groups
+    }
+
+    /// The clone group the cursor is on, when the duplicates view is open.
+    #[must_use]
+    pub fn selected_clone(&self) -> Option<&CloneGroup> {
+        self.clones().get(self.cursor()).copied()
+    }
+
     /// Findings matching the current filter.
     #[must_use]
     pub fn findings(&self) -> Vec<&Finding> {
@@ -942,6 +986,7 @@ impl Dashboard {
             View::Directories => self.browser_entries().len(),
             View::Dependencies => self.packages().len(),
             View::DeadCode => self.dead_code().len(),
+            View::Clones => self.clones().len(),
             View::Findings => self.findings().len(),
         }
     }
@@ -1538,7 +1583,7 @@ enum ReloadState {
 
 const fn sort_count(view: View) -> usize {
     match view {
-        View::Overview | View::Findings | View::DeadCode => 3,
+        View::Overview | View::Findings | View::DeadCode | View::Clones => 3,
         View::Dependencies | View::Directories => 4,
         View::Files => 5,
     }

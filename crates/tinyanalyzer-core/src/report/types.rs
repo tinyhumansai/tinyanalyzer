@@ -4,6 +4,7 @@
 //! serializable in full, so a report can be written to a file, compared against
 //! a later one, or handed to something that is not this program at all.
 
+use crate::clones::CloneGroup;
 use crate::config::Note;
 use crate::dead_code::DeadCodeCandidate;
 use crate::deps::DependencyReport;
@@ -38,6 +39,12 @@ pub struct Report {
     pub dependencies: DependencyReport,
     /// Items nothing appears to reference.
     pub dead_code: Vec<DeadCodeCandidate>,
+    /// Code written more than once, best opportunity first.
+    ///
+    /// Defaults to empty when reading a report written before clone detection
+    /// existed.
+    #[serde(default)]
+    pub clones: Vec<CloneGroup>,
     /// Everything worth doing something about, most severe first.
     pub findings: Vec<Finding>,
     /// Files that could not be parsed, and why.
