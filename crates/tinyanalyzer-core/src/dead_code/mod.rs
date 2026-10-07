@@ -24,14 +24,14 @@
 //!   the workspace entirely, so those come back at [`Confidence::Medium`] and are
 //!   never presented as certain.
 //!
-//! Files no crate root reaches are the exception that proves it: such a file
-//! is not compiled at all, and [`crate::report`] adds it here as one
-//! [`DefinitionKind::File`] candidate rather than one per item inside it.
-//!
 //! Modules are excluded from the report on purpose. A `mod` declaration is a
 //! namespace, not a symbol: it compiles its contents whether or not anything
 //! names the module itself, so "unreferenced module" would be true of almost
 //! every module in a well-organized crate and would mean nothing.
+//!
+//! What *is* reported is a file no `mod` declaration reaches at all: it is not
+//! compiled, so everything in it is dead. [`crate::report`] adds each one as a
+//! single [`DefinitionKind::File`] candidate rather than one per item inside.
 
 mod types;
 
