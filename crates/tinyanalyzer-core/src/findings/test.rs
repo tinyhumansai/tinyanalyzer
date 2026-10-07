@@ -617,3 +617,47 @@ fn test_only_or_read_only_duplicates_are_not_findings() {
         0
     );
 }
+
+#[test]
+fn each_orphaned_file_is_its_own_finding_and_not_part_of_the_dead_code_count() {
+    let orphan = |path: &str| DeadCodeCandidate {
+        name: "stale".to_owned(),
+        kind: DefinitionKind::File,
+        file: path.to_owned(),
+        line: 1,
+        is_public: false,
+        is_test: false,
+        confidence: Confidence::High,
+        reason: "nothing loads it".to_owned(),
+    };
+    let candidates = [orphan("src/stale.rs"), orphan("src/one.rs")];
+    let files = [
+        file("src/stale.rs", lines(12, 0), None),
+        file("src/one.rs", lines(1, 0), None),
+    ];
+
+    let findings = analyze(
+        FindingInputs {
+            files: &files,
+            directories: &[],
+            dependencies: &DependencyReport::default(),
+            dead_code: &candidates,
+            parse_failures: &[],
+            clones: &[],
+        },
+        &Thresholds::default(),
+    );
+
+    assert!(!rules(&findings).contains(&Rule::DeadCode));
+    let orphans: Vec<_> = findings
+        .iter()
+        .filter(|finding| finding.rule == Rule::OrphanFile)
+        .collect();
+    assert_eq!(orphans.len(), 2);
+    assert_eq!(orphans[0].severity, Severity::High);
+    assert_eq!(orphans[0].title, "src/stale.rs is compiled by nothing");
+    assert!(orphans[0].detail.starts_with("12 lines of code"));
+    assert!(orphans[0].suggestion.contains("`mod stale;`"));
+    assert!(orphans[1].detail.starts_with("1 line of code"));
+    assert!(orphans[1].detail.ends_with("lints it."));
+}

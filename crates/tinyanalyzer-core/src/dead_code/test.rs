@@ -277,3 +277,47 @@ fn every_confidence_level_has_a_label() {
     assert_eq!(Confidence::High.label(), "high");
     assert_eq!(Confidence::Medium.label(), "medium");
 }
+
+#[test]
+fn an_orphaned_file_is_added_once_named_after_its_module() {
+    let file = parsed("fn kept() {}\nfn helper() { kept(); }\n");
+    let inputs = [DeadCodeInput {
+        path: "src/lib.rs",
+        rust: &file,
+        is_test_file: false,
+    }];
+    let mut found = analyze(&inputs, &DeadCodeConfig::default());
+    let orphans = [
+        crate::module_tree::OrphanFile {
+            path: "src/stale/mod.rs".to_owned(),
+            crate_name: "demo".to_owned(),
+        },
+        crate::module_tree::OrphanFile {
+            path: "src/old_tests.rs".to_owned(),
+            crate_name: "demo".to_owned(),
+        },
+    ];
+
+    super::add_orphans(&mut found, &orphans, |path| path.ends_with("_tests.rs"));
+
+    let files: Vec<(&str, &str, bool)> = found
+        .iter()
+        .filter(|candidate| candidate.kind == crate::rust_source::DefinitionKind::File)
+        .map(|candidate| {
+            (
+                candidate.name.as_str(),
+                candidate.file.as_str(),
+                candidate.is_test,
+            )
+        })
+        .collect();
+    assert_eq!(
+        files,
+        [
+            ("old_tests", "src/old_tests.rs", true),
+            ("stale", "src/stale/mod.rs", false)
+        ]
+    );
+    assert!(found.iter().all(|candidate| candidate.confidence == Confidence::High));
+    assert!(found[0].reason.contains("`demo`"));
+}
