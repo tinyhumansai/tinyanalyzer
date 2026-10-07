@@ -708,3 +708,36 @@ fn analyzing_something_that_is_not_a_directory_fails_rather_than_reporting_nothi
 
     assert!(analyze(root.path().join("Cargo.toml")).is_err());
 }
+
+#[test]
+fn an_orphaned_file_is_serialized_as_a_file_candidate_and_an_orphan_file_finding() {
+    let root = TempDir::new().expect("a temporary directory");
+    write(
+        root.path(),
+        "Cargo.toml",
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    write(root.path(), "src/lib.rs", "//! Demo.\n\npub fn live() {}\n");
+    write(root.path(), "src/left_over.rs", "pub fn stale() {}\n");
+
+    let report = analyze_with(root.path(), &no_cargo()).expect("a walkable tree");
+    let value: serde_json::Value =
+        serde_json::from_str(&report.to_json().expect("a report serializes")).expect("valid JSON");
+
+    let orphan = value["dead_code"]
+        .as_array()
+        .expect("dead_code is an array")
+        .iter()
+        .find(|candidate| candidate["kind"] == "file")
+        .expect("the orphan is a dead-code candidate");
+    assert_eq!(orphan["file"], "src/left_over.rs");
+    assert_eq!(orphan["confidence"], "high");
+    assert!(
+        value["findings"]
+            .as_array()
+            .expect("findings is an array")
+            .iter()
+            .any(|finding| finding["rule"] == "orphan_file"),
+        "the rule identifier is part of the format"
+    );
+}

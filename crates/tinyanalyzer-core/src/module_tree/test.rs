@@ -249,9 +249,10 @@ fn every_conventional_and_explicit_target_is_a_root() {
 
 #[test]
 fn a_file_that_is_both_a_production_and_a_test_root_is_production() {
-    let manifest: toml::Value =
-        toml::from_str("[package]\nname = \"demo\"\n[[test]]\nname = \"t\"\npath = \"src/main.rs\"\n")
-            .unwrap();
+    let manifest: toml::Value = toml::from_str(
+        "[package]\nname = \"demo\"\n[[test]]\nname = \"t\"\npath = \"src/main.rs\"\n",
+    )
+    .unwrap();
 
     let found = roots(".", &manifest, &[]);
 
@@ -336,7 +337,10 @@ fn files_reached_only_through_cfg_test_are_test_only() {
             "src/engine.rs",
             "pub fn run() {}\n#[cfg(test)]\n#[path = \"engine_tests.rs\"]\nmod tests;\n",
         )
-        .file("src/engine_tests.rs", "use super::*;\n#[test]\nfn runs() { run(); }\n")
+        .file(
+            "src/engine_tests.rs",
+            "use super::*;\n#[test]\nfn runs() { run(); }\n",
+        )
         .file("src/lib_checks.rs", "mod support;\n")
         .file("src/lib_checks/support.rs", "fn helper() {}\n");
 
@@ -346,16 +350,26 @@ fn files_reached_only_through_cfg_test_are_test_only() {
     let test_only: Vec<&str> = tree.test_only.iter().map(String::as_str).collect();
     assert_eq!(
         test_only,
-        ["src/engine_tests.rs", "src/lib_checks.rs", "src/lib_checks/support.rs"]
+        [
+            "src/engine_tests.rs",
+            "src/lib_checks.rs",
+            "src/lib_checks/support.rs"
+        ]
     );
 }
 
 #[test]
 fn a_file_production_also_reaches_is_not_test_only() {
     let fixture = demo()
-        .file("src/lib.rs", "mod shared;\n#[cfg(test)]\nmod tests { use super::shared; }\n")
+        .file(
+            "src/lib.rs",
+            "mod shared;\n#[cfg(test)]\nmod tests { use super::shared; }\n",
+        )
         .file("src/shared.rs", "pub fn s() {}\n")
-        .file("tests/api.rs", "#[path = \"../src/shared.rs\"]\nmod shared;\n");
+        .file(
+            "tests/api.rs",
+            "#[path = \"../src/shared.rs\"]\nmod shared;\n",
+        );
 
     assert!(fixture.resolve().test_only.contains("tests/api.rs"));
     assert!(!fixture.resolve().test_only.contains("src/shared.rs"));
@@ -366,7 +380,10 @@ fn a_file_a_test_target_reaches_through_a_path_is_not_an_orphan() {
     let fixture = demo()
         .file("src/lib.rs", "pub fn l() {}\n")
         .file("src/fixtures.rs", "pub fn f() {}\n")
-        .file("tests/api.rs", "#[path = \"../src/fixtures.rs\"]\nmod fixtures;\n");
+        .file(
+            "tests/api.rs",
+            "#[path = \"../src/fixtures.rs\"]\nmod fixtures;\n",
+        );
 
     let tree = fixture.resolve();
     assert!(tree.orphans.is_empty());
@@ -431,7 +448,9 @@ fn a_package_with_an_unreadable_reachable_file_is_not_searched() {
 
 #[test]
 fn a_package_whose_root_the_walk_excluded_is_not_searched() {
-    let fixture = demo().excluded("src/lib.rs").file("src/x.rs", "fn x() {}\n");
+    let fixture = demo()
+        .excluded("src/lib.rs")
+        .file("src/x.rs", "fn x() {}\n");
 
     assert!(fixture.orphans().is_empty());
 }
@@ -456,7 +475,9 @@ fn files_without_items_or_outside_src_are_not_reported() {
 
 #[test]
 fn a_dangling_declaration_is_ignored() {
-    let fixture = demo().file("src/lib.rs", "mod missing;\n").file("src/x.rs", "fn x() {}\n");
+    let fixture = demo()
+        .file("src/lib.rs", "mod missing;\n")
+        .file("src/x.rs", "fn x() {}\n");
 
     assert_eq!(fixture.orphans(), ["src/x.rs"]);
 }

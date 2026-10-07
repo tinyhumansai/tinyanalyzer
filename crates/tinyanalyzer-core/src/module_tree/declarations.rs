@@ -86,7 +86,12 @@ impl<'ast> Visit<'ast> for Collector {
     }
 
     fn visit_macro(&mut self, node: &'ast syn::Macro) {
-        let Some(name) = node.path.segments.last().map(|segment| segment.ident.to_string()) else {
+        let Some(name) = node
+            .path
+            .segments
+            .last()
+            .map(|segment| segment.ident.to_string())
+        else {
             return;
         };
         let is_source = name == "include";

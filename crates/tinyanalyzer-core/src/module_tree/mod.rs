@@ -304,7 +304,10 @@ fn targets(
             let Some(child) = join(base, &declaration.name) else {
                 continue;
             };
-            for candidate in [format!("{}.rs", declaration.name), format!("{}/mod.rs", declaration.name)] {
+            for candidate in [
+                format!("{}.rs", declaration.name),
+                format!("{}/mod.rs", declaration.name),
+            ] {
                 if let Some(target) = join(base, &candidate) {
                     found.push((target, vec![child.clone()]));
                 }

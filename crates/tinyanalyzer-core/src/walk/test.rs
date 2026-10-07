@@ -343,7 +343,11 @@ fn an_empty_directory_yields_no_files() {
 fn sibling_test_files_are_test_code_by_default() {
     let root = TempDir::new().expect("a temporary directory");
     write(root.path(), "src/engine.rs", "pub fn run() {}\n");
-    write(root.path(), "src/engine_tests.rs", "#[test]\nfn runs() {}\n");
+    write(
+        root.path(),
+        "src/engine_tests.rs",
+        "#[test]\nfn runs() {}\n",
+    );
     write(root.path(), "src/engine_test.rs", "#[test]\nfn runs() {}\n");
 
     let files = discover(root.path(), &ScanConfig::default()).expect("a walkable tree");

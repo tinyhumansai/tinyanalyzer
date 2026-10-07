@@ -92,7 +92,11 @@ pub fn analyze_with(root: impl AsRef<Path>, config: &Config) -> Result<Report> {
 
     let tree = resolve_modules(root, &parsed, &manifests);
     mark_test_only(&mut parsed, &tree.test_only);
-    let orphaned: BTreeSet<&str> = tree.orphans.iter().map(|orphan| orphan.path.as_str()).collect();
+    let orphaned: BTreeSet<&str> = tree
+        .orphans
+        .iter()
+        .map(|orphan| orphan.path.as_str())
+        .collect();
 
     let dependencies = if config.dependencies.enabled {
         deps::analyze(root, &config.dependencies, &crate_references(&parsed)).unwrap_or_default()
@@ -208,22 +212,23 @@ fn parse_one<'a>(source: &'a SourceFile, manifests: &BTreeMap<String, Manifest>)
     let text = source.text.as_deref().unwrap_or_default();
     let lines = count_lines(source.language, text);
 
-    let (rust, declarations, failure) = if source.language == Language::Rust && source.text.is_some() {
-        match rust_source::analyze_with_declarations(text) {
-            Ok((parsed, declarations)) => (Some(parsed), Some(declarations), None),
-            Err(error) => (
-                None,
-                None,
-                Some(ParseFailureReport {
-                    path: source.relative_path.clone(),
-                    line: error.line,
-                    message: error.message,
-                }),
-            ),
-        }
-    } else {
-        (None, None, None)
-    };
+    let (rust, declarations, failure) =
+        if source.language == Language::Rust && source.text.is_some() {
+            match rust_source::analyze_with_declarations(text) {
+                Ok((parsed, declarations)) => (Some(parsed), Some(declarations), None),
+                Err(error) => (
+                    None,
+                    None,
+                    Some(ParseFailureReport {
+                        path: source.relative_path.clone(),
+                        line: error.line,
+                        message: error.message,
+                    }),
+                ),
+            }
+        } else {
+            (None, None, None)
+        };
 
     let is_test = source.is_test_path || rust.as_ref().is_some_and(|file| file.is_test_module);
     let test_lines = if is_test {

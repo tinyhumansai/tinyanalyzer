@@ -318,8 +318,16 @@ fn an_orphaned_file_is_added_once_named_after_its_module() {
             ("stale", "src/stale/mod.rs", false)
         ]
     );
-    assert!(found.iter().all(|candidate| candidate.confidence == Confidence::High));
-    assert!(found.iter().any(|candidate| candidate.reason.contains("`demo`")));
+    assert!(
+        found
+            .iter()
+            .all(|candidate| candidate.confidence == Confidence::High)
+    );
+    assert!(
+        found
+            .iter()
+            .any(|candidate| candidate.reason.contains("`demo`"))
+    );
     // Ranking is kept: the item candidate in `src/lib.rs` still sorts first.
     assert_eq!(found[0].name, "helper");
 }

@@ -155,7 +155,9 @@ impl Rule {
             Self::UnfinishedWork => "unfinished-work markers left in comments",
             Self::ParseFailure => "files the Rust parser refused",
             Self::DuplicateCode => "code written more than once that one helper could replace",
-            Self::OrphanFile => "source files no `mod` declaration reaches, so nothing compiles them",
+            Self::OrphanFile => {
+                "source files no `mod` declaration reaches, so nothing compiles them"
+            }
         }
     }
 }
